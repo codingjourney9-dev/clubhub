@@ -154,3 +154,13 @@ human-readable message; verify gate passes.
 | --- | --- | --- |
 | 2026-10-14 | 1 — Initialization & Boilerplate | Complete. Next 15.5.27 + React 19 + Tailwind v4 + shadcn (`@base-ui/react`), strict TS, response envelope, env contract, `/api/health`, landing page, docs. Gate: lint ✅ typecheck ✅ build ✅ |
 | 2026-10-14 | 2 — Database & Auth | Complete. Postgres 17 + Prisma 7 (driver adapter, composite tenant FKs), migration + idempotent seed, Auth.js v5 credentials/JWT, register API with rate limiting, middleware gate, dashboard reading tenant/club roles in zone-correct time. Gate: lint ✅ typecheck ✅ build ✅ smoke 25/25 ✅ |
+
+---
+
+## Operational notes
+
+- `next dev` and `next build` share the `.next` directory: stop the dev server before running
+  `npm run verify`, or restart it afterwards. (Running a production build while dev is live kills
+  the dev process.)
+- The local Postgres cluster is not started automatically. After a fresh sandbox session run
+  `npm run db:start` (or `./scripts/db.sh status` to check).
