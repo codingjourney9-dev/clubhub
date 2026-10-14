@@ -34,6 +34,12 @@ yarn-error.log*
 .env*
 !.env.example
 
+# Prisma 7 generates its typed client into the source tree (npm run postinstall → prisma generate)
+/src/generated
+
+# local Postgres cluster lives outside the repo (see scripts/db.sh)
+/pgdata
+
 # vercel
 .vercel
 

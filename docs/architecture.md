@@ -35,9 +35,10 @@ Tenant (college / university)
 - Every join table carries a surrogate `id`, a unique constraint on the natural key, and
   `created_at` (and `deleted_at` where membership history matters).
 
-## 2. Data model intent
+## 2. Data model ✅ implemented in Phase 2
 
-Implemented in Phase 2 (`prisma/schema.prisma`). Storage rules that hold across tables:
+Source of truth: `prisma/schema.prisma`, applied by
+`prisma/migrations/20261014131604_init_tenancy_and_ticketing`. Storage rules that hold across tables:
 
 | Concern | Decision |
 | --- | --- |
@@ -52,6 +53,54 @@ Implemented in Phase 2 (`prisma/schema.prisma`). Storage rules that hold across 
 Indexes are chosen for the access paths the UI actually uses, e.g.
 `Event(club_id, start_time)`, `Ticket(event_id, status)`, `Attendance(event_id, check_in_time)` and a
 unique index on `Ticket(event_id, user_id)` to make double-RSVP impossible at the database level.
+
+### 2.1 Tenancy is enforced by the database, not just by discipline
+
+`tenant_id` is denormalised onto `events`, `tickets` and `attendance`, and child rows are attached
+to their parent with **composite foreign keys that include the tenant**:
+
+```sql
+ALTER TABLE "events"     ADD CONSTRAINT "events_club_id_tenant_id_fkey"
+  FOREIGN KEY ("club_id", "tenant_id")  REFERENCES "clubs"("id", "tenant_id")   ON DELETE RESTRICT;
+ALTER TABLE "tickets"    ADD CONSTRAINT "tickets_event_id_tenant_id_fkey"
+  FOREIGN KEY ("event_id", "tenant_id") REFERENCES "events"("id", "tenant_id")  ON DELETE RESTRICT;
+ALTER TABLE "attendance" ADD CONSTRAINT "attendance_ticket_id_tenant_id_fkey"
+  FOREIGN KEY ("ticket_id", "tenant_id") REFERENCES "tickets"("id", "tenant_id") ON DELETE RESTRICT;
+```
+
+A row whose `tenant_id` disagrees with its parent's tenant cannot be inserted at all — Postgres
+rejects it. That turns "always filter by tenant" from a code-review rule into a schema guarantee,
+and it is why the composite parents carry a redundant `UNIQUE (id, tenant_id)`.
+
+Delete behaviour is explicit rather than implicit: `CASCADE` for derived rows (`tenant → clubs`,
+`tenant_members`, `club_members`), `RESTRICT` where history must survive (`club → events`,
+`event → tickets`, `ticket → attendance`), and `SET NULL` for authorship (`events.created_by_id`,
+`attendance.checked_in_by`).
+
+### 2.2 Prisma 7 specifics (they changed in this major)
+
+| Thing | Prisma 6 | Prisma 7 (what this repo uses) |
+| --- | --- | --- |
+| Connection URL | `datasource { url = env("DATABASE_URL") }` | `prisma7.config.ts`; the schema has **no** `url` |
+| Runtime connection | built-in Rust engine | **driver adapter required**: `new PrismaClient({ adapter: new PrismaPg({ connectionString }) })` |
+| Client generation | `prisma-client-js` → `node_modules/.prisma` | `prisma-client` → `src/generated/prisma` (gitignored, rebuilt by `postinstall`) |
+| `.env` loading | automatic | **not** automatic — `prisma7.config.ts` imports `dotenv/config` |
+| Query engine | Rust binary | TypeScript query compiler |
+
+`src/lib/db/client.ts` is the single place that knows any of this: one adapter, one client, cached on
+`globalThis` so hot reload does not open a new pool per edit.
+
+### 2.3 Identity & sessions ✅ implemented in Phase 2
+
+- **Credentials (email + bcrypt, 12 rounds)** via Auth.js v5, with `@auth/prisma-adapter` deliberately
+  *not* wired yet: the spec's entity list has no `Account`/`Session`/`VerificationToken` tables, and
+  JWT sessions need none of them. Adding OAuth or magic links later means installing the adapter and
+  adding those three tables; the session strategy stays JWT.
+- The JWT carries **identity only** (`sub`, email, name, image). Roles are *never* baked into the
+  token, so demoting a club president takes effect on their next request instead of when the session
+  expires. `getCurrentUser()` (request-cached) does the read.
+- Failed sign-ins compare against a dummy hash when the email is unknown, so response timing does not
+  reveal which accounts exist.
 
 ## 3. Isolation rules (non-negotiable)
 
@@ -119,12 +168,17 @@ Five people hitting "RSVP" for the last two seats must produce exactly two regis
 - Rendering happens client-side against the viewer's zone with the tenant zone shown explicitly on
   admin screens, so a "6:00 PM" event is never ambiguous.
 
-### 5.4 Rate limiting (Phase 5)
-- Token bucket keyed by `(user_id, action)` for authenticated RSVPs and by IP for public auth
-  endpoints, e.g. 10 RSVPs/minute, 30 invites/hour.
-- `RATE_LIMIT_DRIVER=memory` uses a per-process store for dev/single instance; `redis` swaps in a
-  shared store without changing call sites. Exceeded requests return `429` with `Retry-After` and
-  the `RATE_LIMITED` error code.
+### 5.4 Rate limiting (registration ✅ Phase 2 · RSVPs/invites Phase 5)
+- Token bucket keyed by `(identity, action)`: by IP for the public registration endpoint (shipped),
+  by `user_id` for authenticated RSVPs and invites (Phase 5), e.g. 10 RSVPs/minute, 30 invites/hour.
+- Shipped budget: **5 signups per IP**, refilling one every 3 minutes →
+  `429` + `Retry-After` + the `RATE_LIMITED` error code.
+- IP extraction trusts `x-forwarded-for`, which is only sound behind a proxy that overwrites the
+  header (Vercel, nginx, the sandbox preview). Phase 5 prefers the authenticated user id, removing
+  the trust question for everything except auth.
+- `RATE_LIMIT_DRIVER=memory` uses a per-process store for dev/single-instance deploys; `redis` swaps
+  in a shared store without changing call sites (per-process buckets are bypassable by simply
+  hitting another instance).
 
 ### 5.5 Soft deletes & data integrity (Phase 4)
 - `deleted_at` instead of `DELETE`; attendance and ticket history survive.
@@ -181,7 +235,13 @@ src/
 ## 8. Toolchain
 
 Node 20.20 LTS · npm 10. Next 15.5.27 · React 19.1 · TypeScript 5.9 · Tailwind 4 · Zod 4.6 ·
-TanStack Query 5.104 · shadcn/ui with `@base-ui/react` primitives · lucide-react 1.57.
+TanStack Query 5.104 · shadcn/ui with `@base-ui/react` primitives · lucide-react 1.57 ·
+**PostgreSQL 17.11 · Prisma 7.10 (query compiler + `@prisma/adapter-pg`) · Auth.js 5.0.0-beta.32 ·
+bcryptjs 3**.
+
+Local development database: a cluster in `/home/user/pgdata`, managed by `scripts/db.sh`
+(`init | start | stop | status | psql | reset`). Data lives outside the repo, so it is never
+committed and survives across sessions.
 
 > Note on shadcn/ui: the current registry ships `@base-ui/react` primitives, which use a `render`
 > prop (`<Button render={<Link href="/x" />}>`) instead of Radix's `asChild`. Components in
@@ -197,3 +257,7 @@ TanStack Query 5.104 · shadcn/ui with `@base-ui/react` primitives · lucide-rea
 | 4 | Shared Zod schemas client + server | One definition, two enforcement points; server remains the authority |
 | 5 | Single response envelope | Client hooks discriminate on `ok`; error codes map to fixed HTTP statuses |
 | 6 | UUID ticket secrets distinct from ticket id | A leaked ticket id cannot forge a check-in |
+| 7 | Composite `(child_id, tenant_id)` foreign keys | Makes cross-tenant rows impossible to insert, not merely discouraged |
+| 8 | Prisma 7 with the `pg` driver adapter | Required in v7; also means pooling is explicit and observable |
+| 9 | Auth.js credentials + JWT, no adapter yet | Matches the spec's entity list exactly; roles always re-read from the DB; OAuth is a drop-in later |
+| 10 | Registration rate limit shipped in Phase 2 | The endpoint is public the moment it exists — leaving it open until Phase 5 would be a real gap |

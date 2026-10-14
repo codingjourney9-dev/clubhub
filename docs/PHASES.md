@@ -40,25 +40,45 @@ npm run lint && npm run typecheck && npm run build
 
 ---
 
-## Phase 2 — Database & Auth (next)
+## Phase 2 — Database & Auth ✅ Complete
 
-- Prisma schema for `Tenant`, `User`, `TenantMember`, `Club`, `ClubMember`, `Event`, `Ticket`,
-  `Attendance` with the storage rules from architecture §2 (UTC timestamps, soft deletes, unique
-  constraints, indexes).
-- Local Postgres provisioned and migrated; seed script with one tenant, two clubs, three users
-  holding different roles.
-- Auth.js v5 (credentials + optional OAuth) with Prisma adapter, JWT session strategy, typed
-  session augmentation (`session.user.id`).
-- `src/lib/db/client.ts` singleton (dev-safe) and `src/middleware.ts` protecting `(dashboard)` and
-  `scanner` route groups.
-- `/api/health` extended with a database round-trip check.
+**Delivered**
 
-**Acceptance criteria:** migrations apply from scratch; seed runs; sign-in/sign-out works; a signed-out
-request to a protected route redirects; `/api/health` reports `database: "up"`; verify gate passes.
+- PostgreSQL 17.11 cluster provisioned locally, controlled by `scripts/db.sh`; data directory lives
+  outside the repo so it is never committed.
+- Prisma 7 schema for `Tenant`, `User`, `TenantMember`, `Club`, `ClubMember`, `Event`, `Ticket`,
+  `Attendance`: composite `(id, tenant_id)` foreign keys, `deleted_at` soft deletes, UTC
+  `timestamptz`, and the indexes the UI will query on. Migration
+  `20261014131604_init_tenancy_and_ticketing` applied.
+- Idempotent seed (`prisma/seed.ts`, fixed UUIDs): 1 tenant, 2 clubs, 4 users, 6 club memberships,
+  3 events — one account is deliberately President in one club and a plain Member in another.
+- Auth.js v5 credentials provider (bcrypt, 12 rounds) with identity-only JWT sessions, typed session
+  augmentation, and an edge-safe split config so middleware never bundles Prisma.
+- `POST /api/auth/register`: Zod-validated, `409` on duplicates (unique index is the authority),
+  per-IP rate limiting (5 per 15 minutes, `429` + `Retry-After`).
+- `src/middleware.ts` gates `/dashboard`, `/scanner`, `/onboarding`; `/api/health` now reports
+  database readiness and returns `503` when Postgres is unreachable.
+- Sign-in / sign-up UI (React Hook Form + Zod + toasts), auth-aware header, and a dashboard that
+  renders the caller's tenant and club roles plus upcoming events in the tenant timezone.
+
+**Acceptance criteria — verified**
+
+| # | Criterion | Result |
+| --- | --- | --- |
+| 1 | Migrations apply from scratch | ✅ `prisma migrate deploy` on a fresh database |
+| 2 | Seed runs and is safely re-runnable | ✅ fixed UUIDs + upserts |
+| 3 | Sign-in works; sign-out works | ✅ 302 + session cookie; a wrong password creates no session |
+| 4 | Signed-out hits on protected routes redirect | ✅ → `/sign-in?callbackUrl=…` |
+| 5 | `/api/health` reports the database | ✅ `"status":"up"` with latency; `503` when down |
+| 6 | Server-side validation is authoritative | ✅ `422` + named field errors on a malformed body |
+| 7 | Registration rate limiting | ✅ `429` + `Retry-After` once the bucket empties |
+| 8 | Roles are per club, from one session | ✅ President in club A, Member in club B |
+| 9 | Gate | ✅ lint + typecheck + build |
+| 10 | Smoke test | ✅ `npm run test:smoke` → 25/25 checks |
 
 ---
 
-## Phase 3 — Tenant & Club Scaffolding
+## Phase 3 — Tenant & Club Scaffolding (next)
 
 - Onboarding flow: create a tenant (with timezone + branding) or join via invite.
 - Club CRUD scoped to the active tenant; invite members by email with role selection.
@@ -133,3 +153,4 @@ human-readable message; verify gate passes.
 | Date | Phase | Result |
 | --- | --- | --- |
 | 2026-10-14 | 1 — Initialization & Boilerplate | Complete. Next 15.5.27 + React 19 + Tailwind v4 + shadcn (`@base-ui/react`), strict TS, response envelope, env contract, `/api/health`, landing page, docs. Gate: lint ✅ typecheck ✅ build ✅ |
+| 2026-10-14 | 2 — Database & Auth | Complete. Postgres 17 + Prisma 7 (driver adapter, composite tenant FKs), migration + idempotent seed, Auth.js v5 credentials/JWT, register API with rate limiting, middleware gate, dashboard reading tenant/club roles in zone-correct time. Gate: lint ✅ typecheck ✅ build ✅ smoke 25/25 ✅ |

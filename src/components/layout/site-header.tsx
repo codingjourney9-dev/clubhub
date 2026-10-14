@@ -1,20 +1,24 @@
 import Link from "next/link";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, LayoutDashboard, LogOut } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { getCurrentUser } from "@/lib/auth/session";
+import { signOutAction } from "@/lib/auth/actions";
 import { siteConfig, phaseRoadmap } from "@/config/site";
+import { cn } from "@/lib/utils";
 
 /**
- * Routes that exist but are intentionally not built yet. They are rendered as
- * inert labels so the UI never links to a 404 while later phases land.
+ * Routes that exist but are intentionally not built yet, so the UI never links
+ * to a 404 while later phases land.
  */
 const upcomingNav = phaseRoadmap
   .filter((phase) => phase.id >= 3 && phase.id <= 6)
   .map((phase) => ({ label: phase.title.split(" ")[0] ?? "Soon", phaseId: phase.id }));
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const user = await getCurrentUser();
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-3 px-4">
@@ -44,16 +48,43 @@ export function SiteHeader() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <Badge variant="secondary" className="hidden sm:inline-flex">
-            Phase 1 · Boilerplate
-          </Badge>
           <Link
             href="/api/health"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             prefetch={false}
+            className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "hidden sm:inline-flex")}
           >
             API health
           </Link>
+
+          {user ? (
+            <>
+              <Link
+                href="/dashboard"
+                className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}
+              >
+                <LayoutDashboard data-icon="inline-start" />
+                Dashboard
+              </Link>
+              <span className="hidden text-xs text-muted-foreground lg:inline">
+                {user.displayName}
+              </span>
+              <form action={signOutAction}>
+                <Button type="submit" variant="ghost" size="sm" title="Sign out">
+                  <LogOut data-icon="inline-start" />
+                  <span className="sr-only">Sign out</span>
+                </Button>
+              </form>
+            </>
+          ) : (
+            <>
+              <Link href="/sign-up" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+                Create account
+              </Link>
+              <Link href="/sign-in" className={cn(buttonVariants({ size: "sm" }))}>
+                Sign in
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>

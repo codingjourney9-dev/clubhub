@@ -40,7 +40,7 @@ export const phaseRoadmap: readonly PhaseRoadmapItem[] = [
     title: "Database & Auth",
     summary:
       "Prisma schema (tenants, clubs, members, events, tickets, attendance), migrations, Auth.js v5 sessions.",
-    status: "planned",
+    status: "complete",
   },
   {
     id: 3,

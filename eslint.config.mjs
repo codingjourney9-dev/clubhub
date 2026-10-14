@@ -18,6 +18,9 @@ const eslintConfig = [
       "out/**",
       "build/**",
       "next-env.d.ts",
+      // Prisma 7 generates its client into the source tree; it is build output,
+      // not hand-written code, so it stays out of lint.
+      "src/generated/**",
     ],
   },
 ];

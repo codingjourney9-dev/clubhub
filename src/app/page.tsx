@@ -42,12 +42,20 @@ const stackGroups = [
   {
     icon: Database,
     title: "Data layer",
-    items: ["PostgreSQL · pool tenancy", "Prisma ORM + migrations", "tenantId on every core table"],
+    items: [
+      "PostgreSQL 17 · pool tenancy",
+      "Prisma 7 + driver adapter",
+      "tenantId pinned by composite FKs",
+    ],
   },
   {
     icon: KeyRound,
     title: "Auth & tenancy",
-    items: ["Auth.js v5 sessions", "TenantMember / ClubMember join tables", "Guard at the route-handler boundary"],
+    items: [
+      "Auth.js v5 · bcrypt credentials",
+      "JWT sessions carry identity only",
+      "Roles re-read per request from the DB",
+    ],
   },
   {
     icon: Layers,
@@ -95,6 +103,14 @@ const guardedEdgeCases = [
   },
 ] as const;
 
+/** Kept in sync with prisma/seed.ts — the three roles exist to show RBAC working. */
+const demoAccounts = [
+  { email: "aarav.president@vit.ac.in", roles: "Tenant Owner · President, Robotics · Member, Debate" },
+  { email: "meera.manager@vit.ac.in", roles: "Event Manager, Robotics · Member, Debate" },
+  { email: "kabir.member@vit.ac.in", roles: "Member of both clubs — the restricted view" },
+  { email: "dean.admin@vit.ac.in", roles: "Tenant Admin · no club role, sees across clubs" },
+] as const;
+
 const statusStyles: Record<PhaseStatus, string> = {
   complete: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   in_progress: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
@@ -123,7 +139,7 @@ export default function Home() {
         <section className="flex flex-col items-start gap-5">
           <Badge variant="outline" className="gap-1.5 py-1">
             <CircleCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-            Phase 1 shipped · runnable app, health-checked API
+            Phase 2 shipped · Postgres schema, Prisma 7, Auth.js sessions
           </Badge>
 
           <h1 className="max-w-3xl font-heading text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
@@ -148,6 +164,45 @@ export default function Home() {
             <a href="#roadmap" className={cn(buttonVariants({ size: "lg", variant: "outline" }))}>
               See the build roadmap
             </a>
+          </div>
+        </section>
+
+        {/* Demo access */}
+        <section aria-labelledby="demo-heading" className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 id="demo-heading" className="font-heading text-2xl font-semibold tracking-tight">
+              Review it with seeded data
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              One tenant (Vadodara Institute of Technology), two clubs and four accounts that hold
+              deliberately different roles. Password for all of them:{" "}
+              <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">password123</code>
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {demoAccounts.map((account) => (
+              <div
+                key={account.email}
+                className="flex flex-col gap-1 rounded-lg border bg-muted/30 p-4"
+              >
+                <span className="font-mono text-xs text-muted-foreground">{account.email}</span>
+                <span className="text-sm font-medium">{account.roles}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="/sign-in" className={cn(buttonVariants({ size: "lg" }))}>
+              Sign in as a demo user
+              <ArrowRight data-icon="inline-end" />
+            </Link>
+            <Link
+              href="/dashboard"
+              className={cn(buttonVariants({ size: "lg", variant: "outline" }))}
+            >
+              Go to the dashboard (auth-gated)
+            </Link>
           </div>
         </section>
 
