@@ -20,7 +20,7 @@ import {
 
 import { SiteHeader } from "@/components/layout/site-header";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardAction,
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { phaseRoadmap, siteConfig, type PhaseStatus } from "@/config/site";
+import { cn } from "@/lib/utils";
 
 const stackGroups = [
   {
@@ -134,13 +135,19 @@ export default function Home() {
           </p>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button size="lg" render={<Link href="/api/health" prefetch={false} />}>
+            {/* Links styled as buttons: `buttonVariants` keeps the markup a real
+                <a> instead of a <button>, so prefetching and middle-click work. */}
+            <Link
+              href="/api/health"
+              prefetch={false}
+              className={cn(buttonVariants({ size: "lg" }))}
+            >
               Open the API health check
               <ArrowRight data-icon="inline-end" />
-            </Button>
-            <Button size="lg" variant="outline" render={<a href="#roadmap" />}>
+            </Link>
+            <a href="#roadmap" className={cn(buttonVariants({ size: "lg", variant: "outline" }))}>
               See the build roadmap
-            </Button>
+            </a>
           </div>
         </section>
 
