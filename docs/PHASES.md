@@ -159,8 +159,40 @@ human-readable message; verify gate passes.
 
 ## Operational notes
 
-- `next dev` and `next build` share the `.next` directory: stop the dev server before running
-  `npm run verify`, or restart it afterwards. (Running a production build while dev is live kills
-  the dev process.)
-- The local Postgres cluster is not started automatically. After a fresh sandbox session run
-  `npm run db:start` (or `./scripts/db.sh status` to check).
+### After a fresh sandbox session, run these three commands
+
+Sandbox snapshots persist `*.ts/.tsx/.sql/.prisma` files, the Postgres **data directory** and the
+repo history — but they deliberately exclude `node_modules`, installed apt packages, `.next`, and
+**empty directories**. So:
+
+```bash
+npm install        # ~35s: restores deps and re-runs `prisma generate` (postinstall)
+npm run db:start   # reinstalls Postgres binaries if needed, repairs the data dir, starts the server
+npm run dev        # start the app
+```
+
+`scripts/db.sh start` now self-heals the three things a restore breaks:
+
+1. **Missing binaries** — apt packages are not persisted, so it reinstalls `postgresql` on demand.
+2. **Missing empty directories** — Postgres needs `pg_notify`, `pg_stat_tmp`, `pg_arch…` etc., and
+   archives drop empty dirs; it recreates them (this was the "could not open directory pg_notify"
+   failure).
+3. **Widened data-directory permissions** — Postgres refuses anything looser than `0750`; the
+   directory is normalised to `0700`.
+
+If the cluster is ever unrecoverable, the schema and data are reproducible in seconds:
+
+```bash
+npm run db:reset                 # drop + recreate the database
+npx prisma migrate deploy        # replay migrations
+npm run db:seed                  # re-seed demo data
+```
+
+### Development gotchas
+
+- `next dev` and `next build` share `.next`: stop the dev server before `npm run verify`, or restart
+  it afterwards (a production build while dev is live kills the dev process).
+- `npm run test:smoke` requires a running dev server and derives a fresh rate-limit bucket per run
+  via a random `X-Forwarded-For`, so it is safely repeatable.
+- The in-app preview renders inside a sandboxed iframe, which can block session cookies. Open the
+  preview URL in a normal browser tab to exercise sign-in.

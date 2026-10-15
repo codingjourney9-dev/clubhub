@@ -36,6 +36,21 @@ npm run dev                          # http://localhost:3000
 
 Already have Postgres? Point `DATABASE_URL` at it and skip `scripts/db.sh init`.
 
+### Coming back to this project in a new session
+
+Sandbox snapshots keep the source, git history and the Postgres **data**, but drop `node_modules`,
+installed packages and empty directories. Recovery is three commands:
+
+```bash
+npm install        # restores deps; postinstall regenerates the Prisma client
+npm run db:start   # reinstalls Postgres binaries if needed, repairs + starts the cluster
+npm run dev
+npm run test:smoke # 25 end-to-end checks against the running server
+```
+
+`scripts/db.sh start` self-heals missing binaries, missing empty data directories and
+over-permissive directory mode. See `docs/PHASES.md` → *Operational notes*.
+
 **Demo accounts** (all with password `password123`):
 
 | Email | Roles — deliberately different in each club |
