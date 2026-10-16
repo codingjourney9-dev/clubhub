@@ -198,9 +198,12 @@ yet *create* a club or an event — that's Phases 3 and 4.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
+| **The app is "gone" after a break** | The sandbox forgets installed tools between sessions | `npm run app:up` — that one command puts everything back |
+| "Signing in…" spins forever | The server stopped while the request was in flight | The form now notices within 4 seconds and tells you. Restart with `npm run app:up` |
 | Sign-in button seems to do nothing | Preview frame blocks cookies | Open the preview in a new tab |
 | "Cannot connect to database" | Postgres isn't running | `npm run db:start` |
-| `next: not found` after reopening the project | `node_modules` folder is not saved in snapshots | `npm install` |
+| Tests fail with `ECONNREFUSED` | Tests need the database | `npm run db:start`, then `npm run test` |
+| `next: not found` after reopening the project | `node_modules` folder is not saved in snapshots | `npm install` (or `npm run app:up`) |
 | Weird errors after running `verify` | The build and the dev server share a temp folder | Restart `npm run dev` |
 | Changes to `.env` have no effect | The server reads settings at startup | Stop and restart `npm run dev` |
 

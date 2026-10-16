@@ -178,28 +178,35 @@ human-readable message; verify gate passes.
 
 ## Operational notes
 
-### After a fresh sandbox session, run these three commands
-
-Sandbox snapshots persist `*.ts/.tsx/.sql/.prisma` files, the Postgres **data directory** and the
-repo history — but they deliberately exclude `node_modules`, installed apt packages, `.next`, and
-**empty directories**. So:
+### One command to bring the app back
 
 ```bash
-npm install        # ~35s: restores deps and re-runs `prisma generate` (postinstall)
+npm run app:up     # deps (if missing) → Postgres → dev server on 0.0.0.0:3000
+```
+
+Sandbox snapshots persist source code, git history and the Postgres **data directory** — but they
+exclude `node_modules`, installed apt packages, `.next`, and **empty directories**. `npm run app:up`
+checks all of that and repairs what is missing in one step.
+
+If you prefer the manual version (same three things):
+
+```bash
+npm install        # restores deps; postinstall re-runs `prisma generate`
 npm run db:start   # reinstalls Postgres binaries if needed, repairs the data dir, starts the server
 npm run dev        # start the app
 ```
 
-`scripts/db.sh start` now self-heals the three things a restore breaks:
+`scripts/db.sh start` self-heals the three things a restore breaks:
 
 1. **Missing binaries** — apt packages are not persisted, so it reinstalls `postgresql` on demand.
-2. **Missing empty directories** — Postgres needs `pg_notify`, `pg_stat_tmp`, `pg_arch…` etc., and
-   archives drop empty dirs; it recreates them (this was the "could not open directory pg_notify"
-   failure).
+2. **Missing empty directories** — Postgres needs `pg_notify`, `pg_stat_tmp` etc., and archives drop
+   empty dirs; it recreates them (this was the "could not open directory pg_notify" failure).
 3. **Widened data-directory permissions** — Postgres refuses anything looser than `0750`; the
    directory is normalised to `0700`.
 
-If the cluster is ever unrecoverable, the schema and data are reproducible in seconds:
+It also clears a stale `postmaster.pid` left behind when a session ends without stopping Postgres.
+
+If the cluster is ever unrecoverable, schema and data are reproducible in seconds:
 
 ```bash
 npm run db:reset                 # drop + recreate the database
@@ -207,10 +214,31 @@ npx prisma migrate deploy        # replay migrations
 npm run db:seed                  # re-seed demo data
 ```
 
+### Why a "hung" sign-in happens, and how the UI now handles it
+
+Auth.js's client `signIn()` makes **three sequential requests** — `GET /api/auth/providers`,
+`GET /api/auth/csrf`, then `POST /api/auth/callback/credentials` — and none of them have a timeout of
+their own. If the server dies *while* one of those is in flight (which is exactly what a sandbox
+restart does), the promise never settles and the button spins forever with no explanation.
+
+`src/components/features/auth/sign-in-form.tsx` now bounds every call:
+
+| Guard | Behaviour |
+| --- | --- |
+| Preflight `GET /api/health` (4 s) | Catches a dead server immediately and says so, with the command to start it |
+| `signIn()` raced against a 12 s deadline | Turns a hung request into "the server never replied — try again" |
+| `try/catch` around the whole flow | Network failures show an actionable message instead of a silent unhandled rejection |
+
+Nothing is submitted when the preflight fails, so a stalled click can never create a half-finished
+sign-in.
+
 ### Development gotchas
 
 - `next dev` and `next build` share `.next`: stop the dev server before `npm run verify`, or restart
   it afterwards (a production build while dev is live kills the dev process).
+- `npm run test` (and therefore `npm run verify`) needs **Postgres running** — the integration tests
+  create a real `clubhub_test` database. If it is down, the suite now prints
+  `Start it with: npm run db:start` instead of a wall of `ECONNREFUSED` noise.
 - `npm run test:smoke` requires a running dev server and derives a fresh rate-limit bucket per run
   via a random `X-Forwarded-For`, so it is safely repeatable.
 - The in-app preview renders inside a sandboxed iframe, which can block session cookies. Open the

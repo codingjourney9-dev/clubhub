@@ -22,7 +22,8 @@
     "db:install": "bash ./scripts/db.sh install",
     "db:status": "bash ./scripts/db.sh status",
     "test": "vitest run --config vitest.config.mts",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "app:up": "bash ./scripts/up.sh"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

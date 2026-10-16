@@ -14,7 +14,29 @@ import { ADMIN_DATABASE_URL, TEST_DATABASE_NAME, TEST_DATABASE_URL } from "./hel
  */
 export default async function globalSetup() {
   const admin = new Client({ connectionString: ADMIN_DATABASE_URL });
-  await admin.connect();
+
+  try {
+    await admin.connect();
+  } catch (error) {
+    // A refused connection here is almost always "the dev database is not
+    // running", not a bug in the tests. Say so plainly instead of dumping a
+    // stack trace with ECONNREFUSED noise.
+    const code = (error as { code?: string }).code;
+    if (code === "ECONNREFUSED" || code === "ENOTFOUND") {
+      throw new Error(
+        [
+          "",
+          "  ✗ Cannot reach PostgreSQL — the integration tests need a real database.",
+          "",
+          "    Start it with:  npm run db:start",
+          "    (or run the whole app with:  npm run app:up)",
+          "",
+        ].join("\n"),
+      );
+    }
+    throw error;
+  }
+
   try {
     await admin.query(`DROP DATABASE IF EXISTS "${TEST_DATABASE_NAME}" WITH (FORCE);`);
     await admin.query(`CREATE DATABASE "${TEST_DATABASE_NAME}";`);
