@@ -127,22 +127,36 @@ EOF
     # Postgres refuses to start unless the data directory is private. Session
     # restores can widen these bits, so normalise them on every start.
     chmod 0700 "$PGDATA_DIR"
+
+    # A restore can swap the data directory out from under a RUNNING server,
+    # leaving the old process holding stale file handles. `pg_ctl status` still
+    # reports "running", but every connection fails with errors like
+    # "could not open file global/pg_filenode.map". So: if a server is already
+    # running, verify it can actually answer a query, and restart it if not.
     if "$PGBIN/pg_ctl" -D "$PGDATA_DIR" status >/dev/null 2>&1; then
-      echo "Postgres already running on port $PORT"
-    else
-      # A session that ended without stopping Postgres leaves postmaster.pid
-      # behind with a dead PID, which blocks startup ("another server might be
-      # running"). Clear it only when the process is genuinely gone.
-      if [ -f "$PGDATA_DIR/postmaster.pid" ]; then
-        stale_pid="$(head -1 "$PGDATA_DIR/postmaster.pid" | tr -d '[:space:]')"
-        if [ -n "$stale_pid" ] && ! kill -0 "$stale_pid" 2>/dev/null; then
-          echo "Clearing stale postmaster.pid (process $stale_pid is gone)"
-          rm -f "$PGDATA_DIR/postmaster.pid"
-        fi
+      if PGPASSWORD="$DB_PASSWORD" "$PGBIN/psql" -h localhost -p "$PORT" -U "$DB_USER" \
+           -d "$DB_NAME" -tAc "SELECT 1" >/dev/null 2>&1; then
+        echo "Postgres already running on port $PORT (responding normally)"
+        exit 0
       fi
-      "$PGBIN/pg_ctl" -D "$PGDATA_DIR" -l "$PGDATA_DIR/server.log" -w start >/dev/null
-      echo "Postgres started on port $PORT (log: $PGDATA_DIR/server.log)"
+      echo "Postgres is running but cannot read its data directory (stale process after a restore)"
+      echo "  → restarting it"
+      "$PGBIN/pg_ctl" -D "$PGDATA_DIR" -m immediate -w stop >/dev/null 2>&1 || true
+      sleep 1
     fi
+
+    # A session that ended without stopping Postgres leaves postmaster.pid
+    # behind with a dead PID, which blocks startup ("another server might be
+    # running"). Clear it only when the process is genuinely gone.
+    if [ -f "$PGDATA_DIR/postmaster.pid" ]; then
+      stale_pid="$(head -1 "$PGDATA_DIR/postmaster.pid" | tr -d '[:space:]')"
+      if [ -n "$stale_pid" ] && ! kill -0 "$stale_pid" 2>/dev/null; then
+        echo "Clearing stale postmaster.pid (process $stale_pid is gone)"
+        rm -f "$PGDATA_DIR/postmaster.pid"
+      fi
+    fi
+    "$PGBIN/pg_ctl" -D "$PGDATA_DIR" -l "$PGDATA_DIR/server.log" -w start >/dev/null
+    echo "Postgres started on port $PORT (log: $PGDATA_DIR/server.log)"
     ;;
 
   stop)
