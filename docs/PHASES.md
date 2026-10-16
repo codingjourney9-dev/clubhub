@@ -97,21 +97,72 @@ the custom error message. Regression covered in `tests/unit/validation.test.ts`.
 
 ---
 
-## Phase 3 — Tenant & Club Scaffolding (next)
+## Phase 3 — Tenant & Club Scaffolding ✅ Complete
 
-- Onboarding flow: create a tenant (with timezone + branding) or join via invite.
-- Club CRUD scoped to the active tenant; invite members by email with role selection.
-- `requireTenantMember()` / `requireClubRole()` guards applied to every handler, plus the RBAC
-  matrix from architecture §4 encoded once in `lib/auth/rbac.ts`.
-- Tenant switcher in the UI; 404 (not 403) for cross-tenant probes.
+Built on the proposed defaults: **invite links** (no email provider needed), **self-serve college
+creation** (the creator becomes Owner), and **club slugs unique per college**.
 
-**Acceptance criteria:** a user is President in Club A and Member in Club B and sees exactly the
-right actions in each; cross-tenant access attempts return 404; every new endpoint has a Zod schema
-and a guard; verify gate passes.
+- **Onboarding** (`/onboarding`): create a college (name, email domain, timezone, brand colour) or
+  see the colleges and clubs you belong to. Club creation lives here for Owners/Admins.
+- **Club workspace** (`/clubs/[clubId]`): roster with roles, invite links, upcoming events. One page,
+  three different experiences depending on who opens it.
+- **Join page** (`/join/[token]`): a safe public preview ("You have been invited to X as Y"), then
+  redemption once signed in.
+- **RBAC as data** (`src/lib/auth/rbac.ts`): the whole permission matrix in one place, with
+  anti-escalation rules — you may only hand out roles you could hold yourself.
+- **Guards** (`src/lib/auth/guards.ts`): `requireTenantAccess` / `requireClubAccess`. A caller with no
+  membership in the college gets **404, never 403**, so probing another college's ids reveals nothing.
+- **19 API handlers** under `/api/tenants`, `/api/clubs`, `/api/invites` — every one behind a guard,
+  a Zod schema and the shared route error handler.
+
+**Invite semantics:** the token (32 random bytes, base64url) is the only thing that appears in a link;
+the role comes from the invite record, never the request; `maxUses` is enforced under
+`SELECT … FOR UPDATE`, so a one-use link cannot be redeemed twice at the same moment; redemption also
+joins the college as a plain member, because every read is tenant-scoped; unsubscribing/removal is
+soft (`deletedAt`), so history survives.
+
+**Tests added (91 → 142 total):**
+
+| File | Cases |
+| --- | --- |
+| `tests/unit/rbac.test.ts` (13) | Every role × action pair, the college-admin override, `club:delete` deferring to the tenant matrix, and the anti-escalation rules |
+| `tests/unit/slug.test.ts` (9) | Slug generation, accent stripping, collision suffixes and the unguessable 43-character invite token |
+| `tests/integration/guards.test.ts` (11) | 404-vs-403 for tenants and clubs, soft-deleted memberships/clubs/colleges, and the college-admin override |
+| `tests/integration/invites.test.ts` (19) | Creation rights, previews, **concurrent redemption of a one-use link**, double-clicks, expiry, revocation, email-restricted links, membership revival, and the college join |
+| `tests/integration/clubs.test.ts` (18) | Founder becomes President, per-college slugs, tenant isolation, the **last-President** rule, and the refusal to delete a club with published events |
+| `tests/integration/tenants.test.ts` (8) | Self-serve creation, domain conflicts, branding merges and tenant-scoped listing |
+
+Smoke test grew to 11 sections, including the full invite lifecycle over real HTTP
+(create → preview → join page → register → redeem → double-click → `used_up`).
+
+**Bugs the new tests found (all fixed):**
+
+1. A duplicate college *domain* reported "that college name is already taken" — the P2002 target was
+   not inspected properly. The domain is now checked up front and named exactly.
+2. A club invite granted club membership **without** college membership, so the newcomer would have
+   signed in to an empty app. Redeeming a club link now also joins the college as a plain member
+   (an existing OWNER/ADMIN role is never downgraded).
+3. Clicking an already-used one-use link reported "this link has already been used" to the person who
+   had just used it. Membership is now checked before the link's own state, so the second click
+   succeeds and reports the membership instead.
+4. Opening a club you cannot see returned a **500 crash** instead of the 404 page, because a thrown
+   guard error is a page-level crash. `/clubs/[clubId]` now translates guard outcomes into a 404 page
+   (not visible) or an explanatory "not in this club yet" screen (in the college, not in the club).
+
+**Also found this phase (environment, not product):** the hosted machine has ~2 GB of RAM, and a
+hot-reloading dev server compiling pages on demand grows past it and gets killed mid-request — which
+looks like the preview silently dying. `npm run app:up` therefore serves the preview from a
+production build now (roughly a fifth of the memory, pages in milliseconds); `APP_MODE=dev npm run
+app:up` still starts the hot-reloading dev server when editing code.
+
+**Acceptance criteria met:** a user is President in one club and Member in another and sees exactly
+the right actions in each; cross-college access returns 404 rather than 403; every endpoint validates
+with Zod server-side and passes a guard; invite links are single-use under concurrency; the last
+President cannot be removed; the verify gate passes (lint, types, 142 tests, production build).
 
 ---
 
-## Phase 4 — Event Management CRUD
+## Phase 4 — Event Management CRUD (next)
 
 - Dashboard: upcoming events, registration counts, capacity fill, attendance rate.
 - Event create/edit form (React Hook Form + Zod): title, description, start/end, location, capacity,

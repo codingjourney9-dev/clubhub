@@ -128,6 +128,32 @@ Sign-in needs cookies, so run the app on your own machine (§4) and use
 `aarav.president@vit.ac.in` / `password123`. You'll land on the same dashboard — but this time the
 app knows who you are because you *proved* it with a password.
 
+### Step 7 — Your colleges and clubs
+
+Go to `/onboarding` (or click **"Create or browse clubs"** on the dashboard).
+
+You'll see **Vadodara Institute of Technology** with its two clubs, each showing *your* role:
+**Robotics Club → President**, **Debate Society → Member**. Because you're a college Owner, a
+**Create a club** box sits right there — in real life that's how a new club gets started.
+
+### Step 8 — Open a club and make an invite link
+
+Click **Robotics Club**. You get its member list, its upcoming events, and an **Invite links** box.
+Set the role you're giving away (Member / Event Manager / President), how long the link lasts and how
+many times it can be used, then **Create link** and **Copy**.
+
+**Why this is clever:** the link *is* the permission. Whatever role you picked is the role the person
+gets — they cannot upgrade themselves, and a 1-use link genuinely only works once, even if two people
+click it in the same second.
+
+### Step 9 — Be the person joining
+
+Open the copied link (`/join/...`) **while signed out** — you'll see *"You have been invited to
+Robotics Club as Member"* plus a **Sign in and join** button. That's the whole joining experience: no
+setup, no admin approval.
+
+*(New accounts need cookies, so this last part is smoothest on your own machine — §4.)*
+
 ---
 
 ## 4. Run it on your own computer
@@ -166,20 +192,27 @@ Two commands do the checking for you. This is the habit that separates "it works
 real software.
 
 ```bash
-npm run test          # 51 automated checks — the "robot inspectors"
-npm run test:smoke    # 25 checks against the running website
+npm run test          # 142 automated checks — the "robot inspectors"
+npm run test:smoke    # 67 checks against the running website
 ```
 
-The 51 tests answer questions like:
+The 142 tests answer questions like:
 
 - *"If someone tries to sneak an event from College B into College A's data, does the filing cabinet
   slam the drawer shut?"* → Yes, it refuses. (That's not politeness; the database physically can't
   store it.)
 - *"Can the same student sign up twice for one event?"* → No.
 - *"If we re-run the sample data, do we get duplicates?"* → No.
+- *"If two people click the same one-use invite link at the same instant, can both get in?"* → No,
+  exactly one gets in.
+- *"Can a club's last President remove themselves and leave the club with nobody in charge?"* → No,
+  it's refused with a message telling you what to do instead.
+- *"If someone from another college guesses a club's web address, what do they see?"* → A plain
+  "not found" page. Nothing confirms whether that club exists.
 
-And the 25 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
-limit, read the dashboard as two different people.
+And the 67 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
+limit, read the dashboard as two different people, mint an invite link and redeem it as a brand-new
+account.
 
 **The golden rule:** before finishing any phase, we run
 
@@ -187,8 +220,9 @@ limit, read the dashboard as two different people.
 npm run verify
 ```
 
-…which does *checking for typos* → *checking for type mistakes* → *running all 51 tests* → *building
-the final version*. If any step fails, the phase isn't done.
+…which does *checking for typos* → *checking for type mistakes* → *running all 142 tests* → *building
+the final version*. If any step fails, the phase isn't done. One tip: stop the preview server first
+(`Ctrl-C`), because the build and the server share the same temporary folder.
 
 ---
 
@@ -200,15 +234,16 @@ one passes.
 | Phase | In plain words | Status |
 | --- | --- | --- |
 | 1 | Set up the empty house — tools, styles, structure | ✅ Done |
-| 2 | Build the filing cabinet + install the front door lock | ✅ Done (you're here) |
-| 3 | Creating colleges & clubs, inviting members | ⬜ Next |
-| 4 | Creating events (the actual dashboard) | ⬜ |
+| 2 | Build the filing cabinet + install the front door lock | ✅ Done |
+| 3 | Creating colleges & clubs, inviting members | ✅ Done (you're here) |
+| 4 | Creating events (the actual dashboard) | ⬜ Next |
 | 5 | Sign-ups that can't overbook + QR tickets | ⬜ |
 | 6 | The phone scanner + works without internet | ⬜ |
 | 7 | Make it pretty and bulletproof | ⬜ |
 
-**In plain words, right now:** you can log in, and you can *see* your clubs and roles. But you can't
-yet *create* a club or an event — that's Phases 3 and 4.
+**In plain words, right now:** you can log in, create a college, create clubs inside it, see who is
+in each club, change someone's role, and invite people with a link that can be used once. What you
+*cannot* do yet is create events — that's Phase 4, and it's the next thing we build.
 
 ---
 
@@ -217,13 +252,16 @@ yet *create* a club or an event — that's Phases 3 and 4.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | **The app is "gone" after a break** | The sandbox forgets installed tools between sessions | `npm run app:up` — that one command puts everything back |
+| **The preview suddenly stops responding** | The hosted machine has ~2 GB of memory; a hot-reloading dev server can get killed while compiling | `npm run app:up` (it serves a production build now, which needs a fifth of the memory). Use `APP_MODE=dev npm run app:up` only when editing code |
+| Error mentions `pg_filenode.map` or "cannot open file global/…" | The database was still running while its files got swapped during a restore | `npm run db:start` — it now detects this and restarts the database |
 | "Signing in…" spins forever | The server stopped while the request was in flight | The form now notices within 4 seconds and tells you. Restart with `npm run app:up` |
-| Sign-in button seems to do nothing | Preview frame blocks cookies | Open the preview in a new tab |
+| Sign-in button seems to do nothing | The preview frame blocks cookies | Use the cookie-free `/demo` page — the preview cannot be opened in a separate tab |
 | "Cannot connect to database" | Postgres isn't running | `npm run db:start` |
 | Tests fail with `ECONNREFUSED` | Tests need the database | `npm run db:start`, then `npm run test` |
 | `next: not found` after reopening the project | `node_modules` folder is not saved in snapshots | `npm install` (or `npm run app:up`) |
-| Weird errors after running `verify` | The build and the dev server share a temp folder | Restart `npm run dev` |
-| Changes to `.env` have no effect | The server reads settings at startup | Stop and restart `npm run dev` |
+| Weird errors after running `verify` | The build and the server share a temp folder | Restart with `npm run app:up` |
+| Editing code and nothing changes | The preview serves a production build | `APP_MODE=dev npm run app:up` while editing, then `npm run build` when you're happy |
+| Changes to `.env` have no effect | The server reads settings at startup | Stop the server and run `npm run app:up` again |
 
 ---
 
@@ -237,6 +275,10 @@ doors to open:
 | The front page text | `src/app/page.tsx` |
 | The dashboard screen | `src/app/(dashboard)/dashboard/page.tsx` |
 | The sign-in screen | `src/app/(auth)/sign-in/page.tsx` |
+| The colleges-and-clubs screen | `src/app/onboarding/page.tsx` |
+| One club's page | `src/app/clubs/[clubId]/page.tsx` |
+| The "you've been invited" page | `src/app/join/[token]/page.tsx` |
+| **Who is allowed to do what** | `src/lib/auth/rbac.ts` — the whole permission table in one file |
 | The rules for a valid email/password | `src/lib/validation/auth.ts` |
 | The shape of the whole database | `prisma/schema.prisma` |
 | The sample data | `prisma/seed.ts` |
@@ -250,22 +292,31 @@ Rule of thumb while learning: **a screen lives in `src/app`, reusable pieces liv
 
 ## 9. What's next, and how you can steer it
 
-**Phase 3 — creating colleges and clubs, and inviting people.** Before I write any code, three
-choices are yours to make (or you can just say "use your defaults"):
+**Phase 3 is built** — using the three defaults I proposed, because you said "start phase 3" without
+picking between the options. Here is exactly what that means, so you can change any of it:
 
-1. **How do people join a club?**
-   - *Invite links* (recommended): the president generates a link, sends it in the class WhatsApp
-     group, anyone who clicks it joins. No email system needed.
-   - *Add by email*: the president types your email address; only works if you already have an
-     account.
-   - *Both*.
+1. **How people join → invite links.** The president creates a link, shares it in the class group,
+   anyone with the link joins. (You can still restrict a link to one email address if you want.)
+   *Alternative:* email invitations, which would need an email-sending service.
+2. **Who can create a college → anyone.** Sign up, create your college, you're its Owner.
+   *Alternative:* only you approve new colleges.
+3. **Club names → unique per college.** Two colleges can both have a "Robotics Club"; inside one
+   college the second one becomes "Robotics Club 2" in the web address.
 
-2. **Who can create a college in the system?**
-   - *Anyone* (recommended): sign up, create your college, you're its Owner.
-   - *Approval needed*: only we can create colleges.
+If you'd rather have email invitations or an approval step, say so — it's cheaper to change now than
+after events are built on top.
 
-3. **Can two clubs in the same college have the same name?**
-   - *No* (recommended) — keeps links tidy and unique.
+**Phase 4 — creating events.** This is the dashboard people actually came for: an event with a title,
+description, start and end time, venue, capacity, a "members only" switch, and Draft → Published →
+Cancelled. Two of your original requirements land here: **all times are stored in UTC** and shown in
+the college's timezone, and an event whose end time is before its start time is rejected on the
+server (not just in the browser).
 
-Say **"go with your defaults"** and I'll build Phase 3, then show you exactly how to test it
-yourself — same as this walkthrough.
+**How to approve Phase 3:**
+
+```bash
+npm run app:up        # start the app
+npm run test:smoke    # watch it check all 67 behaviours
+```
+
+Then tell me *"Phase 3 looks good"* (or what you'd like changed) and I'll start Phase 4.

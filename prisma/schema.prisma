@@ -73,8 +73,10 @@ model User {
   tenantMemberships TenantMember[]
   clubMemberships   ClubMember[]
   tickets           Ticket[]
-  createdEvents     Event[]      @relation("EventCreatedBy")
-  checkIns          Attendance[] @relation("AttendanceCheckedInBy")
+  createdEvents     Event[]       @relation("EventCreatedBy")
+  checkIns          Attendance[]  @relation("AttendanceCheckedInBy")
+  tenantInvites     TenantInvite[] @relation("TenantInviteCreatedBy")
+  clubInvites       ClubInvite[]   @relation("ClubInviteCreatedBy")
 
   @@index([deletedAt])
   @@map("users")
@@ -100,6 +102,7 @@ model Tenant {
 
   members TenantMember[]
   clubs   Club[]
+  invites TenantInvite[]
 
   @@map("tenants")
 }
@@ -141,6 +144,7 @@ model Club {
   tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   members ClubMember[]
   events  Event[]
+  invites ClubInvite[]
 
   /// Composite target for child rows: guarantees an event's tenantId matches
   /// the tenant of its club.
@@ -167,6 +171,68 @@ model ClubMember {
   @@unique([clubId, userId])
   @@index([userId, role])
   @@map("club_members")
+}
+
+/// Shareable, single-use invite link for joining a tenant (college).
+///
+/// Why links rather than email invitations: students often do not have an
+/// account yet, and sending mail would require an external provider. A link can
+/// be pasted into a class group chat and works for anyone with the address.
+///
+/// The `token` is an opaque secret and is the ONLY identifier exposed in the
+/// URL — invite ids are never sent to the browser, so an id leak cannot be
+/// turned into a join.
+model TenantInvite {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  token String @unique
+  role  TenantRole
+
+  /// Optional: restricts the link to one address. Null means "anyone with the link".
+  email String?
+
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  maxUses   Int       @default(1) @map("max_uses")
+  uses      Int       @default(0)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  createdById String @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User   @relation("TenantInviteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("tenant_invites")
+}
+
+/// Shareable, single-use invite link for joining a club.
+/// `role` is pre-set by whoever creates the link, so a President can hand out a
+/// plain Member link without giving away Event Manager powers.
+model ClubInvite {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  clubId   String @map("club_id") @db.Uuid
+
+  token String @unique
+  role  ClubRole
+
+  email String?
+
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  maxUses   Int       @default(1) @map("max_uses")
+  uses      Int       @default(0)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  createdById String @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  club      Club   @relation(fields: [clubId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  createdBy User   @relation("ClubInviteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([clubId, createdAt])
+  @@map("club_invites")
 }
 
 // ────────────────────────── Events ──────────────────────────

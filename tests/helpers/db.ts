@@ -1,7 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "../../src/generated/prisma/client";
-import { TEST_DATABASE_URL } from "./test-database";
+import { TEST_DATABASE_NAME, TEST_DATABASE_URL } from "./test-database";
 
 let client: PrismaClient | null = null;
 
@@ -22,8 +22,27 @@ export async function disconnectTestDb(): Promise<void> {
 export async function truncateAll(): Promise<void> {
   const db = testDb();
   await db.$executeRawUnsafe(
-    `TRUNCATE TABLE attendance, tickets, events, club_members, clubs, tenant_members, tenants, users RESTART IDENTITY CASCADE;`,
+    `TRUNCATE TABLE attendance, tickets, events, club_invites, club_members, clubs, ` +
+      `tenant_invites, tenant_members, tenants, users RESTART IDENTITY CASCADE;`,
   );
+}
+
+/**
+ * Fails the test if the client is not connected to the disposable test database.
+ *
+ * Truncating the wrong database would destroy the seeded development data, so
+ * integration tests assert this before every case rather than trusting the
+ * environment to be set up correctly.
+ */
+export async function assertTestDatabase(): Promise<void> {
+  const rows = await testDb().$queryRaw<{ name: string }[]>`SELECT current_database() AS name`;
+  const name = rows[0]?.name;
+
+  if (name !== TEST_DATABASE_NAME) {
+    throw new Error(
+      `Refusing to run: connected to "${name ?? "unknown"}" but the tests own "${TEST_DATABASE_NAME}".`,
+    );
+  }
 }
 
 export const ids = {

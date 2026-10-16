@@ -6,7 +6,9 @@
 #
 # Covers: health/readiness, auth-gated middleware redirect, server-side Zod
 # validation, duplicate-account conflict, registration rate limiting,
-# credentials sign-in, and role-specific dashboard content.
+# credentials sign-in, role-specific dashboard content, the cookie-free demo
+# preview, and (phase 3) colleges, clubs, the RBAC-guarded club page and the
+# full invite lifecycle.
 set -uo pipefail
 
 BASE="${BASE:-http://localhost:3000}"
@@ -61,7 +63,7 @@ echo "[1] health & readiness"
 STATUS=$(curl -s -o "$TMP/health.json" -w '%{http_code}' "$BASE/api/health")
 expect_status "GET /api/health" 200 "$STATUS"
 expect_contains "database is up" "$TMP/health.json" '"status":"up"'
-expect_contains "health reports phase 2" "$TMP/health.json" '"phase":2'
+expect_contains "health reports phase 3" "$TMP/health.json" '"phase":3'
 
 echo "[2] protected route without a session"
 LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/dashboard")
@@ -146,6 +148,125 @@ fi
 
 STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/demo?as=nobody")
 expect_status "unknown viewer falls back safely" 200 "$STATUS"
+
+echo "[10] phase 3 — college, club and role-aware club pages"
+# The seeded college, from prisma/seed.ts.
+TENANT_ID="0f1d2c3b-4a59-4e6d-8b7c-100000000001"
+
+LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/onboarding")
+case "$LOCATION" in
+  */sign-in*) pass "anonymous /onboarding redirects to sign-in" ;;
+  *) fail "anonymous /onboarding should redirect to sign-in, got: $LOCATION" ;;
+esac
+
+STATUS=$(curl -s -b "$TMP/aarav.jar" -o "$TMP/onboarding.html" -w '%{http_code}' "$BASE/onboarding")
+expect_status "GET /onboarding as the college owner" 200 "$STATUS"
+expect_contains "college rendered" "$TMP/onboarding.html" "Vadodara Institute of Technology"
+expect_contains "club rendered" "$TMP/onboarding.html" "Robotics Club"
+
+STATUS=$(json_status GET "/api/clubs?tenantId=$TENANT_ID" "" "$TMP/aarav.jar")
+expect_status "GET /api/clubs" 200 "$STATUS"
+
+# Pick one club the president runs and one where he is only a member: the SAME
+# page must render differently for the two roles.
+PRESIDENT_CLUB=$(node -e 'const b=require(process.argv[1]);const c=(b.data.clubs||[]).find(x=>x.viewerRole==="PRESIDENT");process.stdout.write(c?c.id:"")' "$TMP/body.json")
+MEMBER_CLUB=$(node -e 'const b=require(process.argv[1]);const c=(b.data.clubs||[]).find(x=>x.viewerRole==="MEMBER");process.stdout.write(c?c.id:"")' "$TMP/body.json")
+
+if [ -n "$PRESIDENT_CLUB" ] && [ -n "$MEMBER_CLUB" ]; then
+  pass "club roles resolved from the database"
+
+  STATUS=$(curl -s -b "$TMP/aarav.jar" -o "$TMP/club-president.html" -w '%{http_code}' "$BASE/clubs/$PRESIDENT_CLUB")
+  expect_status "club page as its president" 200 "$STATUS"
+  expect_contains "member roster rendered" "$TMP/club-president.html" "Members"
+  expect_contains "invite management rendered" "$TMP/club-president.html" "Invite links"
+
+  STATUS=$(curl -s -b "$TMP/aarav.jar" -o "$TMP/club-member.html" -w '%{http_code}' "$BASE/clubs/$MEMBER_CLUB")
+  expect_status "club page where he is only a member" 200 "$STATUS"
+  # A college Owner administers EVERY club in their college, so the invite tools
+  # appear even here. That override is deliberate — and it is still bounded by
+  # the "you may only hand out roles you could hold" rule.
+  expect_contains "college owner sees the invite tools on any club" "$TMP/club-member.html" "Invite links"
+
+  # A plain club member gets the read-only view: roster yes, invite tools no.
+  STATUS=$(curl -s -b "$TMP/kabir.jar" -o "$TMP/club-kabir.html" -w '%{http_code}' "$BASE/clubs/$PRESIDENT_CLUB")
+  expect_status "club page as a plain member" 200 "$STATUS"
+  expect_contains "member sees the roster" "$TMP/club-kabir.html" "Members"
+  if grep -qF "Invite links" "$TMP/club-kabir.html"; then
+    fail "the member view leaked invite management"
+  else
+    pass "member view hides invite management"
+  fi
+else
+  fail "could not resolve club ids from /api/clubs"
+  PRESIDENT_CLUB=""
+fi
+
+STATUS=$(curl -s -b "$TMP/aarav.jar" -o /dev/null -w '%{http_code}' "$BASE/clubs/99999999-9999-4999-8999-999999999999")
+expect_status "unknown club id shows the 404 page" 404 "$STATUS"
+
+echo "[11] phase 3 — invite links: rights, validation and redemption"
+if [ -n "$PRESIDENT_CLUB" ]; then
+  # A request that forgets the role must be rejected by Zod on the server, even
+  # though the browser form would never send it.
+  STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/invites" '{"maxUses":1,"expiresInHours":24}' "$TMP/aarav.jar")
+  expect_status "invite without a role is rejected" 422 "$STATUS"
+  expect_contains "validation error named" "$TMP/body.json" '"VALIDATION_ERROR"'
+
+  STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/invites" '{"role":"MEMBER"}' "")
+  expect_status "anonymous invite creation is refused" 401 "$STATUS"
+
+  STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/invites" '{"role":"MEMBER","expiresInHours":24,"maxUses":1}' "$TMP/kabir.jar")
+  expect_status "a plain member cannot mint links" 403 "$STATUS"
+
+  STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/invites" '{"role":"MEMBER","expiresInHours":24,"maxUses":1}' "$TMP/aarav.jar")
+  expect_status "president mints a one-use member link" 201 "$STATUS"
+  TOKEN=$(node -e 'const b=require(process.argv[1]);process.stdout.write(((b.data.invite||{}).url||"").split("/join/")[1]||"")' "$TMP/body.json")
+  if [ -n "$TOKEN" ]; then pass "invite token issued"; else fail "no token in the invite response"; fi
+
+  STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/invites" '{"role":"ADMIN","expiresInHours":24,"maxUses":1}' "$TMP/aarav.jar")
+  expect_status "an invalid club role is rejected" 422 "$STATUS"
+
+  if [ -n "$TOKEN" ]; then
+    STATUS=$(json_status GET "/api/invites/$TOKEN" "")
+    expect_status "public preview of the link" 200 "$STATUS"
+    expect_contains "preview names the club" "$TMP/body.json" "Robotics Club"
+    expect_contains "preview marks it usable" "$TMP/body.json" '"valid":true'
+
+    STATUS=$(curl -s -o "$TMP/join.html" -w '%{http_code}' "$BASE/join/$TOKEN")
+    expect_status "join page renders for a signed-out visitor" 200 "$STATUS"
+    expect_contains "join page asks for sign-in" "$TMP/join.html" "Sign in and join"
+
+    # A brand-new account, so the redemption is genuinely a first one on every run.
+    # It needs its own forwarded IP: the registration limiter keys on IP and the
+    # earlier sections deliberately exhaust this run's bucket.
+    INVITEE="smoke.invitee+$(date +%s)@vit.ac.in"
+    INVITE_IP="198.51.$(( (RANDOM % 200) + 1 )).$(( (RANDOM % 200) + 1 ))"
+    STATUS=$(curl -s -o "$TMP/body.json" -w '%{http_code}' -X POST "$BASE/api/auth/register" \
+      -H 'Content-Type: application/json' -H "X-Forwarded-For: $INVITE_IP" \
+      --data "{\"firstName\":\"Invite\",\"lastName\":\"Guest\",\"email\":\"$INVITEE\",\"password\":\"$PASSWORD\"}")
+    expect_status "invitee account registered" 201 "$STATUS"
+    STATUS=$(sign_in "$INVITEE" "$PASSWORD" "$TMP/invitee.jar")
+    case "$STATUS" in
+      200|302) pass "invitee signed in" ;;
+      *) fail "invitee sign-in failed with $STATUS" ;;
+    esac
+
+    STATUS=$(json_status POST "/api/invites/$TOKEN" '{}' "$TMP/invitee.jar")
+    expect_status "invite redeemed" 200 "$STATUS"
+    expect_contains "membership reported as new" "$TMP/body.json" '"alreadyMember":false'
+
+    STATUS=$(json_status GET "/api/clubs?tenantId=$TENANT_ID" "" "$TMP/invitee.jar")
+    expect_contains "the newcomer holds the role the link granted" "$TMP/body.json" '"viewerRole":"MEMBER"'
+
+    STATUS=$(json_status POST "/api/invites/$TOKEN" '{}' "$TMP/invitee.jar")
+    expect_status "clicking the same link twice is not an error" 200 "$STATUS"
+    expect_contains "second click reports an existing membership" "$TMP/body.json" '"alreadyMember":true'
+
+    STATUS=$(json_status GET "/api/clubs/$PRESIDENT_CLUB/invites" "" "$TMP/aarav.jar")
+    expect_status "president lists club invites" 200 "$STATUS"
+    expect_contains "the one-use link is shown as used up" "$TMP/body.json" '"status":"used_up"'
+  fi
+fi
 
 echo "──────────────────────────────────────────────"
 if [ "$FAILURES" -eq 0 ]; then
