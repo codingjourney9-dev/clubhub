@@ -1,7 +1,7 @@
 # Phase 2 review — Database & Auth
 
-Status: **complete, verified, awaiting your go-ahead for Phase 3.**
-Date: 2026-10-14 · Gate: `npm run verify` ✅ · Smoke: `npm run test:smoke` ✅ 25/25
+Status: **closed — complete and verified end to end, awaiting your go-ahead for Phase 3.**
+Date: 2026-10-16 · Gate: `npm run verify` ✅ (lint · typecheck · **51 tests** · build) · Smoke: `npm run test:smoke` ✅ 25/25
 
 ---
 
@@ -41,7 +41,9 @@ Demo accounts (password `password123`):
 | Duplicate signup | `409 CONFLICT` (the unique index is the authority, not a pre-check) |
 | Registration rate limit | 6th attempt → `429` + `Retry-After` |
 | Roles differ per club, one session | Aarav's dashboard shows President *and* Member; Kabir's shows no President |
-| Gate | lint ✅ · typecheck ✅ · build ✅ (8 routes + middleware) |
+| Cross-tenant rows are impossible | `tests/integration/tenancy.test.ts` — Postgres rejects the insert (`P2003`), 12 cases |
+| Seed is genuinely idempotent | `tests/integration/seed.test.ts` — runs the seed twice, counts stay stable |
+| Gate | lint ✅ · typecheck ✅ · test 51/51 ✅ · build ✅ (8 routes + middleware) |
 
 ### Tenancy is structural, not aspirational
 
