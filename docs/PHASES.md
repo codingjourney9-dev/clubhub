@@ -26,6 +26,8 @@ npm run lint && npm run typecheck && npm run build
 - Module skeleton for every later phase (`lib/auth`, `lib/db`, `lib/services`, `lib/validation`,
   `lib/rate-limit`, `lib/qr`, `lib/offline`), documented in `docs/architecture.md`.
 - Build-status landing page + site chrome, `README.md`, `.env.example`, `docs/`.
+- Vitest wired up (config, disposable test database, `server-only` stub) with the response-envelope
+  and timezone suites.
 
 **Acceptance criteria**
 
@@ -73,8 +75,25 @@ npm run lint && npm run typecheck && npm run build
 | 6 | Server-side validation is authoritative | ✅ `422` + named field errors on a malformed body |
 | 7 | Registration rate limiting | ✅ `429` + `Retry-After` once the bucket empties |
 | 8 | Roles are per club, from one session | ✅ President in club A, Member in club B |
-| 9 | Gate | ✅ lint + typecheck + build |
+| 9 | Gate | ✅ lint + typecheck + test + build |
 | 10 | Smoke test | ✅ `npm run test:smoke` → 25/25 checks |
+| 11 | Automated test suite | ✅ `npm run test` → 51/51 (6 files) |
+
+**What the automated suite actually proves**
+
+| Suite | Claim under test |
+| --- | --- |
+| `tests/integration/tenancy.test.ts` (12) | An event whose `tenant_id` disagrees with its club's tenant is **rejected by Postgres** (`P2003`), same for tickets and attendance; one ticket per user per event (`P2002`); QR secrets are globally unique; a ticket can be checked in once; replayed `scanUuid`s collapse; a club with events cannot be hard-deleted; attendance survives a soft-deleted event; scoped reads return only the requested tenant's rows |
+| `tests/integration/seed.test.ts` (5) | The seed produces the documented fixture, every demo account has a real bcrypt hash, one user genuinely holds `PRESIDENT` in one club and `MEMBER` in another, and re-running it creates no duplicates |
+| `tests/unit/validation.test.ts` (12) | Email normalisation, the bcrypt 72-byte ceiling, and that `registerSchema` rejects unknown fields (mass-assignment guard) |
+| `tests/unit/api-response.test.ts` (11) | Every error code maps to its documented status; 500s never leak internals (asserted against a thrown `postgres://` string) |
+| `tests/unit/rate-limit.test.ts` (6) | Burst allowance, per-key isolation, refill, and the cap after idling |
+| `tests/unit/format-date.test.ts` (5) | UTC storage renders correctly per zone, including DST boundaries (Europe/London BST vs GMT) and venue-day grouping |
+
+**Bug found by the new tests (fixed):** `z.email().max(254).trim().toLowerCase()` validated the
+*raw* string first, so `"  Aarav@VIT.ac.in "` — a routine copy-paste — was rejected as invalid.
+The schema now pipes: `z.string().trim().toLowerCase().pipe(z.email().max(254))`, which also restores
+the custom error message. Regression covered in `tests/unit/validation.test.ts`.
 
 ---
 

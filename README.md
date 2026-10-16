@@ -68,7 +68,9 @@ over-permissive directory mode. See `docs/PHASES.md` → *Operational notes*.
 | `npm run build` | Production build (fails on type errors) |
 | `npm run lint` | ESLint (flat config, `next/core-web-vitals` + TS rules) |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm run verify` | lint → typecheck → build; the gate every phase must pass |
+| `npm run test` | Vitest: unit + integration (rebuilds a disposable `clubhub_test` database) |
+| `npm run test:watch` | Vitest in watch mode |
+| `npm run verify` | lint → typecheck → test → build; the gate every phase must pass |
 | `npm run test:smoke` | HTTP smoke test against a running dev server (health, validation, rate limit, sign-in, RBAC) |
 | `npm run db:start` / `db:stop` | Control the local Postgres cluster |
 | `npm run db:migrate` | `prisma migrate dev` (create + apply a migration) |
@@ -86,8 +88,13 @@ prisma/
 └─ seed.ts                  # idempotent demo data (fixed UUIDs)
 prisma7.config.ts           # Prisma 7 config: schema path, migration dir, seed, connection URL
 scripts/
-├─ db.sh                    # local Postgres cluster control
+├─ db.sh                    # self-healing local Postgres cluster control
 └─ smoke-test.sh            # end-to-end HTTP checks for Phase 2
+tests/
+├─ unit/                    # validation, API envelope, rate limiting, timezone rendering
+├─ integration/             # real-database tenancy constraints + seed idempotency
+├─ helpers/                 # disposable test database + fixtures
+└─ global-setup.ts          # drops/creates clubhub_test and runs `prisma migrate deploy`
 src/
 ├─ app/
 │  ├─ (auth)/               # sign-in, sign-up (centered shell)

@@ -5,12 +5,23 @@ import { z } from "zod";
  * client forms — one definition, enforced on both sides.
  */
 
-/** Emails are normalised to lowercase so uniqueness is case-insensitive in practice. */
+/**
+ * Emails are trimmed and lowercased BEFORE format validation, so a pasted
+ * "  Aarav@VIT.ac.in " is accepted rather than rejected for whitespace.
+ *
+ * Order matters: `z.email().trim()` validates first and only then transforms,
+ * which makes accidental whitespace a validation error (found by
+ * tests/unit/validation.test.ts).
+ */
 export const emailSchema = z
-  .email("Enter a valid email address.")
-  .max(254, "Email addresses cannot exceed 254 characters.")
+  .string()
   .trim()
-  .toLowerCase();
+  .toLowerCase()
+  .pipe(
+    z
+      .email("Enter a valid email address.")
+      .max(254, "Email addresses cannot exceed 254 characters."),
+  );
 
 export const passwordSchema = z
   .string()
