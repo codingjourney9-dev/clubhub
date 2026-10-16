@@ -13,23 +13,22 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { describeSignInFailure, type SignInFailure } from "@/lib/auth/sign-in-errors";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 
 /**
  * Client-side validation gives instant feedback; the credentials provider
  * re-validates the same schema server-side. Client checks are UX only.
  *
- * THREE failure modes are handled explicitly, because all three used to look
- * identical to the person clicking the button:
+ * Three failure modes used to look identical to the person clicking the button.
+ * They are now separated by `describeSignInFailure()`:
  *
- *  1. Server not running → 4s health preflight, named cause + how to start it.
- *  2. Cookies blocked (sandboxed preview frame) → Auth.js reports NO error at all
- *     and you simply land back on this page. A cookie probe warns first.
- *  3. Wrong password (often browser autofill) → explicit message plus a
- *     show-password toggle so the field's real contents are visible.
- *
- * Auth.js's client `signIn()` makes three sequential requests and none have a
- * timeout, so it is also raced against a deadline here.
+ *  1. Server not running → 4s health preflight names the cause.
+ *  2. Cookies blocked (sandboxed preview) → Auth.js returns `MissingCSRF`, and no
+ *     cookie can be stored, so sign-in genuinely cannot complete here. The page
+ *     detects this up front and offers a way out instead of blaming the password.
+ *  3. Wrong password → explicit message plus a show-password toggle, so a
+ *     browser-autofilled value is visible rather than mysterious.
  */
 
 const PREFLIGHT_TIMEOUT_MS = 4_000;
@@ -68,11 +67,10 @@ function useCookiesBlocked(): boolean {
     try {
       document.cookie = `${COOKIE_PROBE}=1; path=/; SameSite=Lax`;
       const stored = document.cookie.includes(`${COOKIE_PROBE}=`);
-      // Clean up so the probe never lingers.
       document.cookie = `${COOKIE_PROBE}=; path=/; Max-Age=0; SameSite=Lax`;
       setBlocked(!stored);
     } catch {
-      // Accessing document.cookie can throw outright in a sandboxed frame.
+      // Reading document.cookie can throw outright inside a sandboxed frame.
       setBlocked(true);
     }
   }, []);
@@ -83,8 +81,15 @@ function useCookiesBlocked(): boolean {
 export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: string }) {
   const router = useRouter();
   const cookiesBlocked = useCookiesBlocked();
-  const [formError, setFormError] = useState<string | null>(null);
+  const [failure, setFailure] = useState<SignInFailure | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [appUrl, setAppUrl] = useState("");
+
+  useEffect(() => {
+    // Full href, not origin+pathname: the preview URL carries an access token in
+    // its query string, so trimming it produces a link that returns 403.
+    setAppUrl(window.location.href);
+  }, []);
 
   const {
     register,
@@ -96,19 +101,32 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
     defaultValues: { email: "", password: "" },
   });
 
+  function openInNewTab() {
+    const opened = window.open(appUrl, "_blank", "noopener");
+    // Sandboxed frames often block popups — if that happened, tell the user how
+    // to get there manually rather than leaving a button that appears broken.
+    if (!opened) {
+      toast.info("Pop-up blocked", {
+        description: "Copy the address shown below into a new browser tab.",
+      });
+    }
+  }
+
   async function onSubmit(values: LoginInput) {
-    setFormError(null);
-    // Autofilled values are exactly what we want to inspect on failure.
-    setShowPassword(true);
+    setFailure(null);
 
     try {
       const health = await fetchWithTimeout("/api/health", PREFLIGHT_TIMEOUT_MS);
       if (!health.ok) throw new Error(`health responded ${health.status}`);
     } catch {
-      setFormError(
-        "The app server isn't responding. In this sandbox it stops when the session restarts — " +
-          "start it with `npm run app:up`, then try again.",
-      );
+      setFailure({
+        kind: "unknown",
+        title: "The app server isn't responding",
+        message:
+          "In this sandbox the server stops when the session restarts. Start it with " +
+          "`npm run app:up`, then try again.",
+        highlightPassword: false,
+      });
       toast.error("Server not reachable", { description: "Nothing was submitted." });
       return;
     }
@@ -126,13 +144,22 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
       ]);
 
       if (!result || result.error) {
-        // The server explicitly rejected these credentials.
-        setError("password", { message: "Incorrect email or password." });
-        setFormError(
-          "The server rejected that email/password combination. If your browser filled the password " +
-            "automatically, clear the field and type it yourself — autofill is the most common cause. " +
-            "The demo password is password123.",
-        );
+        const described = describeSignInFailure({
+          error: result?.error ?? undefined,
+          code: result?.code ?? undefined,
+          cookiesBlocked,
+        });
+
+        setFailure(described);
+        // Show the field contents: if autofill put something unexpected there,
+        // it should be visible rather than hidden behind dots.
+        if (described.highlightPassword) setShowPassword(true);
+        if (described.highlightPassword) {
+          setError("password", { message: "Incorrect email or password." });
+          toast.error("Sign-in failed", { description: "Check your email and password." });
+        } else {
+          toast.error(described.title, { description: described.message });
+        }
         return;
       }
 
@@ -141,15 +168,20 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
       router.refresh();
     } catch (error) {
       if (error instanceof TimeoutError) {
-        setFormError(
-          "The server accepted the request but never replied. It may have restarted mid-flight — " +
-            "wait a moment and press Sign in again.",
-        );
+        setFailure({
+          kind: "unknown",
+          title: "The server never replied",
+          message:
+            "It may have restarted mid-request. Wait a moment and press Sign in again.",
+          highlightPassword: false,
+        });
       } else {
-        setFormError(
-          "Couldn't complete sign-in because the network request failed. If you are viewing this " +
-            "inside the chat preview, open the preview URL in a separate browser tab and try there.",
-        );
+        setFailure({
+          kind: "unknown",
+          title: "Sign-in could not complete",
+          message: "The network request failed. Check the app is running with `npm run doctor`.",
+          highlightPassword: false,
+        });
       }
       toast.error("Sign-in could not complete");
       console.error("[sign-in]", error);
@@ -163,31 +195,27 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
       {cookiesBlocked ? (
         <Alert className="border-amber-500/40 bg-amber-500/10">
           <TriangleAlert className="text-amber-600" />
-          <AlertTitle>This view blocks cookies — sign-in cannot work here</AlertTitle>
+          <AlertTitle>This view blocks cookies — sign in from a browser tab</AlertTitle>
           <AlertDescription className="flex flex-col gap-2">
             <span>
-              Cookies are how a site remembers you are logged in. This embedded preview blocks them, so
-              you would land back on this page with no error message. Open the page in its own browser
-              tab instead:
+              Cookies are how the app remembers that you are logged in. This embedded preview is not
+              allowed to store them, so sign-in cannot complete here no matter what you type.
             </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="self-start"
-              onClick={() => window.open(window.location.href, "_blank", "noopener")}
-            >
+            <Button type="button" size="sm" variant="outline" className="self-start" onClick={openInNewTab}>
               <ExternalLink data-icon="inline-start" />
               Open in a new tab
             </Button>
+            {appUrl ? (
+              <code className="text-[11px] break-all rounded bg-background/60 px-1.5 py-1">{appUrl}</code>
+            ) : null}
           </AlertDescription>
         </Alert>
       ) : null}
 
-      {formError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Sign-in did not complete</AlertTitle>
-          <AlertDescription>{formError}</AlertDescription>
+      {failure ? (
+        <Alert variant={failure.kind === "cookies-blocked" ? "default" : "destructive"}>
+          <AlertTitle>{failure.title}</AlertTitle>
+          <AlertDescription>{failure.message}</AlertDescription>
         </Alert>
       ) : null}
 
@@ -244,9 +272,7 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
 
       <Alert>
         <AlertDescription className="flex flex-col gap-1">
-          <span>
-            Demo account — click the fields and type these by hand if your browser autofills them:
-          </span>
+          <span>Demo account — type these by hand if your browser autofills the fields:</span>
           <span className="font-mono text-xs">
             aarav.president@vit.ac.in&nbsp;&nbsp;/&nbsp;&nbsp;password123
           </span>
