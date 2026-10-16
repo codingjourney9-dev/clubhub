@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, Info, Lock, Ticket, Users } from "lucide-react";
 
 import { ClubMembersManager, type ClubMemberRow } from "@/components/features/club/club-members-manager";
@@ -30,9 +30,10 @@ export const metadata: Metadata = { title: "Club" };
  * Runs the guard and turns its two failure modes into page-level outcomes.
  *
  * A guard throws (it is shared with the API routes, which need real status
- * codes), but a thrown error in a page renders as a 500 crash. Someone opening a
- * club they cannot see deserves a proper 404 page, and a member of the college
- * who has not joined the club yet deserves an explanation — not a stack trace.
+ * codes), but a thrown error in a page renders as a 500 crash. So: a signed-out
+ * visitor is sent to sign in, someone opening a club they cannot see gets a
+ * proper 404 page, and a member of the college who has not joined the club yet
+ * gets an explanation — never a stack trace.
  */
 async function loadClubPage(
   clubId: string,
@@ -40,6 +41,10 @@ async function loadClubPage(
   try {
     return { kind: "ok", context: await requireClubAccess(clubId, "club:read") };
   } catch (error) {
+    // Signed out: send them to sign in and bring them back to this club.
+    if (error instanceof ApiError && error.status === 401) {
+      redirect(`/sign-in?callbackUrl=${encodeURIComponent(`/clubs/${clubId}`)}`);
+    }
     if (error instanceof ApiError && error.status === 404) return { kind: "not-found" };
     if (error instanceof ApiError && error.status === 403) return { kind: "forbidden" };
     throw error;

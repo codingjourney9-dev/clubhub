@@ -193,7 +193,7 @@ real software.
 
 ```bash
 npm run test          # 142 automated checks — the "robot inspectors"
-npm run test:smoke    # 67 checks against the running website
+npm run test:smoke    # 68 checks against the running website
 ```
 
 The 142 tests answer questions like:
@@ -210,7 +210,7 @@ The 142 tests answer questions like:
 - *"If someone from another college guesses a club's web address, what do they see?"* → A plain
   "not found" page. Nothing confirms whether that club exists.
 
-And the 67 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
+And the 68 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
 limit, read the dashboard as two different people, mint an invite link and redeem it as a brand-new
 account.
 
@@ -316,7 +316,7 @@ server (not just in the browser).
 
 ```bash
 npm run app:up        # start the app
-npm run test:smoke    # watch it check all 67 behaviours
+npm run test:smoke    # watch it check all 68 behaviours
 ```
 
 Then tell me *"Phase 3 looks good"* (or what you'd like changed) and I'll start Phase 4.

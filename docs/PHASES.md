@@ -132,7 +132,7 @@ soft (`deletedAt`), so history survives.
 | `tests/integration/clubs.test.ts` (18) | Founder becomes President, per-college slugs, tenant isolation, the **last-President** rule, and the refusal to delete a club with published events |
 | `tests/integration/tenants.test.ts` (8) | Self-serve creation, domain conflicts, branding merges and tenant-scoped listing |
 
-Smoke test grew to 11 sections, including the full invite lifecycle over real HTTP
+Smoke test grew to 11 sections / 68 checks, including the full invite lifecycle over real HTTP
 (create → preview → join page → register → redeem → double-click → `used_up`).
 
 **Bugs the new tests found (all fixed):**
@@ -146,8 +146,9 @@ Smoke test grew to 11 sections, including the full invite lifecycle over real HT
    had just used it. Membership is now checked before the link's own state, so the second click
    succeeds and reports the membership instead.
 4. Opening a club you cannot see returned a **500 crash** instead of the 404 page, because a thrown
-   guard error is a page-level crash. `/clubs/[clubId]` now translates guard outcomes into a 404 page
-   (not visible) or an explanatory "not in this club yet" screen (in the college, not in the club).
+   guard error is a page-level crash. `/clubs/[clubId]` now translates guard outcomes into a redirect
+   to sign-in (signed out), a 404 page (not visible) or an explanatory "not in this club yet" screen
+   (in the college, not in the club).
 
 **Also found this phase (environment, not product):** the hosted machine has ~2 GB of RAM, and a
 hot-reloading dev server compiling pages on demand grows past it and gets killed mid-request — which

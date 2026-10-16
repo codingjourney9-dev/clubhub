@@ -204,6 +204,12 @@ fi
 STATUS=$(curl -s -b "$TMP/aarav.jar" -o /dev/null -w '%{http_code}' "$BASE/clubs/99999999-9999-4999-8999-999999999999")
 expect_status "unknown club id shows the 404 page" 404 "$STATUS"
 
+LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/clubs/$PRESIDENT_CLUB")
+case "$LOCATION" in
+  */sign-in*) pass "signed-out visitors are sent to sign-in, not a crash" ;;
+  *) fail "signed-out club page should redirect to sign-in, got: $LOCATION" ;;
+esac
+
 echo "[11] phase 3 — invite links: rights, validation and redemption"
 if [ -n "$PRESIDENT_CLUB" ]; then
   # A request that forgets the role must be rejected by Zod on the server, even
