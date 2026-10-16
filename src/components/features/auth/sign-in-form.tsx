@@ -7,27 +7,30 @@ import { signIn } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import { Eye, EyeOff, ExternalLink, TriangleAlert } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, TriangleAlert } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { describeSignInFailure, type SignInFailure } from "@/lib/auth/sign-in-errors";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
+import { cn } from "@/lib/utils";
 
 /**
  * Client-side validation gives instant feedback; the credentials provider
  * re-validates the same schema server-side. Client checks are UX only.
  *
  * Three failure modes used to look identical to the person clicking the button.
- * They are now separated by `describeSignInFailure()`:
+ * `describeSignInFailure()` now separates them:
  *
- *  1. Server not running → 4s health preflight names the cause.
- *  2. Cookies blocked (sandboxed preview) → Auth.js returns `MissingCSRF`, and no
- *     cookie can be stored, so sign-in genuinely cannot complete here. The page
- *     detects this up front and offers a way out instead of blaming the password.
- *  3. Wrong password → explicit message plus a show-password toggle, so a
+ *  1. Server not running        → 4s health preflight names the cause.
+ *  2. Cookies blocked (embedded preview) → Auth.js returns `MissingCSRF`; sign-in
+ *     genuinely cannot complete in a frame that cannot store cookies, so the form
+ *     says so and points at the cookie-free /demo preview instead of blaming the
+ *     password. (Opening the preview URL in a separate tab does not work either —
+ *     that host only serves inside the chat.)
+ *  3. Wrong password            → explicit message + a show-password toggle, so a
  *     browser-autofilled value is visible rather than mysterious.
  */
 
@@ -83,13 +86,6 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
   const cookiesBlocked = useCookiesBlocked();
   const [failure, setFailure] = useState<SignInFailure | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [appUrl, setAppUrl] = useState("");
-
-  useEffect(() => {
-    // Full href, not origin+pathname: the preview URL carries an access token in
-    // its query string, so trimming it produces a link that returns 403.
-    setAppUrl(window.location.href);
-  }, []);
 
   const {
     register,
@@ -100,17 +96,6 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
-
-  function openInNewTab() {
-    const opened = window.open(appUrl, "_blank", "noopener");
-    // Sandboxed frames often block popups — if that happened, tell the user how
-    // to get there manually rather than leaving a button that appears broken.
-    if (!opened) {
-      toast.info("Pop-up blocked", {
-        description: "Copy the address shown below into a new browser tab.",
-      });
-    }
-  }
 
   async function onSubmit(values: LoginInput) {
     setFailure(null);
@@ -151,10 +136,10 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
         });
 
         setFailure(described);
-        // Show the field contents: if autofill put something unexpected there,
-        // it should be visible rather than hidden behind dots.
-        if (described.highlightPassword) setShowPassword(true);
         if (described.highlightPassword) {
+          // Reveal the field: if autofill inserted something unexpected, it should
+          // be visible rather than hidden behind dots.
+          setShowPassword(true);
           setError("password", { message: "Incorrect email or password." });
           toast.error("Sign-in failed", { description: "Check your email and password." });
         } else {
@@ -171,8 +156,7 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
         setFailure({
           kind: "unknown",
           title: "The server never replied",
-          message:
-            "It may have restarted mid-request. Wait a moment and press Sign in again.",
+          message: "It may have restarted mid-request. Wait a moment and press Sign in again.",
           highlightPassword: false,
         });
       } else {
@@ -195,19 +179,25 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
       {cookiesBlocked ? (
         <Alert className="border-amber-500/40 bg-amber-500/10">
           <TriangleAlert className="text-amber-600" />
-          <AlertTitle>This view blocks cookies — sign in from a browser tab</AlertTitle>
+          <AlertTitle>This view blocks cookies — use the demo instead</AlertTitle>
           <AlertDescription className="flex flex-col gap-2">
             <span>
               Cookies are how the app remembers that you are logged in. This embedded preview is not
-              allowed to store them, so sign-in cannot complete here no matter what you type.
+              allowed to store them, so sign-in cannot complete here no matter what you type — the
+              request is refused before your password is checked.
             </span>
-            <Button type="button" size="sm" variant="outline" className="self-start" onClick={openInNewTab}>
-              <ExternalLink data-icon="inline-start" />
-              Open in a new tab
-            </Button>
-            {appUrl ? (
-              <code className="text-[11px] break-all rounded bg-background/60 px-1.5 py-1">{appUrl}</code>
-            ) : null}
+            <span>
+              You do not need to sign in to review the app: the read-only demo renders the same
+              dashboard data from the same database, with no cookies required.
+            </span>
+            <Link href="/demo" className={cn(buttonVariants({ size: "sm" }), "self-start")}>
+              Open the demo dashboard
+              <ArrowRight data-icon="inline-end" />
+            </Link>
+            <span className="text-xs text-muted-foreground">
+              Running the app on your own machine (<code className="font-mono">npm run dev</code>)?
+              Sign-in works normally there.
+            </span>
           </AlertDescription>
         </Alert>
       ) : null}
@@ -240,7 +230,6 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Password</Label>
-          {/* Reveals what is actually in the field — the fastest way to spot autofill. */}
           <button
             type="button"
             onClick={() => setShowPassword((visible) => !visible)}
@@ -277,9 +266,9 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
             aarav.president@vit.ac.in&nbsp;&nbsp;/&nbsp;&nbsp;password123
           </span>
           <span className="text-xs text-muted-foreground">
-            No account of your own yet?{" "}
-            <Link href="/sign-up" className="font-medium underline underline-offset-4">
-              Create one
+            Prefer not to sign in at all?{" "}
+            <Link href="/demo" className="font-medium underline underline-offset-4">
+              Open the read-only demo dashboard
             </Link>
           </span>
         </AlertDescription>

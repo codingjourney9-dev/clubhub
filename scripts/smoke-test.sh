@@ -129,6 +129,24 @@ else
   pass "member account holds no President role"
 fi
 
+echo "[9] cookie-free demo preview (for frames that cannot store cookies)"
+STATUS=$(curl -s -o "$TMP/demo-aarav.html" -w '%{http_code}' "$BASE/demo")
+expect_status "GET /demo without a session" 200 "$STATUS"
+expect_contains "demo renders the seeded president" "$TMP/demo-aarav.html" "Aarav Shah"
+expect_contains "president's club role is visible" "$TMP/demo-aarav.html" "President"
+
+STATUS=$(curl -s -o "$TMP/demo-kabir.html" -w '%{http_code}' "$BASE/demo?as=kabir")
+expect_status "GET /demo?as=kabir" 200 "$STATUS"
+expect_contains "switching viewer changes the data" "$TMP/demo-kabir.html" "Kabir Rao"
+if grep -qF "President" "$TMP/demo-kabir.html"; then
+  fail "the member demo view leaked a President role"
+else
+  pass "member demo view holds no President role"
+fi
+
+STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/demo?as=nobody")
+expect_status "unknown viewer falls back safely" 200 "$STATUS"
+
 echo "──────────────────────────────────────────────"
 if [ "$FAILURES" -eq 0 ]; then
   printf '\033[32mAll checks passed.\033[0m\n\n'

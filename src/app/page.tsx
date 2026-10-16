@@ -151,18 +151,18 @@ export default function Home() {
           </p>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Links styled as buttons: `buttonVariants` keeps the markup a real
-                <a> instead of a <button>, so prefetching and middle-click work. */}
-            <Link
-              href="/api/health"
-              prefetch={false}
-              className={cn(buttonVariants({ size: "lg" }))}
-            >
-              Open the API health check
+            <Link href="/demo" className={cn(buttonVariants({ size: "lg" }))}>
+              See the demo dashboard (no sign-in)
               <ArrowRight data-icon="inline-end" />
             </Link>
-            <a href="#roadmap" className={cn(buttonVariants({ size: "lg", variant: "outline" }))}>
-              See the build roadmap
+            <Link
+              href="/sign-in"
+              className={cn(buttonVariants({ size: "lg", variant: "outline" }))}
+            >
+              Sign in as a demo user
+            </Link>
+            <a href="#roadmap" className={cn(buttonVariants({ size: "lg", variant: "ghost" }))}>
+              Build roadmap
             </a>
           </div>
         </section>
@@ -193,15 +193,12 @@ export default function Home() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/sign-in" className={cn(buttonVariants({ size: "lg" }))}>
-              Sign in as a demo user
+            <Link href="/demo" className={cn(buttonVariants({ size: "lg" }))}>
+              See this dashboard without signing in
               <ArrowRight data-icon="inline-end" />
             </Link>
-            <Link
-              href="/dashboard"
-              className={cn(buttonVariants({ size: "lg", variant: "outline" }))}
-            >
-              Go to the dashboard (auth-gated)
+            <Link href="/sign-in" className={cn(buttonVariants({ size: "lg", variant: "outline" }))}>
+              Sign in as a demo user
             </Link>
           </div>
         </section>

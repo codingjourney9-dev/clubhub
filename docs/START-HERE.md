@@ -57,9 +57,20 @@ Two things make it more than a form:
 
 The app is running right now. **The preview panel next to this chat is the website.**
 
-> ⚠️ One important quirk: the preview runs inside a "sandboxed frame", which sometimes blocks
-> **cookies**. Cookies are how a website remembers you're logged in. If sign-in seems to do nothing
-> in the preview, **open the preview link in a new browser tab** and it'll work.
+> ⚠️ **Read this first:** the embedded preview is not allowed to store **cookies**, and cookies are
+> how a website remembers you're logged in. That means a real sign-in cannot complete inside the
+> preview — the server refuses the request before it even checks your password. This is a browser
+> security rule, not a bug in our app.
+>
+> **You have two ways to see the app working:**
+>
+> | Option | How | What you get |
+> | --- | --- | --- |
+> | **A. Demo preview** (easiest) | Open `/demo` in the preview | The real dashboard data, readable without signing in, with a switcher to compare roles |
+> | **B. Real sign-in** | Run the app on your own machine (`npm run dev`, see §4) | The genuine login flow, cookies and all |
+>
+> Opening the preview link in a separate browser tab does **not** work — that address only serves
+> inside the chat.
 
 ### Step 1 — Look at the front page
 
@@ -85,30 +96,37 @@ You'll see something like:
 **What this means:** "I'm alive, and I can reach the database in 86 milliseconds." Every real
 service has a page like this — it's how robots monitor whether a website is healthy at 3 AM.
 
-### Step 3 — Log in as a club president
+### Step 3 — Open the demo dashboard (no sign-in needed)
 
-1. Click **"Sign in"** (top right).
-2. Type: `aarav.president@vit.ac.in` / `password123`
+Click **"See the demo dashboard (no sign-in)"** on the front page, or go to `/demo`.
 
-You'll land on a **dashboard**. Look closely — this is the important part:
+You'll see a **dashboard** with an amber banner explaining it's a read-only preview. Look at the data:
 
 - **Tenant roles:** "Vadodara Institute of Technology — Owner"
 - **Club roles:** Robotics Club → **President**, Debate Society → **Member**
 - **Upcoming events:** real events with dates and sign-up counts
 
-**Why this matters:** Aarav is a *boss in one club and an ordinary member in another* — from **one
-single login**. That's the hardest requirement in the whole project, and it's working.
+**Why this matters:** Aarav is a *boss in one club and an ordinary member in another*. That's the
+hardest requirement in the whole project, and it's working.
 
-### Step 4 — Log in as an ordinary member
+### Step 4 — Switch to an ordinary member (the real proof)
 
-Sign out (top right) and sign in as `kabir.member@vit.ac.in` / `password123`.
+At the top of the demo page, click **"Kabir Rao"** under *View as:*.
 
-Same dashboard — but **no "President" anywhere**. Same software, different powers. That's RBAC.
+Same page, same clubs, same events — but **no "President" anywhere**. Same software, different
+powers. That's RBAC. You can also try **Meera Patel** (Event Manager) and **Nisha Verma** (college
+admin with no club role).
 
 ### Step 5 — See the app defend itself
 
-Try to visit `/dashboard` **while logged out** (sign out first, then edit the address bar to
-`/dashboard`). You get bounced to the sign-in page. You can't sneak in by typing a URL.
+While signed out (or in the demo), visit `/dashboard` in the preview. You get bounced to the sign-in
+page. You can't sneak into a protected page by typing its address — the app checks every single time.
+
+### Step 6 — (Optional) the real sign-in experience
+
+Sign-in needs cookies, so run the app on your own machine (§4) and use
+`aarav.president@vit.ac.in` / `password123`. You'll land on the same dashboard — but this time the
+app knows who you are because you *proved* it with a password.
 
 ---
 
