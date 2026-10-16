@@ -132,8 +132,17 @@ soft (`deletedAt`), so history survives.
 | `tests/integration/clubs.test.ts` (18) | Founder becomes President, per-college slugs, tenant isolation, the **last-President** rule, and the refusal to delete a club with published events |
 | `tests/integration/tenants.test.ts` (8) | Self-serve creation, domain conflicts, branding merges and tenant-scoped listing |
 
-Smoke test grew to 11 sections / 68 checks, including the full invite lifecycle over real HTTP
+Smoke test grew to 12 sections / 82 checks, including the full invite lifecycle over real HTTP
 (create → preview → join page → register → redeem → double-click → `used_up`).
+
+**Reviewing inside the chat frame.** A signed-in session needs a cookie, and an embedded preview
+frame is not allowed to store one — so the club pages were previously invisible in the chat. They now
+have a cookie-free twin at `/demo/clubs/[clubId]` that renders the same club, the same roster and the
+same permission decisions for a chosen seeded viewer, with the write buttons left out. It also shows,
+for each capability, *why* a role does or does not have it. The sample data plants one deliberately
+public invite link (`DEMO_INVITE_TOKEN`, MEMBER of the seeded Robotics Club) so the joining page can
+be reviewed too; the smoke test now asserts that **no other invite token ever appears** in the demo
+output.
 
 **Bugs the new tests found (all fixed):**
 

@@ -149,6 +149,54 @@ fi
 STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/demo?as=nobody")
 expect_status "unknown viewer falls back safely" 200 "$STATUS"
 
+echo "[9b] phase 3 club preview (same page, three different viewers)"
+# Seeded clubs from prisma/seed.ts.
+ROBOTICS="0f1d2c3b-4a59-4e6d-8b7c-200000000001"
+
+STATUS=$(curl -s -o "$TMP/demo-club-aarav.html" -w '%{http_code}' "$BASE/demo/clubs/$ROBOTICS")
+expect_status "GET /demo/clubs/:id as the President" 200 "$STATUS"
+expect_contains "club preview names the club" "$TMP/demo-club-aarav.html" "Robotics Club"
+expect_contains "club preview shows the roster" "$TMP/demo-club-aarav.html" "Members ("
+expect_contains "president sees the invite section" "$TMP/demo-club-aarav.html" "Invite links"
+expect_contains "capabilities are explained in words" "$TMP/demo-club-aarav.html" "can do here"
+
+STATUS=$(curl -s -o "$TMP/demo-club-kabir.html" -w '%{http_code}' "$BASE/demo/clubs/$ROBOTICS?as=kabir")
+expect_status "GET the same club as a plain member" 200 "$STATUS"
+expect_contains "viewer switch changes the page" "$TMP/demo-club-kabir.html" "Kabir Rao"
+if grep -qF "Invite links" "$TMP/demo-club-kabir.html"; then
+  fail "the member view leaked the invite section"
+else
+  pass "member view hides the invite section"
+fi
+
+# The cookie-free preview may show exactly ONE invite URL — the planted demo one.
+# Every other invite must remain a secret, so the check is per-token, not per-page.
+DEMO_TOKEN="demo-invite-robotics-club-000000000001"
+for file in "$TMP/demo-club-aarav.html" "$TMP/demo-club-kabir.html"; do
+  LEAKED=$(node -e '
+    const fs = require("fs");
+    const html = fs.readFileSync(process.argv[1], "utf8");
+    const demo = process.argv[2];
+    const found = [...html.matchAll(/join\/([A-Za-z0-9_-]{20,})/g)].map((match) => match[1]);
+    const others = [...new Set(found.filter((token) => token !== demo))];
+    process.stdout.write(others.join(", "));
+  ' "$file" "$DEMO_TOKEN")
+  if [ -n "$LEAKED" ]; then
+    fail "$(basename "$file") leaked invite token(s): $LEAKED"
+  else
+    pass "$(basename "$file") exposes no invite token except the public demo link"
+  fi
+done
+
+# …and that public link must actually work, so the joining flow can be reviewed.
+STATUS=$(curl -s -o "$TMP/demo-join.html" -w '%{http_code}' "$BASE/join/$DEMO_TOKEN")
+expect_status "the public demo invite resolves" 200 "$STATUS"
+expect_contains "it offers the joining page" "$TMP/demo-join.html" "You have been invited to Robotics Club"
+expect_contains "it names the role the link grants" "$TMP/demo-join.html" "Member"
+
+STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/demo/clubs/99999999-9999-4999-8999-999999999999")
+expect_status "unknown club in the demo is not found" 404 "$STATUS"
+
 echo "[10] phase 3 — college, club and role-aware club pages"
 # The seeded college, from prisma/seed.ts.
 TENANT_ID="0f1d2c3b-4a59-4e6d-8b7c-100000000001"

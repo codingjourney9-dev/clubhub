@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 
 import { PrismaClient } from "../src/generated/prisma/client";
+import { DEMO_INVITE_TOKEN } from "../src/config/demo";
 
 /**
  * Deterministic seed for local development and demos.
@@ -39,6 +40,9 @@ const EVENT = {
 } as const;
 
 const DEMO_PASSWORD = "password123";
+
+// DEMO_INVITE_TOKEN (imported above) is the one public invite link, defined in
+// src/config/demo.ts so the read-only preview can render it too.
 
 function utcDate(dayOffset: number, hours: number, minutes = 0): Date {
   const date = new Date();
@@ -140,6 +144,27 @@ async function main() {
     });
   }
 
+  // ── One public demo invite link, so the preview can show the joining page ──
+  // Grants only MEMBER of a seeded club. Re-seeding keeps the same token, so a
+  // link you have already opened in the preview keeps working.
+  const demoInviteExpiry = new Date();
+  demoInviteExpiry.setUTCDate(demoInviteExpiry.getUTCDate() + 30);
+
+  await db.clubInvite.upsert({
+    where: { token: DEMO_INVITE_TOKEN },
+    update: { expiresAt: demoInviteExpiry, revokedAt: null },
+    create: {
+      tenantId: tenant.id,
+      clubId: robotics.id,
+      token: DEMO_INVITE_TOKEN,
+      role: "MEMBER",
+      expiresAt: demoInviteExpiry,
+      maxUses: 25,
+      uses: 3,
+      createdById: USER.aarav,
+    },
+  });
+
   // ── Events: public + members-only, past + upcoming ────────────────────────
   const events = [
     {
@@ -217,6 +242,7 @@ async function main() {
     dean.admin@vit.ac.in        Tenant Admin   · no club role (cross-club visibility)
 
   Clubs    2   Events   3 (2 published · 1 draft members-only)
+  Invites  1   public demo link: join/${DEMO_INVITE_TOKEN}
   ──────────────────────────────────────────────────────────────
 `);
 }

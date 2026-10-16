@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Info } from "lucide-react";
+import { ArrowRight, Info, Users } from "lucide-react";
 
 import { MemberOverviewView } from "@/components/features/dashboard/member-overview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/lib/db/client";
 import { isDemoModeEnabled } from "@/lib/demo/mode";
 import { loadMemberOverview } from "@/lib/services/dashboard-service";
@@ -60,6 +61,23 @@ export default async function DemoPage({
 
   const overview = await loadMemberOverview(user.id);
 
+  // Every club in the colleges this viewer belongs to — including clubs they have
+  // not joined, which is exactly how a college admin sees the place. Each one
+  // links to the read-only club preview below.
+  const clubs = await db.club.findMany({
+    where: {
+      tenantId: { in: overview.tenantRoles.map((membership) => membership.tenant.id) },
+      deletedAt: null,
+    },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      _count: { select: { members: { where: { deletedAt: null } } } },
+    },
+  });
+
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8">
       <Alert className="border-amber-500/40 bg-amber-500/10">
@@ -106,19 +124,53 @@ export default async function DemoPage({
 
       <MemberOverviewView overview={overview} />
 
+      {clubs.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="size-4 text-muted-foreground" />
+              Open a club as {account.displayName}
+            </CardTitle>
+            <CardDescription>
+              The club page shows the member list, what this person is allowed to do there, and the
+              invite links they can see. It is the same page a signed-in member gets, minus the buttons.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-3">
+              {clubs.map((club) => (
+                <Link
+                  key={club.id}
+                  href={`/demo/clubs/${club.id}?as=${account.key}`}
+                  className={cn(buttonVariants({ variant: "secondary" }), "gap-2")}
+                >
+                  {club.name}
+                  <span className="text-xs text-muted-foreground">
+                    {club._count.members} member{club._count.members === 1 ? "" : "s"}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Alert>
         <AlertDescription className="flex flex-col gap-1">
           <span className="font-medium text-foreground">
             Why there is no &ldquo;edit&rdquo; button here
           </span>
           <span>
-            This preview is deliberately read-only. Creating clubs, events and invites is Phase 3 and 4
-            work, and those actions require a real session. The signed-in dashboard at{" "}
+            This preview is deliberately read-only. Creating colleges, clubs and invite links, and
+            changing someone&apos;s role, all need a real session — and an embedded preview frame is not
+            allowed to store the cookie that session lives in. Everything else you see is the real
+            thing: the same data, from the same code, rendered by the same components. Run the app on
+            your own machine (§4 of <code className="font-mono text-xs">docs/START-HERE.md</code>) or
+            sign in at{" "}
             <Link href="/sign-in" className="font-medium underline underline-offset-4">
               /sign-in
             </Link>{" "}
-            shows the same data once cookies are available (for example when you run the app locally
-            with <code className="font-mono text-xs">npm run dev</code>).
+            from a normal browser tab to use the working version.
           </span>
         </AlertDescription>
       </Alert>

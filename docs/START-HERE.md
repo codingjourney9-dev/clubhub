@@ -66,7 +66,7 @@ The app is running right now. **The preview panel next to this chat is the websi
 >
 > | Option | How | What you get |
 > | --- | --- | --- |
-> | **A. Demo preview** (easiest) | Open `/demo` in the preview | The real dashboard data, readable without signing in, with a switcher to compare roles |
+> | **A. Demo preview** (easiest) | Open `/demo` in the preview, then the "Open a club" buttons | The real dashboard **and club pages**, readable without signing in, with a switcher to compare roles |
 > | **B. Real sign-in** | Run the app on your own machine (`npm run dev`, see §4) | The genuine login flow, cookies and all |
 >
 > Opening the preview link in a separate browser tab does **not** work — that address only serves
@@ -89,7 +89,7 @@ Click **"API health"** in the top-right (or open `/api/health`).
 You'll see something like:
 
 ```json
-{"ok":true,"data":{"status":"ok","service":"ClubHub","phase":2,
+{"ok":true,"data":{"status":"ok","service":"ClubHub","phase":3,
  "database":{"status":"up","latencyMs":86}}}
 ```
 
@@ -100,7 +100,8 @@ service has a page like this — it's how robots monitor whether a website is he
 
 Click **"See the demo dashboard (no sign-in)"** on the front page, or go to `/demo`.
 
-You'll see a **dashboard** with an amber banner explaining it's a read-only preview. Look at the data:
+You'll see a **dashboard** with an amber banner explaining it's a read-only preview. (This page needs
+no sign-in at all, which is why it works inside the chat frame.) Look at the data:
 
 - **Tenant roles:** "Vadodara Institute of Technology — Owner"
 - **Club roles:** Robotics Club → **President**, Debate Society → **Member**
@@ -109,50 +110,68 @@ You'll see a **dashboard** with an amber banner explaining it's a read-only prev
 **Why this matters:** Aarav is a *boss in one club and an ordinary member in another*. That's the
 hardest requirement in the whole project, and it's working.
 
-### Step 4 — Switch to an ordinary member (the real proof)
+### Step 4 — Open a club (the new part)
 
-At the top of the demo page, click **"Kabir Rao"** under *View as:*.
+Scroll down the demo dashboard to the card **"Open a club as Aarav Shah"**. Click **Robotics Club**.
 
-Same page, same clubs, same events — but **no "President" anywhere**. Same software, different
-powers. That's RBAC. You can also try **Meera Patel** (Event Manager) and **Nisha Verma** (college
-admin with no club role).
+You are now on the club page. Three things to look at, in order:
 
-### Step 5 — See the app defend itself
+1. **"What Aarav Shah can do here"** — a list of every action, with **Yes** or **No** next to it and a
+   plain-English reason underneath. Aarav is the club's President, so everything says Yes. This list
+   is generated from one file of permission rules (`src/lib/auth/rbac.ts`) that the server checks on
+   every single request — not from the buttons you happen to see.
+2. **Members (7)** — the real roster, each person with their role.
+3. **Invite links** — the links this club has issued, with their status. Some say **used up**: those
+   are one-use links that have already been used (some of them by the automatic tests — that's real
+   behaviour, not mock data).
+
+### Step 5 — See the joining page
+
+In that Invite links table, one row is marked **"open the joining page →"**. Click it.
+
+You get what a student sees when they open an invite in the class group:
+
+> **You have been invited to Robotics Club**
+> Club · Member · 25 uses remaining · expires 15 Nov 2026
+> **Sign in and join**
+
+**Why that row is clickable:** a link's secret part is normally shown only to the signed-in President
+who created it. The sample data plants this *one* public link on purpose (it grants nothing but
+ordinary membership of a demo club), so you can look at the joining experience without signing in.
+Every other row keeps its secret hidden.
+
+### Step 6 — Watch the powers change (the whole point of Phase 3)
+
+Click **Back to the dashboard preview**, then click **Kabir Rao** under *View as:*, then open
+**Robotics Club** again.
+
+Same page, same club, same members — but now:
+
+| | Aarav (President) | Kabir (ordinary member) |
+| --- | --- | --- |
+| "Change someone's role, or remove them" | **Yes** | **No** — *only the club's President can manage members* |
+| "Create invite links" | **Yes** | **No** — the invite table is gone entirely |
+| "Edit the club's name and description" | **Yes** | **No** |
+| "Open this club's page" | **Yes** | **Yes** |
+
+Try **Meera Patel** too: she gets events and door-scanning (Phases 4 and 5) but not member
+management. Try **Nisha Verma**: she has no club role at all, yet as a college Admin she has authority
+over *every* club in the college — the note under each Yes explains exactly why.
+
+**Why this matters:** it is the same page and the same code for all four people. What changes is one
+answer from one function. That is how you avoid permission bugs — the rule lives in one place instead
+of being re-guessed in every screen.
+
+### Step 7 — See the app defend itself
 
 While signed out (or in the demo), visit `/dashboard` in the preview. You get bounced to the sign-in
 page. You can't sneak into a protected page by typing its address — the app checks every single time.
 
-### Step 6 — (Optional) the real sign-in experience
+### Step 8 — (Optional) the real sign-in experience
 
 Sign-in needs cookies, so run the app on your own machine (§4) and use
 `aarav.president@vit.ac.in` / `password123`. You'll land on the same dashboard — but this time the
 app knows who you are because you *proved* it with a password.
-
-### Step 7 — Your colleges and clubs
-
-Go to `/onboarding` (or click **"Create or browse clubs"** on the dashboard).
-
-You'll see **Vadodara Institute of Technology** with its two clubs, each showing *your* role:
-**Robotics Club → President**, **Debate Society → Member**. Because you're a college Owner, a
-**Create a club** box sits right there — in real life that's how a new club gets started.
-
-### Step 8 — Open a club and make an invite link
-
-Click **Robotics Club**. You get its member list, its upcoming events, and an **Invite links** box.
-Set the role you're giving away (Member / Event Manager / President), how long the link lasts and how
-many times it can be used, then **Create link** and **Copy**.
-
-**Why this is clever:** the link *is* the permission. Whatever role you picked is the role the person
-gets — they cannot upgrade themselves, and a 1-use link genuinely only works once, even if two people
-click it in the same second.
-
-### Step 9 — Be the person joining
-
-Open the copied link (`/join/...`) **while signed out** — you'll see *"You have been invited to
-Robotics Club as Member"* plus a **Sign in and join** button. That's the whole joining experience: no
-setup, no admin approval.
-
-*(New accounts need cookies, so this last part is smoothest on your own machine — §4.)*
 
 ---
 
@@ -193,7 +212,7 @@ real software.
 
 ```bash
 npm run test          # 142 automated checks — the "robot inspectors"
-npm run test:smoke    # 68 checks against the running website
+npm run test:smoke    # 82 checks against the running website
 ```
 
 The 142 tests answer questions like:
@@ -210,7 +229,7 @@ The 142 tests answer questions like:
 - *"If someone from another college guesses a club's web address, what do they see?"* → A plain
   "not found" page. Nothing confirms whether that club exists.
 
-And the 68 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
+And the 82 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
 limit, read the dashboard as two different people, mint an invite link and redeem it as a brand-new
 account.
 
@@ -278,6 +297,7 @@ doors to open:
 | The colleges-and-clubs screen | `src/app/onboarding/page.tsx` |
 | One club's page | `src/app/clubs/[clubId]/page.tsx` |
 | The "you've been invited" page | `src/app/join/[token]/page.tsx` |
+| The read-only club preview you just explored | `src/app/demo/clubs/[clubId]/page.tsx` |
 | **Who is allowed to do what** | `src/lib/auth/rbac.ts` — the whole permission table in one file |
 | The rules for a valid email/password | `src/lib/validation/auth.ts` |
 | The shape of the whole database | `prisma/schema.prisma` |
@@ -316,7 +336,7 @@ server (not just in the browser).
 
 ```bash
 npm run app:up        # start the app
-npm run test:smoke    # watch it check all 68 behaviours
+npm run test:smoke    # watch it check all 82 behaviours
 ```
 
 Then tell me *"Phase 3 looks good"* (or what you'd like changed) and I'll start Phase 4.
