@@ -162,12 +162,33 @@ over *every* club in the college — the note under each Yes explains exactly wh
 answer from one function. That is how you avoid permission bugs — the rule lives in one place instead
 of being re-guessed in every screen.
 
-### Step 7 — See the app defend itself
+### Step 7 — Look at events (new in Phase 4)
+
+At the bottom of the club preview, the **Events** card lists this club's events with a status badge.
+
+Look closely at one row: it says **28 Oct 2026, 9:00 am … GMT+5:30**. Now look at the database: the
+very same row is stored as **03:30 UTC**. Same moment, two ways of writing it — the app stores the
+precise instant and shows it in your college's timezone, so nobody has to guess whether "9:00" meant
+India or London.
+
+A few things worth noticing:
+
+| What you see | Why it is like that |
+| --- | --- |
+| One event is a **Draft** | A new event is invisible until its organisers publish it. Writing an event and announcing it are deliberately two steps. |
+| One says **Members only** | That event 404s for anyone outside the club — not "access denied", which would confirm it exists. |
+| **waitlist on** next to a capacity | The waitlist only works once a room can fill up, so it can't be switched on without a capacity. |
+
+When you run this signed in (§4), the same card gives you **New event**, **Publish**, **Edit** and
+**Cancel** — and a published event has to be cancelled before it can be deleted, so a student's
+ticket never points at something that quietly vanished.
+
+### Step 8 — See the app defend itself
 
 While signed out (or in the demo), visit `/dashboard` in the preview. You get bounced to the sign-in
 page. You can't sneak into a protected page by typing its address — the app checks every single time.
 
-### Step 8 — (Optional) the real sign-in experience
+### Step 9 — (Optional) the real sign-in experience
 
 Sign-in needs cookies, so run the app on your own machine (§4) and use
 `aarav.president@vit.ac.in` / `password123`. You'll land on the same dashboard — but this time the
@@ -211,11 +232,11 @@ Two commands do the checking for you. This is the habit that separates "it works
 real software.
 
 ```bash
-npm run test          # 142 automated checks — the "robot inspectors"
-npm run test:smoke    # 82 checks against the running website
+npm run test          # 187 automated checks — the "robot inspectors"
+npm run test:smoke    # 107 checks against the running website
 ```
 
-The 142 tests answer questions like:
+The 187 tests answer questions like:
 
 - *"If someone tries to sneak an event from College B into College A's data, does the filing cabinet
   slam the drawer shut?"* → Yes, it refuses. (That's not politeness; the database physically can't
@@ -229,7 +250,7 @@ The 142 tests answer questions like:
 - *"If someone from another college guesses a club's web address, what do they see?"* → A plain
   "not found" page. Nothing confirms whether that club exists.
 
-And the 82 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
+And the 107 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
 limit, read the dashboard as two different people, mint an invite link and redeem it as a brand-new
 account.
 
@@ -239,7 +260,7 @@ account.
 npm run verify
 ```
 
-…which does *checking for typos* → *checking for type mistakes* → *running all 142 tests* → *building
+…which does *checking for typos* → *checking for type mistakes* → *running all 187 tests* → *building
 the final version*. If any step fails, the phase isn't done. One tip: stop the preview server first
 (`Ctrl-C`), because the build and the server share the same temporary folder.
 
@@ -254,15 +275,17 @@ one passes.
 | --- | --- | --- |
 | 1 | Set up the empty house — tools, styles, structure | ✅ Done |
 | 2 | Build the filing cabinet + install the front door lock | ✅ Done |
-| 3 | Creating colleges & clubs, inviting members | ✅ Done (you're here) |
-| 4 | Creating events (the actual dashboard) | ⬜ Next |
-| 5 | Sign-ups that can't overbook + QR tickets | ⬜ |
+| 3 | Creating colleges & clubs, inviting members | ✅ Done |
+| 4 | Creating events (the actual dashboard) | ✅ Done (you're here) |
+| 5 | Sign-ups that can't overbook + QR tickets | ⬜ Next |
 | 6 | The phone scanner + works without internet | ⬜ |
 | 7 | Make it pretty and bulletproof | ⬜ |
 
-**In plain words, right now:** you can log in, create a college, create clubs inside it, see who is
-in each club, change someone's role, and invite people with a link that can be used once. What you
-*cannot* do yet is create events — that's Phase 4, and it's the next thing we build.
+**In plain words, right now:** you can log in, create a college, create clubs inside it, invite
+people with a link that works once, and — new in Phase 4 — **create events**, write them as drafts,
+publish them to the whole college, cancel them, and set a capacity with an optional waitlist. Every
+time you type is stored as a precise moment in UTC and shown back in your college's own timezone.
+What you *cannot* do yet is register for an event and get a QR ticket — that's Phase 5.
 
 ---
 
@@ -298,6 +321,9 @@ doors to open:
 | One club's page | `src/app/clubs/[clubId]/page.tsx` |
 | The "you've been invited" page | `src/app/join/[token]/page.tsx` |
 | The read-only club preview you just explored | `src/app/demo/clubs/[clubId]/page.tsx` |
+| The event list and its buttons | `src/components/features/event/event-list.tsx` |
+| The event form | `src/components/features/event/event-form.tsx` |
+| **How a typed time becomes a precise moment** | `src/lib/format/date.ts` — `wallClockToUtc` |
 | **Who is allowed to do what** | `src/lib/auth/rbac.ts` — the whole permission table in one file |
 | The rules for a valid email/password | `src/lib/validation/auth.ts` |
 | The shape of the whole database | `prisma/schema.prisma` |
@@ -312,31 +338,26 @@ Rule of thumb while learning: **a screen lives in `src/app`, reusable pieces liv
 
 ## 9. What's next, and how you can steer it
 
-**Phase 3 is built** — using the three defaults I proposed, because you said "start phase 3" without
-picking between the options. Here is exactly what that means, so you can change any of it:
+**Phase 4 is built.** Events now exist: drafts, publishing, cancelling, capacities and waitlists, all
+stored in UTC and shown in your college's timezone. The three defaults from Phase 3 (invite links,
+self-serve colleges, per-college club names) were accepted when you approved that phase.
 
-1. **How people join → invite links.** The president creates a link, shares it in the class group,
-   anyone with the link joins. (You can still restrict a link to one email address if you want.)
-   *Alternative:* email invitations, which would need an email-sending service.
-2. **Who can create a college → anyone.** Sign up, create your college, you're its Owner.
-   *Alternative:* only you approve new colleges.
-3. **Club names → unique per college.** Two colleges can both have a "Robotics Club"; inside one
-   college the second one becomes "Robotics Club 2" in the web address.
+**Phase 5 — sign-ups that cannot overbook, and QR tickets.** This is the phase your original
+specification called the hard one:
 
-If you'd rather have email invitations or an approval step, say so — it's cheaper to change now than
-after events are built on top.
+- **Registering** for an event, with the last seat protected by a database lock — two students
+  clicking "register" at the same instant for the final place cannot both get it.
+- A **waitlist** that promotes people automatically (first come, first served) when someone drops out.
+- A **QR ticket** for each registration, and a wallet page listing your tickets.
 
-**Phase 4 — creating events.** This is the dashboard people actually came for: an event with a title,
-description, start and end time, venue, capacity, a "members only" switch, and Draft → Published →
-Cancelled. Two of your original requirements land here: **all times are stored in UTC** and shown in
-the college's timezone, and an event whose end time is before its start time is rejected on the
-server (not just in the browser).
+That is where *"the database never books more people than the room holds"* stops being a promise and
+becomes a test that fires dozens of simultaneous requests at the last seat.
 
-**How to approve Phase 3:**
+**How to approve Phase 4:**
 
 ```bash
 npm run app:up        # start the app
-npm run test:smoke    # watch it check all 82 behaviours
+npm run test:smoke    # watch it check all 107 behaviours
 ```
 
-Then tell me *"Phase 3 looks good"* (or what you'd like changed) and I'll start Phase 4.
+Then tell me *"Phase 4 looks good"* (or what you would like changed) and I'll start Phase 5.

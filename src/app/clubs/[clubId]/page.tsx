@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, Info, Lock, Ticket, Users } from "lucide-react";
+import { ArrowLeft, Info, Lock, Users } from "lucide-react";
 
 import { ClubMembersManager, type ClubMemberRow } from "@/components/features/club/club-members-manager";
 import { InviteManager, type ClubInviteRow } from "@/components/features/club/invite-manager";
+import { EventList, type EventRow } from "@/components/features/event/event-list";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -12,8 +13,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ApiError } from "@/lib/api/response";
 import { requireClubAccess, type ClubContext } from "@/lib/auth/guards";
 import { assignableClubRoles, canClub, type Actor } from "@/lib/auth/rbac";
-import { db } from "@/lib/db/client";
 import { listClubMembers } from "@/lib/services/club-service";
+import { listClubEvents } from "@/lib/services/event-service";
 import { listClubInvites } from "@/lib/services/invite-service";
 import { cn } from "@/lib/utils";
 
@@ -87,17 +88,32 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
   const canManageMembers = canClub(actor, "club:manage_members");
   const canInvite = canClub(actor, "club:invite");
   const canCreateEvent = canClub(actor, "event:create");
+  const canEditEvent = canClub(actor, "event:update");
+  const canDeleteEvent = canClub(actor, "event:delete");
 
-  const [members, invites, upcomingEvents] = await Promise.all([
+  const [members, invites, events] = await Promise.all([
     listClubMembers(clubId, context.club.tenantId),
     canInvite ? listClubInvites(clubId, context.club.tenantId) : Promise.resolve([]),
-    db.event.findMany({
-      where: { clubId, deletedAt: null, status: "PUBLISHED", endTime: { gte: new Date() } },
-      orderBy: { startTime: "asc" },
-      take: 5,
-      select: { id: true, title: true, startTime: true, capacity: true, isPublic: true },
-    }),
+    // Drafts are included only for people who can edit events; the service applies
+    // the same rule as the API, so the page and the endpoint cannot disagree.
+    listClubEvents(clubId, context.club.tenantId, { includeDrafts: canCreateEvent }),
   ]);
+
+  const eventRows: EventRow[] = events
+    .filter((event) => event.isPublic || context.clubRole !== null)
+    .map((event) => ({
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      location: event.location,
+      startTime: event.startTime.toISOString(),
+      endTime: event.endTime.toISOString(),
+      capacity: event.capacity,
+      waitlistEnabled: event.waitlistEnabled,
+      status: event.status,
+      isPublic: event.isPublic,
+      registeredCount: event.registeredCount,
+    }));
 
   const memberRows: ClubMemberRow[] = members.map((member) => ({
     membershipId: member.membershipId,
@@ -202,39 +218,14 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
         </Card>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarDays className="size-4 text-muted-foreground" />
-            Upcoming events
-          </CardTitle>
-          <CardDescription>
-            {canCreateEvent
-              ? "Event creation arrives in Phase 4."
-              : "Only Presidents and Event Managers can create events."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {upcomingEvents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing scheduled right now.</p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {upcomingEvents.map((event) => (
-                <li key={event.id} className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                  <span className="text-sm font-medium">{event.title}</span>
-                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Ticket className="size-3" />
-                    {event.capacity ? `capacity ${event.capacity}` : "unlimited"}
-                    <Badge variant={event.isPublic ? "secondary" : "outline"}>
-                      {event.isPublic ? "Public" : "Members only"}
-                    </Badge>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
+      <EventList
+        clubId={clubId}
+        timeZone={context.club.timezone}
+        events={eventRows}
+        canCreate={canCreateEvent}
+        canEdit={canEditEvent}
+        canDelete={canDeleteEvent}
+      />
 
       <div>
         <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline" }))}>

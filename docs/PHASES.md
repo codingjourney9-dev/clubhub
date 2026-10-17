@@ -172,17 +172,51 @@ President cannot be removed; the verify gate passes (lint, types, 142 tests, pro
 
 ---
 
-## Phase 4 — Event Management CRUD (next)
+## Phase 4 — Event Management CRUD ✅ Complete
 
-- Dashboard: upcoming events, registration counts, capacity fill, attendance rate.
-- Event create/edit form (React Hook Form + Zod): title, description, start/end, location, capacity,
-  waitlist toggle, `is_public`, status transitions Draft → Published → Cancelled.
-- Listings: public event page per tenant vs. member-only events; soft-delete with `deleted_at`.
-- Timezone handling: naive input interpreted in tenant zone, stored UTC, rendered locally.
+- **Event lifecycle** on the club page: create, edit, publish, cancel, delete. A new event is always a
+  **Draft**, because publishing is an announcement and deserves its own, deliberate action.
+  Status only moves Draft → Published → Cancelled; a cancelled event stays visible (so nobody turns
+  up) and keeps its tickets and attendance rows for reporting.
+- **Times without ambiguity.** The browser sends a *wall clock* reading (`2026-11-01T09:00`) from a
+  `datetime-local` input. The server resolves it in the **college's** timezone and stores a UTC
+  instant; every screen renders it back in the college's zone with its offset (`GMT+5:30`).
+- **Members-only events** (`isPublic: false`) answer **404** to anyone outside the club — not 403 —
+  so their existence cannot be probed. Drafts are invisible to plain members as well.
+- **Capacity and waitlist** are validated together: a waitlist without a capacity is refused, and a
+  capacity cannot be lowered below the number of people already holding places.
+- **Delete is not the same as cancel.** A published event cannot be deleted until it is cancelled, so
+  a student's ticket never points at something that silently vanished.
 
-**Acceptance criteria:** an end time before the start time is rejected server-side with field
-errors; a member-only event 404s for non-members; a soft-deleted event disappears from listings but
-keeps its attendance rows; verify gate passes.
+**Timezone engine** (`src/lib/format/date.ts`): `wallClockToUtc`, `utcToWallClock`, `parseWallClock`.
+It asks `Intl` for the offset *at the instant in question*, which is what makes daylight saving
+correct: the same 09:00 is `03:30Z` in India, `08:00Z` in a London July and `09:00Z` in a London
+December. Two edge cases are handled explicitly:
+
+- an hour that **never happens** (the spring-forward gap, 01:30 in London on 29 March 2026) is
+  rejected with a field error instead of being silently shifted;
+- an hour that happens **twice** (the autumn fall-back) resolves to the *earlier* occurrence, which is
+  what "01:30" normally means to whoever typed it.
+
+**Tests added (142 → 187):**
+
+| File | Cases |
+| --- | --- |
+| `tests/unit/wall-clock.test.ts` (18) | Fixed-offset zones, both directions of a DST change in London and New York, the non-existent hour, the repeated hour, midnight (the classic `24:00` bug), malformed input, and six round trips |
+| `tests/integration/events.test.ts` (27) | UTC storage from a wall clock, drafts hidden from members, members-only 404s, publish/cancel/delete transitions, capacity-below-registrations, waitlist-without-capacity, and cross-college isolation |
+
+Smoke test grew to 12 sections / 107 checks, driving the whole lifecycle over HTTP: create → publish
+→ publish again → refuse delete → cancel → delete → confirm it is gone.
+
+**Bug found by the new tests (fixed):** filtering drafts out of a listing was implemented as
+`status: "PUBLISHED"`, which also hid **cancelled** events — the one case where visibility matters
+most, because people need to see that an event is off. The filter now keeps `PUBLISHED` and
+`CANCELLED` together and excludes only `DRAFT`.
+
+**Acceptance criteria met:** an end time before the start time is rejected server-side with an error
+attached to the `end` field; a members-only event 404s for non-members; a soft-deleted event
+disappears from listings while its attendance rows survive; the verify gate passes (lint, types, 187
+tests, production build).
 
 ---
 

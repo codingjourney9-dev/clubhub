@@ -7,8 +7,8 @@
 # Covers: health/readiness, auth-gated middleware redirect, server-side Zod
 # validation, duplicate-account conflict, registration rate limiting,
 # credentials sign-in, role-specific dashboard content, the cookie-free demo
-# preview, and (phase 3) colleges, clubs, the RBAC-guarded club page and the
-# full invite lifecycle.
+# preview, (phase 3) colleges, clubs, the RBAC-guarded club page and the full
+# invite lifecycle, and (phase 4) the event lifecycle with its UTC/timezone rules.
 set -uo pipefail
 
 BASE="${BASE:-http://localhost:3000}"
@@ -63,7 +63,7 @@ echo "[1] health & readiness"
 STATUS=$(curl -s -o "$TMP/health.json" -w '%{http_code}' "$BASE/api/health")
 expect_status "GET /api/health" 200 "$STATUS"
 expect_contains "database is up" "$TMP/health.json" '"status":"up"'
-expect_contains "health reports phase 3" "$TMP/health.json" '"phase":3'
+expect_contains "health reports phase 4" "$TMP/health.json" '"phase":4'
 
 echo "[2] protected route without a session"
 LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/dashboard")
@@ -319,6 +319,92 @@ if [ -n "$PRESIDENT_CLUB" ]; then
     STATUS=$(json_status GET "/api/clubs/$PRESIDENT_CLUB/invites" "" "$TMP/aarav.jar")
     expect_status "president lists club invites" 200 "$STATUS"
     expect_contains "the one-use link is shown as used up" "$TMP/body.json" '"status":"used_up"'
+  fi
+fi
+
+echo "[12] phase 4 — events: create, publish, cancel, delete"
+if [ -n "$PRESIDENT_CLUB" ]; then
+  # A wall-clock time in the college's timezone, three days out. datetime-local
+  # format, no timezone suffix — exactly what the browser sends.
+  START=$(node -e 'const d=new Date(Date.now()+3*864e5);d.setUTCHours(4,30,0,0);process.stdout.write(d.toISOString().slice(0,16))')
+  END=$(node -e 'const d=new Date(Date.now()+3*864e5);d.setUTCHours(7,30,0,0);process.stdout.write(d.toISOString().slice(0,16))')
+
+  # A plain member must not be able to create events.
+  STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events" \
+    "{\"title\":\"Member Attempt\",\"start\":\"$START\",\"end\":\"$END\"}" "$TMP/kabir.jar")
+  expect_status "a plain member cannot create events" 403 "$STATUS"
+
+  # End before start: rejected by the server, with the error attached to the field.
+  STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events" \
+    "{\"title\":\"Backwards\",\"start\":\"$END\",\"end\":\"$START\"}" "$TMP/aarav.jar")
+  expect_status "end before start is rejected" 422 "$STATUS"
+  expect_contains "the error names the end field" "$TMP/body.json" '"end"'
+  expect_contains "and explains why" "$TMP/body.json" 'after the start'
+
+  # A waitlist without a capacity is a setting that would do nothing.
+  STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events" \
+    "{\"title\":\"Waitlist Only\",\"start\":\"$START\",\"end\":\"$END\",\"waitlistEnabled\":true}" "$TMP/aarav.jar")
+  expect_status "a waitlist without a capacity is rejected" 422 "$STATUS"
+  expect_contains "the waitlist field is blamed" "$TMP/body.json" 'waitlistEnabled'
+
+  # A valid event starts life as a draft.
+  STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events" \
+    "{\"title\":\"Smoke Test Meetup\",\"start\":\"$START\",\"end\":\"$END\",\"capacity\":25,\"isPublic\":true}" \
+    "$TMP/aarav.jar")
+  expect_status "president creates a draft" 201 "$STATUS"
+  expect_contains "the new event is a draft" "$TMP/body.json" '"status":"DRAFT"'
+  expect_contains "times are stored as UTC instants" "$TMP/body.json" 'T0'
+  EVENT_ID=$(node -e 'const b=require(process.argv[1]);process.stdout.write((b.data.event||{}).id||"")' "$TMP/body.json")
+
+  if [ -n "$EVENT_ID" ]; then
+    pass "event id returned"
+
+    # Drafts belong to organisers only: the club's own members do not see them.
+    STATUS=$(json_status GET "/api/clubs/$PRESIDENT_CLUB/events" "" "$TMP/kabir.jar")
+    if grep -qF "Smoke Test Meetup" "$TMP/body.json"; then
+      fail "a plain member could see a draft event"
+    else
+      pass "drafts are hidden from plain members"
+    fi
+
+    STATUS=$(json_status GET "/api/clubs/$PRESIDENT_CLUB/events" "" "$TMP/aarav.jar")
+    expect_contains "the organiser sees the draft" "$TMP/body.json" "Smoke Test Meetup"
+
+    STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$EVENT_ID/status" '{"status":"PUBLISHED"}' "$TMP/aarav.jar")
+    expect_status "publish it" 200 "$STATUS"
+    expect_contains "status moved to published" "$TMP/body.json" '"status":"PUBLISHED"'
+
+    STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$EVENT_ID/status" '{"status":"PUBLISHED"}' "$TMP/aarav.jar")
+    expect_status "publishing twice is not an error" 200 "$STATUS"
+    expect_contains "the second call changed nothing" "$TMP/body.json" '"changed":false'
+
+    # A published event must not vanish under students' feet.
+    STATUS=$(json_status DELETE "/api/clubs/$PRESIDENT_CLUB/events/$EVENT_ID" "" "$TMP/aarav.jar")
+    expect_status "deleting a published event is refused" 409 "$STATUS"
+    expect_contains "with an instruction to cancel first" "$TMP/body.json" "Cancel it first"
+
+    STATUS=$(json_status GET "/api/clubs/$PRESIDENT_CLUB/events" "" "$TMP/kabir.jar")
+    expect_contains "members can see the published event" "$TMP/body.json" "Smoke Test Meetup"
+
+    STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$EVENT_ID/status" '{"status":"CANCELLED"}' "$TMP/aarav.jar")
+    expect_status "cancel it" 200 "$STATUS"
+
+    STATUS=$(json_status GET "/api/clubs/$PRESIDENT_CLUB/events" "" "$TMP/kabir.jar")
+    expect_contains "cancelled events stay visible so nobody turns up" "$TMP/body.json" "Smoke Test Meetup"
+    expect_contains "…and are labelled cancelled" "$TMP/body.json" '"status":"CANCELLED"'
+
+    STATUS=$(json_status DELETE "/api/clubs/$PRESIDENT_CLUB/events/$EVENT_ID" "" "$TMP/aarav.jar")
+    expect_status "a cancelled event can be deleted" 200 "$STATUS"
+
+    STATUS=$(json_status GET "/api/clubs/$PRESIDENT_CLUB/events" "" "$TMP/aarav.jar")
+    if grep -qF "Smoke Test Meetup" "$TMP/body.json"; then
+      fail "the deleted event is still listed"
+    else
+      pass "the deleted event is gone from listings"
+    fi
+
+    STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$EVENT_ID/status" '{"status":"DRAFT"}' "$TMP/aarav.jar")
+    expect_status "a draft cannot be resurrected through the status endpoint" 422 "$STATUS"
   fi
 fi
 

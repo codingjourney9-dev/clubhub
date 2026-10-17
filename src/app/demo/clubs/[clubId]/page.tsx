@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Check, Info, Link2, ShieldCheck, Users, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, Check, Info, Link2, ShieldCheck, Users, X } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import { DEMO_ACCOUNTS, DEMO_INVITE_TOKEN, findDemoAccount } from "@/config/demo
 import { db } from "@/lib/db/client";
 import { isDemoModeEnabled } from "@/lib/demo/mode";
 import { canClub, type Actor, type ClubAction } from "@/lib/auth/rbac";
+import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
 import { listClubInvites } from "@/lib/services/invite-service";
 import { cn } from "@/lib/utils";
 
@@ -202,6 +203,24 @@ export default async function DemoClubPage({
     clubRole: clubMembership?.role ?? null,
   };
 
+  const events = await db.event.findMany({
+    where: { clubId: club.id, deletedAt: null },
+    orderBy: { startTime: "asc" },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      location: true,
+      startTime: true,
+      endTime: true,
+      capacity: true,
+      status: true,
+      isPublic: true,
+      waitlistEnabled: true,
+      _count: { select: { tickets: true } },
+    },
+  });
+
   const members = await db.clubMember.findMany({
     where: { clubId: club.id, deletedAt: null },
     orderBy: [{ role: "asc" }, { joinedAt: "asc" }],
@@ -314,6 +333,97 @@ export default async function DemoClubPage({
               );
             })}
           </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarDays className="size-4 text-muted-foreground" />
+            Events ({events.length})
+          </CardTitle>
+          <CardDescription>
+            Times are stored in UTC and shown here in the college&apos;s timezone (
+            {club.tenant.timezone}). A Draft is visible only to the people who run the club;
+            publishing announces it; a cancelled event stays visible so nobody turns up.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {events.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No events yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Event</TableHead>
+                  <TableHead>When</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Audience</TableHead>
+                  <TableHead className="text-right">Registered</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {events.map((event) => {
+                  // Drafts belong to organisers only — the real page never sends them
+                  // to a plain member at all; this mirrors that decision.
+                  if (event.status === "DRAFT" && !canClub(actor, "event:update")) return null;
+
+                  return (
+                    <TableRow key={event.id}>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{event.title}</span>
+                          {event.location ? (
+                            <span className="text-xs text-muted-foreground">{event.location}</span>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {formatDateTimeInZone(event.startTime, club.tenant.timezone)}
+                        <span className="block text-xs">
+                          {formatDateTimeInZone(event.endTime, club.tenant.timezone)} ·{" "}
+                          {zoneAbbreviation(event.startTime, club.tenant.timezone)}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            event.status === "PUBLISHED"
+                              ? "default"
+                              : event.status === "CANCELLED"
+                                ? "destructive"
+                                : "outline"
+                          }
+                        >
+                          {event.status.charAt(0) + event.status.slice(1).toLowerCase()}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={event.isPublic ? "secondary" : "outline"}>
+                          {event.isPublic ? "Whole college" : "Members only"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {event._count.tickets}
+                        {event.capacity ? (
+                          <span className="text-muted-foreground"> / {event.capacity}</span>
+                        ) : null}
+                        {event.waitlistEnabled ? (
+                          <span className="block text-xs text-muted-foreground">waitlist on</span>
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+
+          <p className="mt-3 text-xs text-muted-foreground">
+            {canClub(actor, "event:create")
+              ? "As President or Event Manager you would also get a \u201cNew event\u201d button here, plus Publish, Edit and Cancel on each row."
+              : "Creating and publishing events is reserved for the club\u2019s President and Event Manager."}
+          </p>
         </CardContent>
       </Card>
 
