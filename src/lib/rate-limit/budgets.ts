@@ -20,6 +20,13 @@ export const RATE_LIMITS = {
   rsvp: { limit: 20, refillPerSecond: 0.5, label: "claim seats" },
   /** Giving a seat back. Separate bucket, so cancelling never blocks RSVPing. */
   cancel: { limit: 20, refillPerSecond: 0.5, label: "cancel tickets" },
+  /**
+   * Scans at the door. Deliberately far larger than any other budget: a busy door
+   * is 300 people in an hour, and a single offline flush can legitimately arrive
+   * as 200 scans in one request. 600 burst with 10/second refill is 600 a minute
+   * sustained — generous for a volunteer, still finite for a script.
+   */
+  scan: { limit: 600, refillPerSecond: 10, label: "scan tickets" },
 } as const;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;

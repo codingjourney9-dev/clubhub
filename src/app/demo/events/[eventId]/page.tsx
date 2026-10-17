@@ -2,7 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
-import { ArrowLeft, CalendarDays, Info, ListOrdered, MapPin, Ticket, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  DoorOpen as DoorIcon,
+  Info,
+  ListOrdered,
+  MapPin,
+  Ticket,
+  Users,
+} from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +29,7 @@ import { DEMO_ACCOUNTS, findDemoAccount } from "@/config/demo";
 import { canClub, type Actor } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { isDemoModeEnabled } from "@/lib/demo/mode";
+import { doorCodeFromSecret } from "@/lib/domain/check-in";
 import { decideSeat, queueRank, registrationClosedReason } from "@/lib/domain/ticket-rules";
 import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
 import { encodeTicketQr } from "@/lib/tickets/qr";
@@ -333,6 +343,17 @@ export default async function DemoEventPage({
                     This code encodes the ticket&apos;s secret, not its id — Phase 6 scans exactly
                     this.
                   </p>
+                  {myTicket ? (
+                    <p className="text-center text-[11px] text-slate-600">
+                      Door code:{" "}
+                      <span className="font-mono text-xs font-semibold tracking-widest text-slate-900">
+                        {doorCodeFromSecret(myTicket.qrCodeUuid).slice(0, 4)}{" "}
+                        {doorCodeFromSecret(myTicket.qrCodeUuid).slice(4)}
+                      </span>
+                      <br />
+                      printed on the ticket, for when the camera cannot help.
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </>
@@ -452,6 +473,29 @@ export default async function DemoEventPage({
           </AlertDescription>
         </Alert>
       )}
+
+      {canClub(actor, "attendance:scan") ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DoorIcon className="size-4 text-muted-foreground" />
+              The door
+            </CardTitle>
+            <CardDescription>
+              On the day, a volunteer opens the scanner on their phone and points it at the QR code.
+              It keeps working when the basement has no signal.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link
+              href={`/demo/events/${event.id}/door?as=${account.key}`}
+              className={cn(buttonVariants({ size: "sm" }))}
+            >
+              Open the door preview
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="flex flex-wrap gap-3">
         <Link

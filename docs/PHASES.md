@@ -283,18 +283,79 @@ round-trip and reject foreign codes; verify gate passes (lint, types, 231 tests,
 
 ---
 
-## Phase 6 — Scanner & Edge Cases
+## Phase 6 — Scanner & Edge Cases — Complete
 
-- Mobile-first scanner view (camera + manual UUID fallback) for Event Managers and above.
-- Offline resilience: local queue of accepted scans when the network fails, automatic batch sync
-  with idempotent `scan_uuid`, and a visible pending/rejected indicator.
-- Server-side validation of every scan: ticket belongs to this event, status is `Registered`, not
-  already checked in, event is today.
-- **Offline test:** disable the network mid-session, scan 3 tickets, restore, confirm exactly 3
-  attendance rows.
+**Goal.** Let an organiser run a door on a bad phone on bad campus Wi-Fi, and lose nothing.
 
-**Acceptance criteria:** offline scans sync without duplicates; double-scan shows "already checked
-in" rather than erroring; verify gate passes.
+**What was built**
+
+- A mobile-first scanner page at `/door` (every event you may scan) and `/events/:eventId/door`.
+  Camera via `qr-scanner` (worker copied to `public/`), plus a **typed door code** fallback for the
+  very common case of a phone with no camera permission, a cracked lens, or a preview that is not a
+  real browser session.
+- **Door codes.** Every ticket gets a short, human-readable code: the last 8 hex characters of its
+  QR secret, upper-cased and grouped (`4F1A 9C02`). Printed on the ticket page under the QR. It is
+  derived, not stored, so no new column and no migration.
+- **Offline queue.** Accepted scans are appended to a `localStorage` queue tagged with a
+  client-generated `scanUuid`; a background flusher batches them to
+  `POST /api/events/:eventId/check-in/sync` (1–200 scans per request) and removes only the ones the
+  server acknowledged. Pending / rejected counts are always visible on screen.
+- **Offline verification.** The door downloads a manifest (`GET …/check-in/manifest`) when the
+  network is healthy and keeps it in local storage. Each row carries a **SHA-256 fingerprint** of the
+  ticket secret and the printable door code — *never* the secret itself. With no connection, a scan
+  is hashed in the browser (`crypto.subtle`, no `node:crypto` in the bundle) and matched against the
+  cached fingerprint, so an offline verdict is a real verification, not a substring guess.
+- **Server-side validation of every scan.** One `decideCheckIn` function, used by the API, the
+  attendance page and the read-only demo, answers in a fixed order:
+  `EVENT_CANCELLED → CANCELLED_TICKET → WAITLISTED → ALREADY_CHECKED_IN → CHECKED_IN`, with
+  `NOT_FOUND` for a code that belongs to another event or to nobody.
+- **Check-in window.** Local midnight on the event's own day through `max(end of that local day,
+  endTime + 3 h)`. A 19:00–22:00 IST event opens at midnight IST and closes at 01:00 IST; the
+  next day is computed with calendar arithmetic, not by adding 24 hours to an instant.
+- Attendance report at `/events/:eventId/attendance` with registered / waitlisted / checked-in counts
+  and turn-up rate.
+
+**The idempotency trick.** `Attendance.scanUuid` is `UNIQUE`. A retried request, a queue that flushes
+twice, or a browser that loses the response all collide on that column instead of inserting a second
+row. `POST /check-in` with a known `scanUuid` returns the original verdict with `"replayed": true`;
+the unique `ticketId` is a second wall behind it (P2002 → `ALREADY_CHECKED_IN`, never a 500).
+
+**Route surface**
+
+| Route | Who | What |
+| --- | --- | --- |
+| `POST /api/events/:eventId/check-in` | Event Manager+ (`attendance:scan`) | scan one ticket |
+| `POST /api/events/:eventId/check-in/sync` | Event Manager+ | sync a queued batch (1–200) |
+| `GET /api/events/:eventId/check-in/manifest` | Event Manager+ | the offline guest list (fingerprints + door codes, no secrets) |
+| `GET /api/events/:eventId/attendance` | Event Manager+ (`attendance:report`) | counts and the full sheet |
+
+**The offline test.** `tests/integration/check-in.test.ts` simulates the whole thing at the service
+layer: the same three queued scans are sent twice, and the attendance table must still hold exactly
+**3** rows — then the individual `scanUuid`s are verified to be the originals. `scannedAt` is preserved
+from the phone, so the attendance sheet shows when people actually walked in, not when the Wi-Fi came
+back. Section `[14]` of the smoke test does the same over HTTP: scan → replay → duplicate → garbage QR
+→ manifest leaks nothing → batch → batch again → still one row per ticket.
+
+**Tests added (231 → 272):**
+
+| File | Cases |
+| --- | --- |
+| `tests/unit/check-in-rules.test.ts` (20) | window edges in IST and London, the grace period crossing midnight, verdict ordering, door-code derivation, both fingerprint implementations agreeing |
+| `tests/integration/check-in.test.ts` (20) | scan, double scan, replay by `scanUuid`, cancelled event, cancelled ticket, waitlisted ticket, foreign tenant, offline batch of 3 synced twice, manifest never leaks a secret, attendance counts |
+| `tests/integration/seed.test.ts` (+1, updated) | the seeded open house is mid-event with some already inside and some still to scan; 5 events / 12 tickets / 5 attendance rows |
+
+Smoke test is now **14 sections / 162 checks** (up from 13 / 130).
+
+**Bugs found by the new tests (fixed):**
+
+1. `checkInWindow` computed "the next local day" as `start + 36 h`, which lands on the wrong date for
+   early-morning events. Replaced with calendar arithmetic on the day key.
+2. The first version of offline verification matched a *substring* of the fingerprint — that is not
+   verification. It now hashes the scanned secret with `crypto.subtle` and compares the full digest.
+
+**Acceptance criteria met:** offline scans sync without duplicates (proved by replaying the same
+batch twice); a double scan returns `ALREADY_CHECKED_IN` with HTTP 200, not an error; verify gate
+passes (lint, types, 272 tests, production build, 162/162 smoke).
 
 ---
 
@@ -320,6 +381,7 @@ human-readable message; verify gate passes.
 | 2026-10-15 | 3 — Tenant & Club Scaffolding | Complete. Colleges, clubs, RBAC matrix, invite links, cookie-free `/demo` preview. Gate: lint ✅ typecheck ✅ build ✅ 142 tests ✅ smoke 82/82 ✅ |
 | 2026-10-17 | 4 — Event Management CRUD | Complete. Event lifecycle with UTC storage and college-time rendering, DST gap/repeat handling, members-only 404s. Gate: lint ✅ typecheck ✅ build ✅ 187 tests ✅ smoke 107/107 ✅ |
 | 2026-10-17 | 5 — Ticketing & Concurrency | Complete. Row-locked registration (proved by a test that fails without the lock), FIFO waitlist with automatic promotion, server-rendered QR tickets, per-user rate limiting. Gate: lint ✅ typecheck ✅ build ✅ 231 tests ✅ smoke 130/130 ✅ |
+| 2026-10-17 | 6 — Scanner & Edge Cases | Complete. Mobile-first scanner with typed door-code fallback, offline queue with idempotent `scanUuid`, browser-side fingerprint verification against a cached manifest, single `decideCheckIn` verdict used by API and UI, attendance report. Gate: lint ✅ typecheck ✅ build ✅ 272 tests ✅ smoke 162/162 ✅ |
 
 ---
 

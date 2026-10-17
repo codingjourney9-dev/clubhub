@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ApiError } from "@/lib/api/response";
 import { requireUuidParam } from "@/lib/api/params";
 import { getCurrentUser } from "@/lib/auth/session";
+import { doorCodeFromSecret } from "@/lib/domain/check-in";
 import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
 import { getTicketForOwner, findTicketForUser } from "@/lib/services/ticket-service";
 import { encodeTicketQr } from "@/lib/tickets/qr";
@@ -125,6 +126,16 @@ export default async function TicketPage({ params }: { params: Promise<{ ticketI
               <p className="text-center text-xs text-slate-600">
                 Show this at the door. It is yours alone — a screenshot is enough, but a forwarded
                 one lets somebody else in first.
+              </p>
+              <p className="text-center text-xs text-slate-600">
+                Door code:{" "}
+                <span className="font-mono text-base tracking-[0.2em] text-slate-900">
+                  {doorCodeFromSecret(ticket.qrCodeUuid)}
+                </span>
+              </p>
+              <p className="max-w-xs text-center text-[11px] text-slate-500">
+                If the QR will not scan, read this out. It only works on the day of the event, and
+                only a club organiser can enter it.
               </p>
             </div>
           ) : null}

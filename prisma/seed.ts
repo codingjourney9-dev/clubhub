@@ -38,6 +38,7 @@ const EVENT = {
   workshop: "0f1d2c3b-4a59-4e6d-8b7c-300000000002",
   debate: "0f1d2c3b-4a59-4e6d-8b7c-300000000003",
   debugNight: "0f1d2c3b-4a59-4e6d-8b7c-300000000004",
+  openHouse: "0f1d2c3b-4a59-4e6d-8b7c-300000000005",
 } as const;
 
 /** Fixed ticket ids/secrets keep this seed idempotent (Phase 5). */
@@ -50,6 +51,25 @@ const TICKET = {
   debugMeera: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000006", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000006" },
   debugNisha: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000007", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000007" },
   debugKabir: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000008", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000008" },
+  openAarav: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000009", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000009" },
+  openMeera: { id: "0f1d2c3b-4a59-4e6d-8b7c-40000000000a", qr: "0f1d2c3b-4a59-4e6d-8b7c-50000000000a" },
+  openKabir: { id: "0f1d2c3b-4a59-4e6d-8b7c-40000000000b", qr: "0f1d2c3b-4a59-4e6d-8b7c-50000000000b" },
+  openNisha: { id: "0f1d2c3b-4a59-4e6d-8b7c-40000000000c", qr: "0f1d2c3b-4a59-4e6d-8b7c-50000000000c" },
+} as const;
+
+/**
+ * Two people are already through the door before you arrive.
+ *
+ * Leaving one seat unscanned is deliberate: the demo needs a ticket that can
+ * still be checked in, otherwise the door preview can only show "already inside".
+ */
+const CHECK_IN = {
+  robowarsAarav: "0f1d2c3b-4a59-4e6d-8b7c-600000000001",
+  debugAarav: "0f1d2c3b-4a59-4e6d-8b7c-600000000002",
+  debugMeera: "0f1d2c3b-4a59-4e6d-8b7c-600000000003",
+  openAarav: "0f1d2c3b-4a59-4e6d-8b7c-600000000004",
+  openMeera: "0f1d2c3b-4a59-4e6d-8b7c-600000000005",
+  robowarsMeera: "0f1d2c3b-4a59-4e6d-8b7c-600000000006",
 } as const;
 
 const DEMO_PASSWORD = "password123";
@@ -224,6 +244,23 @@ async function main() {
       createdById: USER.aarav,
     },
     {
+      // Deliberately anchored to "now" rather than a fixed date: this is the event
+      // the door demo opens, and it must always be happening.
+      id: EVENT.openHouse,
+      clubId: robotics.id,
+      title: "Open House — Robot Demos",
+      description:
+        "The lab doors are open all afternoon. Come and drive something. Badge in at the desk — this is the event the door scanner demo uses.",
+      location: "Robotics Lab, Block D",
+      startTime: new Date(Date.now() - 60 * 60 * 1000),
+      endTime: new Date(Date.now() + 3 * 60 * 60 * 1000),
+      capacity: 40,
+      waitlistEnabled: true,
+      status: "PUBLISHED" as const,
+      isPublic: true,
+      createdById: USER.aarav,
+    },
+    {
       id: EVENT.workshop,
       clubId: robotics.id,
       title: "Line-Follower Workshop (members only)",
@@ -272,6 +309,12 @@ async function main() {
     { seat: TICKET.debugMeera, eventId: EVENT.debugNight, userId: USER.meera, status: "REGISTERED" as const, position: null },
     { seat: TICKET.debugNisha, eventId: EVENT.debugNight, userId: USER.nisha, status: "REGISTERED" as const, position: null },
     { seat: TICKET.debugKabir, eventId: EVENT.debugNight, userId: USER.kabir, status: "WAITLISTED" as const, position: 1 },
+
+    // Today's open house: two through the door already, two still outside.
+    { seat: TICKET.openAarav, eventId: EVENT.openHouse, userId: USER.aarav, status: "REGISTERED" as const, position: null },
+    { seat: TICKET.openMeera, eventId: EVENT.openHouse, userId: USER.meera, status: "REGISTERED" as const, position: null },
+    { seat: TICKET.openKabir, eventId: EVENT.openHouse, userId: USER.kabir, status: "REGISTERED" as const, position: null },
+    { seat: TICKET.openNisha, eventId: EVENT.openHouse, userId: USER.nisha, status: "REGISTERED" as const, position: null },
   ];
 
   for (const ticket of tickets) {
@@ -295,6 +338,55 @@ async function main() {
     });
   }
 
+  // ── Attendance: a door that has already been used once ────────────────────
+  const checkIns = [
+    { id: CHECK_IN.robowarsAarav, ticketId: TICKET.robowarsAarav.id, eventId: EVENT.robowars, offset: 12, hour: 3, minute: 52 },
+    { id: CHECK_IN.debugAarav, ticketId: TICKET.debugAarav.id, eventId: EVENT.debugNight, offset: 4, hour: 13, minute: 31 },
+    { id: CHECK_IN.debugMeera, ticketId: TICKET.debugMeera.id, eventId: EVENT.debugNight, offset: 4, hour: 13, minute: 34 },
+    { id: CHECK_IN.robowarsMeera, ticketId: TICKET.robowarsMeera.id, eventId: EVENT.robowars, offset: 12, hour: 3, minute: 58 },
+  ];
+
+  // The open house happened today, so its check-ins are "minutes ago".
+  const openHouseCheckIns = [
+    { id: CHECK_IN.openAarav, ticketId: TICKET.openAarav.id, minutesAgo: 48 },
+  ];
+
+  for (const checkIn of checkIns) {
+    await db.attendance.upsert({
+      where: { ticketId: checkIn.ticketId },
+      update: {},
+      create: {
+        id: checkIn.id,
+        tenantId: tenant.id,
+        eventId: checkIn.eventId,
+        ticketId: checkIn.ticketId,
+        checkInTime: utcDate(checkIn.offset, checkIn.hour, checkIn.minute),
+        source: "SCANNER",
+        checkedInById: USER.aarav,
+        scanUuid: checkIn.id,
+        deviceLabel: "seed: demo door",
+      },
+    });
+  }
+
+  for (const checkIn of openHouseCheckIns) {
+    await db.attendance.upsert({
+      where: { ticketId: checkIn.ticketId },
+      update: {},
+      create: {
+        id: checkIn.id,
+        tenantId: tenant.id,
+        eventId: EVENT.openHouse,
+        ticketId: checkIn.ticketId,
+        checkInTime: new Date(Date.now() - checkIn.minutesAgo * 60 * 1000),
+        source: "SCANNER",
+        checkedInById: USER.aarav,
+        scanUuid: checkIn.id,
+        deviceLabel: "seed: demo door",
+      },
+    });
+  }
+
   console.log(`
   Seed complete ────────────────────────────────────────────────
   Tenant   ${tenant.name}  (${tenant.timezone})
@@ -306,8 +398,9 @@ async function main() {
     kabir.member@vit.ac.in      Tenant Member  · Member in both clubs
     dean.admin@vit.ac.in        Tenant Admin   · no club role (cross-club visibility)
 
-  Clubs    2   Events   4 (3 published · 1 draft members-only)
-  Tickets  8 (7 seats held · 1 person queuing for a full room)
+  Clubs    2   Events   5 (4 published · 1 draft members-only)
+  Tickets  12 (11 seats held · 1 person queuing for a full room)
+  Door     5 checked in — Open House (today) 1 of 4 · Debug Night 2 of 3 · RoboWars 2 of 4
   Invites  1   public demo link: join/${DEMO_INVITE_TOKEN}
   ──────────────────────────────────────────────────────────────
 `);

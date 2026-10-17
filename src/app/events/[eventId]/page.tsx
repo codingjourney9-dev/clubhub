@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, CalendarDays, Clock, Info, MapPin, Users } from "lucide-react";
+import { ArrowLeft, CalendarDays, CheckCircle2, Clock, Info, MapPin, ScanLine, Users } from "lucide-react";
 
 import {
   RegisterPanel,
@@ -9,6 +9,7 @@ import {
 } from "@/components/features/ticket/register-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -22,8 +23,10 @@ import { ApiError } from "@/lib/api/response";
 import { requireEventAccess, type EventContext } from "@/lib/auth/guards";
 import { decideSeat, registrationClosedReason } from "@/lib/domain/ticket-rules";
 import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
+import { getAttendanceReport } from "@/lib/services/check-in-service";
 import { findTicketForUser, listEventRoster } from "@/lib/services/ticket-service";
 import { ticketCountsByEvent } from "@/lib/services/event-service";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Event" };
 export const dynamic = "force-dynamic";
@@ -76,10 +79,11 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
   const { context } = result;
   const { event, club } = context;
 
-  const [counts, myTicket, roster] = await Promise.all([
+  const [counts, myTicket, roster, attendance] = await Promise.all([
     ticketCountsByEvent([eventId]),
     findTicketForUser(eventId, context.user.id),
     context.isOrganizer ? listEventRoster(eventId, event.tenantId) : Promise.resolve(null),
+    context.isOrganizer ? getAttendanceReport(eventId, event.tenantId) : Promise.resolve(null),
   ]);
 
   const registered = counts.get(eventId)?.registered ?? 0;
@@ -210,6 +214,49 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
           />
         </CardContent>
       </Card>
+
+      {attendance ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ScanLine className="size-4 text-muted-foreground" />
+              The door
+            </CardTitle>
+            <CardDescription>
+              Check people in on the day. The scanner works with no internet — scans are held on the
+              phone and uploaded when the signal returns.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+              <span className="flex items-center gap-2">
+                <CheckCircle2 className="size-4 text-emerald-600" />
+                {attendance.counts.checkedIn} of {attendance.counts.registered} turned up
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {attendance.counts.attendanceRate}% attendance · {attendance.counts.waitlisted} on the
+                waitlist
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/events/${eventId}/door`}
+                className={cn(buttonVariants({ size: "sm" }))}
+              >
+                <ScanLine data-icon="inline-start" />
+                Open the scanner
+              </Link>
+              <Link
+                href={`/events/${eventId}/attendance`}
+                className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
+              >
+                Attendance report
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {roster ? (
         <Card>

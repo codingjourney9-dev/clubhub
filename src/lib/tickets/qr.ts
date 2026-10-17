@@ -38,3 +38,14 @@ export function decodeTicketQr(payload: string): string | null {
     ? secret.toLowerCase()
     : null;
 }
+
+/**
+ * The canonical form of a ticket secret: lower-case hex, no dashes.
+ *
+ * Both the server (`node:crypto`) and the browser (`crypto.subtle`) hash this
+ * exact string, so it lives here — in a module that has no server-only imports —
+ * rather than next to either hash implementation.
+ */
+export function canonicalSecret(secret: string): string {
+  return secret.trim().toLowerCase().replace(/-/g, "");
+}

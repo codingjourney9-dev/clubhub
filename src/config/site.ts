@@ -47,28 +47,28 @@ export const phaseRoadmap: readonly PhaseRoadmapItem[] = [
     title: "Tenant & Club Scaffolding",
     summary:
       "Create tenants and clubs, invite members, and enforce the RBAC matrix in every route handler.",
-    status: "planned",
+    status: "complete",
   },
   {
     id: 4,
     title: "Event Management CRUD",
     summary:
       "Admin dashboard metrics, Zod-validated event forms, public vs member-only listings.",
-    status: "planned",
+    status: "complete",
   },
   {
     id: 5,
     title: "Ticketing & Concurrency",
     summary:
       "RSVP transactions with SELECT … FOR UPDATE capacity locking, waitlist promotion, QR ticket generation.",
-    status: "planned",
+    status: "complete",
   },
   {
     id: 6,
     title: "Scanner & Edge Cases",
     summary:
       "Mobile-first QR scanner, local offline queue for poor-network venues, automatic sync and conflict reporting.",
-    status: "planned",
+    status: "in_progress",
   },
   {
     id: 7,

@@ -215,12 +215,81 @@ joins the queue), then cancel the first. The second person is registered before 
 reloading, and the canceller is told so: *"Meera Patel just moved up from the waitlist and took your
 seat."*
 
-### Step 9 — See the app defend itself
+### Step 9 — Work the door (new in Phase 6)
+
+This is the phase where the app leaves the laptop and goes to a real room with a real queue of
+people and, usually, terrible Wi-Fi.
+
+**First, the paper version.** Go back to the Robotics Club preview and open an event you hold a
+ticket for. Under your QR code there is now a line like **Door code: 4F1A 9C02**. That short code is
+not a second ticket — it is the last few characters of the same secret, printed so a human can type
+it. In a real room you would print the ticket or read it off the student's phone.
+
+**Then the door itself.** On the event page, click **Open the door**. You get a dark, phone-shaped
+scanner screen:
+
+| Part of the screen | What it does |
+| --- | --- |
+| The big camera square | Scans a QR code. **This needs a real phone with a camera** — in the chat preview, or on a laptop without one, it will simply say there is no camera. That is expected, not a bug. |
+| **Type the door code** | The always-works fallback. Type `4F1A 9C02` (any case, with or without spaces) and press **Check in**. Use this in the preview. |
+| The green / amber / red panel | The verdict. Green = let them in. Amber = they are already inside. Red = they are not on the list. |
+| **Pending / rejected** counters | Scans the phone has accepted but the server has not confirmed yet, and scans the server refused. |
+
+Try it in the read-only demo: open **Open House** from the Robotics Club preview and click
+**Open the door**. The demo version does not write anything, so you can press every button safely.
+Use the **View as** switcher at the top: as Aarav or Meera you are staff and see the whole door page;
+as Kabir you are a student and get told you are not allowed.
+
+**The three answers you will see** — these are the same three the real organiser sees:
+
+| Verdict | Plain English |
+| --- | --- |
+| **CHECKED IN** | Green. Their ticket is valid, it belongs to this event, and this was the first time. |
+| **ALREADY CHECKED IN** | Amber, *not* an error. Somebody scanned the same ticket twice (or the same person tried again because the queue behind them pushed them back). The app tells the volunteer "already inside, at 7:41" instead of flashing a scary failure. |
+| **WAITLISTED / CANCELLED / NOT FOUND** | Red. Not a seat, a seat given back, or a code that belongs to a different event (or to nobody). |
+
+**Now the interesting part — the bad Wi-Fi test.** This is the requirement the whole phase exists
+for, and you can watch it in the demo door: the screen has a **Simulate: go offline** button. Press
+it, and the phone "loses" its connection.
+
+The **Open House** list has four people on it. One is already inside (the demo starts you mid-event)
+and **three are still outside**. Press **Scan** on each of those three. Each one is answered
+**from the guest list the phone already downloaded** before the signal died — the list holds a
+fingerprint (a one-way code) for every ticket, and none of the secrets. The three scans pile up in a
+queue on the phone, and the counter reads **Pending 3**. Nothing has claimed anybody is inside yet.
+
+Press **Reconnect & sync**. The phone uploads the queue in one batch, the counter drops to
+**Pending 0**, and **Saved rows** goes from 1 to 4: exactly three new rows, not six, not zero.
+
+Press **Scan** on somebody again and then sync again if you like — "Saved rows" refuses to move. Now
+try it with the person who was already inside, and you get the amber answer instead: *already
+checked in*. That is a receipt, not a failure.
+
+Why not more than three? Because every scan carries its own little identity tag (`scanUuid`). If the phone is unsure
+whether the batch got through — say the connection came back for a second and dropped again — it
+sends the batch again. The server recognises each tag it has already seen and answers *"yes, I have
+that one"* without writing a second row. Sending the same batch ten times still leaves three rows.
+If you run the app yourself (§4), you can prove it with the real thing instead of the demo
+button: turn off Wi-Fi on the laptop mid-queue, scan, turn it back on.
+
+**Why the fingerprint matters.** The phone cannot check a password-like secret it does not have. So
+the server sends a *fingerprint* — the result of a one-way scramble of the secret. The phone scrambles
+what it scanned and compares the two scrambled values. If they match, the ticket is real. The original
+secret never leaves the server, so a stolen phone does not hand out free tickets.
+
+### Step 10 — Read the attendance sheet
+
+From the door page, open **Attendance** (or the link on the event page). You get four numbers —
+registered, waitlisted, checked in, and the turn-up rate — and one row per seat with the time each
+person actually walked in, in your college's timezone. The times come from the phone, not from when
+the server heard about it, so a scan at 7:41 that syncs at 8:15 still reads 7:41.
+
+### Step 11 — See the app defend itself
 
 While signed out (or in the demo), visit `/dashboard` in the preview. You get bounced to the sign-in
 page. You can't sneak into a protected page by typing its address — the app checks every single time.
 
-### Step 10 — (Optional) the real sign-in experience
+### Step 12 — (Optional) the real sign-in experience
 
 Sign-in needs cookies, so run the app on your own machine (§4) and use
 `aarav.president@vit.ac.in` / `password123`. You'll land on the same dashboard — but this time the

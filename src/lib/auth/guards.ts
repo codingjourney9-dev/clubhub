@@ -153,7 +153,12 @@ export async function requireClubAccess(clubId: string, action: ClubAction): Pro
  * visibility check (you may take a seat if you can see the event). The other two
  * are ordinary club permissions and go through the matrix.
  */
-export type EventAction = "ticket:rsvp" | "ticket:view_roster" | "ticket:manage";
+export type EventAction =
+  | "ticket:rsvp"
+  | "ticket:view_roster"
+  | "ticket:manage"
+  | "attendance:scan"
+  | "attendance:report";
 
 export interface EventContext {
   readonly user: SessionUser;

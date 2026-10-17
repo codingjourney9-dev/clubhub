@@ -25,8 +25,9 @@ const EXPECTED = {
   tenantMembers: 4,
   clubs: 2,
   clubMembers: 6,
-  events: 4,
-  tickets: 8,
+  events: 5,
+  tickets: 12,
+  attendance: 5,
 } as const;
 
 beforeAll(async () => {
@@ -75,7 +76,7 @@ describe("seed script", () => {
   it("seeds both a public published event and a members-only draft", async () => {
     const db = testDb();
 
-    expect(await db.event.count({ where: { isPublic: true, status: "PUBLISHED" } })).toBe(3);
+    expect(await db.event.count({ where: { isPublic: true, status: "PUBLISHED" } })).toBe(4);
     expect(
       await db.event.count({ where: { isPublic: false, status: "DRAFT", deletedAt: null } }),
     ).toBe(1);
@@ -87,7 +88,7 @@ describe("seed script", () => {
     // The demo needs a room that is actually full, otherwise a waitlist is an
     // abstract idea in a screenshot instead of a visible queue.
     expect(await db.ticket.count()).toBe(EXPECTED.tickets);
-    expect(await db.ticket.count({ where: { status: "REGISTERED" } })).toBe(7);
+    expect(await db.ticket.count({ where: { status: "REGISTERED" } })).toBe(11);
     expect(await db.ticket.count({ where: { status: "WAITLISTED" } })).toBe(1);
 
     const debugNight = await db.event.findFirstOrThrow({
@@ -103,6 +104,34 @@ describe("seed script", () => {
     expect(seated).toBe(debugNight.capacity);
   });
 
+  it("seeds a door with history and something left to scan", async () => {
+    const db = testDb();
+
+    expect(await db.attendance.count()).toBe(EXPECTED.attendance);
+
+    // Today's open house must be mid-event, or the door demo would be closed.
+    const openHouse = await db.event.findFirstOrThrow({
+      where: { title: { contains: "Open House" } },
+      select: { id: true, startTime: true, endTime: true },
+    });
+
+    const now = Date.now();
+    expect(openHouse.startTime.getTime()).toBeLessThan(now);
+    expect(openHouse.endTime.getTime()).toBeGreaterThan(now);
+
+    const seated = await db.ticket.count({
+      where: { eventId: openHouse.id, status: "REGISTERED" },
+    });
+    const through = await db.attendance.count({
+      where: { eventId: openHouse.id },
+    });
+
+    // Somebody has already been in, and somebody is still outside with a valid
+    // ticket — otherwise the demo can only show one of the two answers.
+    expect(through).toBeGreaterThan(0);
+    expect(through).toBeLessThan(seated);
+  });
+
   it("is idempotent — re-running it creates no duplicates", async () => {
     runSeed();
 
@@ -114,5 +143,6 @@ describe("seed script", () => {
     expect(await db.clubMember.count()).toBe(EXPECTED.clubMembers);
     expect(await db.event.count()).toBe(EXPECTED.events);
     expect(await db.ticket.count()).toBe(EXPECTED.tickets);
+    expect(await db.attendance.count()).toBe(EXPECTED.attendance);
   }, 120_000);
 });

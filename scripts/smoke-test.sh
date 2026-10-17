@@ -9,7 +9,8 @@
 # credentials sign-in, role-specific dashboard content, the cookie-free demo
 # preview, (phase 3) colleges, clubs, the RBAC-guarded club page and the full
 # invite lifecycle, (phase 4) the event lifecycle with its UTC/timezone rules, and
-# (phase 5) capacity-safe registration, waitlists and QR tickets.
+# (phase 5) capacity-safe registration, waitlists and QR tickets, and (phase 6) the
+# door: scanning, duplicate detection, idempotent offline sync and attendance.
 set -uo pipefail
 
 BASE="${BASE:-http://localhost:3000}"
@@ -20,7 +21,8 @@ FAILURES=0
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-pass() { printf '  \033[32m✓\033[0m %s\n' "$1"; }
+PASSES=0
+pass() { PASSES=$((PASSES + 1)); printf '  \033[32m✓\033[0m %s\n' "$1"; }
 fail() { printf '  \033[31m✗\033[0m %s\n' "$1"; FAILURES=$((FAILURES + 1)); }
 
 expect_status() { # label expected actual
@@ -64,7 +66,7 @@ echo "[1] health & readiness"
 STATUS=$(curl -s -o "$TMP/health.json" -w '%{http_code}' "$BASE/api/health")
 expect_status "GET /api/health" 200 "$STATUS"
 expect_contains "database is up" "$TMP/health.json" '"status":"up"'
-expect_contains "health reports phase 5" "$TMP/health.json" '"phase":5'
+expect_contains "health reports phase 6" "$TMP/health.json" '"phase":6'
 
 echo "[2] protected route without a session"
 LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/dashboard")
@@ -481,7 +483,10 @@ if [ -n "$PRESIDENT_CLUB" ]; then
       "$TMP/aarav.jar")
     FULL_EVENT=$(node -e 'const b=require(process.argv[1]);process.stdout.write((b.data.event||{}).id||"")' "$TMP/body.json")
     json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$FULL_EVENT/status" '{"status":"PUBLISHED"}' "$TMP/aarav.jar" > /dev/null
-    json_status POST "/api/events/$FULL_EVENT/register" '{}' "$TMP/kabir.jar" > /dev/null
+    # Kabir wins the only seat; his ticket is scanned at the door in section [14].
+    STATUS=$(json_status POST "/api/events/$FULL_EVENT/register" '{}' "$TMP/kabir.jar")
+    DOOR_TICKET=$(node -e 'const b=require(process.argv[1]);process.stdout.write(((b.data||{}).ticket||{}).id||"")' "$TMP/body.json")
+    SEAT_QR=$(psql -h 127.0.0.1 -U clubhub -d clubhub -tA -c "select qr_code_uuid from tickets where id='$DOOR_TICKET'")
 
     STATUS=$(json_status POST "/api/events/$FULL_EVENT/register" '{}' "$TMP/meera.jar")
     expect_status "a full room without a waitlist refuses politely" 409 "$STATUS"
@@ -492,6 +497,7 @@ if [ -n "$PRESIDENT_CLUB" ]; then
     expect_status "a request naming another user is rejected" 422 "$STATUS"
 
     # Clean up: cancel then delete, because a published event cannot be deleted.
+    # Leaving events behind would fill the club page and hide the seeded ones.
     for CLEANUP in "$SEAT_EVENT" "$FULL_EVENT"; do
       json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$CLEANUP/status" '{"status":"CANCELLED"}' "$TMP/aarav.jar" > /dev/null
       json_status DELETE "/api/clubs/$PRESIDENT_CLUB/events/$CLEANUP" "" "$TMP/aarav.jar" > /dev/null
@@ -499,9 +505,149 @@ if [ -n "$PRESIDENT_CLUB" ]; then
   fi
 fi
 
+echo "[14] phase 6 — the door: scan, duplicate, offline sync, attendance"
+if [ -n "$PRESIDENT_CLUB" ] && [ -f "$TMP/aarav.jar" ]; then
+  # The door only opens on the event's own day, so this event is today — in the
+  # college's timezone, as a wall clock, exactly what the browser sends. If it is
+  # late evening, an event "in two hours" would fall on tomorrow and the door
+  # would be shut, so admit defeat gracefully and start it in half an hour.
+  read -r DOOR_START DOOR_END <<< "$(node -e '
+    const tz = "Asia/Kolkata";
+    const pad = (n) => String(n).padStart(2, "0");
+    const parts = (d) => {
+      const f = new Intl.DateTimeFormat("en-CA", {
+        timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).formatToParts(d);
+      const g = (t) => f.find((x) => x.type === t).value;
+      return { key: `${g("year")}-${g("month")}-${g("day")}`, text: `${g("year")}-${g("month")}-${g("day")}T${g("hour")}:${g("minute")}` };
+    };
+    const now = Date.now();
+    let start = new Date(now + 2 * 3600e3);
+    if (parts(start).key !== parts(new Date(now)).key) start = new Date(now + 30 * 60e3);
+    const end = new Date(start.getTime() + 3 * 3600e3);
+    process.stdout.write(`${parts(start).text} ${parts(end).text}`);
+  ')"
+
+  STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events" \
+    "{\"title\":\"Smoke Door Test\",\"start\":\"$DOOR_START\",\"end\":\"$DOOR_END\",\"capacity\":5,\"waitlistEnabled\":true,\"isPublic\":true}" \
+    "$TMP/aarav.jar")
+  expect_status "an event for today is created" 201 "$STATUS"
+  DOOR_EVENT=$(node -e 'const b=require(process.argv[1]);process.stdout.write(((b.data||{}).event||{}).id||"")' "$TMP/body.json")
+  json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$DOOR_EVENT/status" '{"status":"PUBLISHED"}' "$TMP/aarav.jar" > /dev/null
+
+  # Two people take a seat: Kabir scans at the door, Meera arrives through the
+  # offline queue later.
+  STATUS=$(json_status POST "/api/events/$DOOR_EVENT/register" '{}' "$TMP/kabir.jar")
+  expect_status "Kabir takes a seat" 201 "$STATUS"
+  DOOR_TICKET=$(node -e 'const b=require(process.argv[1]);process.stdout.write(((b.data||{}).ticket||{}).id||"")' "$TMP/body.json")
+  SEAT_QR=$(psql -h 127.0.0.1 -U clubhub -d clubhub -tA -c "select qr_code_uuid from tickets where id='$DOOR_TICKET'")
+
+  STATUS=$(json_status POST "/api/events/$DOOR_EVENT/register" '{}' "$TMP/meera.jar")
+  expect_status "and Meera takes the next one" 201 "$STATUS"
+  MEERA_TICKET=$(node -e 'const b=require(process.argv[1]);process.stdout.write(((b.data||{}).ticket||{}).id||"")' "$TMP/body.json")
+  MEERA_QR=$(psql -h 127.0.0.1 -U clubhub -d clubhub -tA -c "select qr_code_uuid from tickets where id='$MEERA_TICKET'")
+
+  # A plain member cannot work the door, and cannot read the sheet.
+  STATUS=$(json_status POST "/api/events/$DOOR_EVENT/check-in" "{\"code\":\"$SEAT_QR\"}" "$TMP/kabir.jar")
+  expect_status "a plain member cannot scan" 403 "$STATUS"
+  STATUS=$(json_status GET "/api/events/$DOOR_EVENT/attendance" "" "$TMP/kabir.jar")
+  expect_status "a plain member cannot read attendance" 403 "$STATUS"
+
+  # The organiser can. The scan carries its own id, so a retry is harmless.
+  SCAN_UUID=$(node -e 'process.stdout.write(crypto.randomUUID())')
+  STATUS=$(json_status POST "/api/events/$DOOR_EVENT/check-in" \
+    "{\"code\":\"clubhub:ticket:$SEAT_QR\",\"source\":\"SCANNER\",\"scanUuid\":\"$SCAN_UUID\"}" \
+    "$TMP/aarav.jar")
+  expect_status "the organiser scans a ticket" 200 "$STATUS"
+  expect_contains "…and the person is checked in" "$TMP/body.json" '"outcome":"CHECKED_IN"'
+  expect_contains "…with the holder's name" "$TMP/body.json" 'Kabir'
+
+  # The same scan id arriving again must not create a second row.
+  STATUS=$(json_status POST "/api/events/$DOOR_EVENT/check-in" \
+    "{\"code\":\"clubhub:ticket:$SEAT_QR\",\"source\":\"SCANNER\",\"scanUuid\":\"$SCAN_UUID\"}" \
+    "$TMP/aarav.jar")
+  expect_contains "a retried scan is recognised as a replay" "$TMP/body.json" '"replayed":true'
+
+  # A fresh scan of the same ticket says "already inside" — not an error.
+  STATUS=$(json_status POST "/api/events/$DOOR_EVENT/check-in" \
+    "{\"code\":\"clubhub:ticket:$SEAT_QR\"}" "$TMP/aarav.jar")
+  expect_status "scanning the same ticket again is not an error" 200 "$STATUS"
+  expect_contains "…it says they are already inside" "$TMP/body.json" '"outcome":"ALREADY_CHECKED_IN"'
+
+  ROWS=$(psql -h 127.0.0.1 -U clubhub -d clubhub -tA -c "select count(*) from attendance where ticket_id='$DOOR_TICKET'")
+  if [ "$ROWS" = "1" ]; then
+    pass "exactly one attendance row for that ticket"
+  else
+    fail "expected 1 attendance row, found $ROWS"
+  fi
+
+  # Typed door codes work too — that is the fallback for a phone with no camera.
+  DOOR_CODE=$(psql -h 127.0.0.1 -U clubhub -d clubhub -tA -c \
+    "select upper(right(replace(qr_code_uuid::text,'-',''),8)) from tickets where id='$DOOR_TICKET'")
+  STATUS=$(json_status POST "/api/events/$DOOR_EVENT/check-in" "{\"code\":\"$DOOR_CODE\"}" "$TMP/aarav.jar")
+  expect_contains "the printed door code is understood (lower case, no dashes)" "$TMP/body.json" '"outcome":"ALREADY_CHECKED_IN"'
+
+  # Nonsense from a camera is a normal answer, not a 500.
+  STATUS=$(json_status POST "/api/events/$DOOR_EVENT/check-in" '{"code":"WIFI:S:Campus;T:WPA;P:hunter2;;"}' "$TMP/aarav.jar")
+  expect_status "a non-ticket QR code is refused politely" 200 "$STATUS"
+  expect_contains "…as 'no matching ticket'" "$TMP/body.json" '"outcome":"NOT_FOUND"'
+
+  # ── The offline queue ────────────────────────────────────────────────────
+  # The manifest is what the phone keeps when the signal dies.
+  STATUS=$(json_status GET "/api/events/$DOOR_EVENT/check-in/manifest" "" "$TMP/aarav.jar")
+  expect_status "the offline guest list downloads" 200 "$STATUS"
+  expect_contains "…with a fingerprint per ticket" "$TMP/body.json" '"fingerprint"'
+  expect_contains "…and the printable door code" "$TMP/body.json" '"doorCode"'
+  if grep -qF "$SEAT_QR" "$TMP/body.json"; then
+    fail "the guest list leaked a ticket secret"
+  else
+    pass "the guest list never contains the secret itself"
+  fi
+
+  # Meera arrives while the phone has no signal; her scan is uploaded twice.
+  BATCH_UUID=$(node -e 'process.stdout.write(crypto.randomUUID())')
+  BATCH="{\"scans\":[{\"scanUuid\":\"$BATCH_UUID\",\"code\":\"$MEERA_QR\",\"source\":\"MANUAL\"}]}"
+  STATUS=$(json_status POST "/api/events/$DOOR_EVENT/check-in/sync" "$BATCH" "$TMP/aarav.jar")
+  expect_status "an offline batch syncs" 200 "$STATUS"
+  expect_contains "…and the queued person is in" "$TMP/body.json" '"checkedIn":1'
+  STATUS=$(json_status POST "/api/events/$DOOR_EVENT/check-in/sync" "$BATCH" "$TMP/aarav.jar")
+  expect_status "the same batch sent twice is accepted" 200 "$STATUS"
+  expect_contains "…and is recognised as a replay" "$TMP/body.json" '"replayed":true'
+
+  ROWS=$(psql -h 127.0.0.1 -U clubhub -d clubhub -tA -c "select count(*) from attendance where ticket_id='$MEERA_TICKET'")
+  if [ "$ROWS" = "1" ]; then
+    pass "replaying the batch created no duplicate rows"
+  else
+    fail "expected 1 attendance row after replay, found $ROWS"
+  fi
+
+  # An empty batch is a client bug, not a silent success.
+  STATUS=$(json_status POST "/api/events/$DOOR_EVENT/check-in/sync" '{"scans":[]}' "$TMP/aarav.jar")
+  expect_status "an empty batch is rejected" 422 "$STATUS"
+
+  STATUS=$(json_status GET "/api/events/$DOOR_EVENT/attendance" "" "$TMP/aarav.jar")
+  expect_status "the organiser can read attendance" 200 "$STATUS"
+  expect_contains "…and sees who turned up" "$TMP/body.json" '"checkedIn":2'
+  expect_contains "…and the rate" "$TMP/body.json" '"attendanceRate"'
+
+  # The scanner page itself renders for an organiser.
+  STATUS=$(curl -s -b "$TMP/aarav.jar" -o "$TMP/door.html" -w '%{http_code}' "$BASE/events/$DOOR_EVENT/door")
+  expect_status "the scanner page renders" 200 "$STATUS"
+  expect_contains "…with the manual fallback" "$TMP/door.html" "Type the door code"
+
+  STATUS=$(curl -s -b "$TMP/kabir.jar" -o "$TMP/door-member.html" -w '%{http_code}' "$BASE/events/$DOOR_EVENT/door")
+  expect_status "a member opening the scanner gets a page, not a crash" 200 "$STATUS"
+  expect_contains "…that tells them it is not theirs" "$TMP/door-member.html" "Only the club can run this door"
+
+  # Clean up: the demo database should not fill with smoke events.
+  json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$DOOR_EVENT/status" '{"status":"CANCELLED"}' "$TMP/aarav.jar" > /dev/null
+  json_status DELETE "/api/clubs/$PRESIDENT_CLUB/events/$DOOR_EVENT" "" "$TMP/aarav.jar" > /dev/null
+fi
+
 echo "──────────────────────────────────────────────"
 if [ "$FAILURES" -eq 0 ]; then
-  printf '\033[32mAll checks passed.\033[0m\n\n'
+  printf '\033[32mAll %d checks passed.\033[0m\n\n' "$PASSES"
 else
   printf '\033[31m%d check(s) failed.\033[0m\n\n' "$FAILURES"
   exit 1

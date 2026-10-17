@@ -155,7 +155,23 @@ EOF
         rm -f "$PGDATA_DIR/postmaster.pid"
       fi
     fi
-    "$PGBIN/pg_ctl" -D "$PGDATA_DIR" -l "$PGDATA_DIR/server.log" -w start >/dev/null
+    if ! "$PGBIN/pg_ctl" -D "$PGDATA_DIR" -l "$PGDATA_DIR/server.log" -w start >/dev/null 2>&1; then
+      # A snapshot taken while Postgres was writing can truncate the write-ahead
+      # log, after which startup aborts with "could not locate a valid checkpoint
+      # record". The tables themselves are fine; only the log needs rebuilding.
+      # This trades the last few uncommitted transactions for a working database,
+      # which is the right trade for a development cluster.
+      if grep -q "could not locate a valid checkpoint record\|invalid checkpoint record" \
+           "$PGDATA_DIR/server.log" 2>/dev/null; then
+        echo "Write-ahead log is damaged (snapshot taken mid-write) → rebuilding it"
+        "$PGBIN/pg_resetwal" -f "$PGDATA_DIR" >/dev/null
+        "$PGBIN/pg_ctl" -D "$PGDATA_DIR" -l "$PGDATA_DIR/server.log" -w start >/dev/null
+      else
+        echo "Postgres failed to start. Last lines of $PGDATA_DIR/server.log:" >&2
+        tail -n 12 "$PGDATA_DIR/server.log" >&2
+        exit 1
+      fi
+    fi
     echo "Postgres started on port $PORT (log: $PGDATA_DIR/server.log)"
     ;;
 
