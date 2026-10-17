@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { ApiFailure, ApiSuccess } from "@/types/api";
+import { callApi, notifyFailure } from "@/lib/api/client";
 
 /**
  * Invite-link creation and management.
@@ -80,23 +80,18 @@ export function InviteManager({
     event.preventDefault();
     setIsCreating(true);
     try {
-      const response = await fetch(`/api/clubs/${clubId}/invites`, {
+      const result = await callApi<{ invite: { url: string } }>(`/api/clubs/${clubId}/invites`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+        json: {
           role,
           expiresInHours: Number(expiresInHours),
           maxUses: Number(maxUses),
           ...(email.trim() ? { email: email.trim() } : {}),
-        }),
+        },
       });
 
-      const payload = (await response.json()) as
-        | ApiSuccess<{ invite: { url: string } }>
-        | ApiFailure;
-
-      if (!payload.ok) {
-        toast.error("Could not create the invite link", { description: payload.error.message });
+      if (!result.ok) {
+        notifyFailure(result, "Could not create the invite link");
         return;
       }
 
@@ -109,11 +104,12 @@ export function InviteManager({
   }
 
   async function revoke(inviteId: string) {
-    const response = await fetch(`/api/clubs/${clubId}/invites/${inviteId}/revoke`, { method: "POST" });
-    const payload = (await response.json()) as ApiSuccess<unknown> | ApiFailure;
+    const result = await callApi(`/api/clubs/${clubId}/invites/${inviteId}/revoke`, {
+      method: "POST",
+    });
 
-    if (!payload.ok) {
-      toast.error("Could not revoke the link", { description: payload.error.message });
+    if (!result.ok) {
+      notifyFailure(result, "Could not revoke the link");
       return;
     }
     toast.success("Invite link revoked");

@@ -3,9 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, MapPin, Users } from "lucide-react";
 
+import { EmptyState } from "@/components/common/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth/session";
 import { decideSeat } from "@/lib/domain/ticket-rules";
 import { formatDateTimeInZone } from "@/lib/format/date";
@@ -46,15 +46,21 @@ export default async function UpcomingEventsPage() {
       </div>
 
       {events.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Nothing on the calendar</CardTitle>
-            <CardDescription>
-              When a club publishes an event, it appears here with its time in your college&apos;s
-              timezone.
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        <EmptyState
+          icon={CalendarDays}
+          title="Nothing on the calendar yet"
+          description={
+            <>
+              When a club you belong to publishes an event it appears here, with every time shown in
+              your college&apos;s timezone. If you run a club, publish something from its page.
+            </>
+          }
+          action={
+            <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+              Go to your dashboard
+            </Link>
+          }
+        />
       ) : (
         <ul className="flex flex-col gap-3">
           {events.map((event) => {

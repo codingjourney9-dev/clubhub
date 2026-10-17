@@ -3,6 +3,7 @@ import { parseJsonBody } from "@/lib/api/request";
 import { requireClubAccess } from "@/lib/auth/guards";
 import { cancelEvent, publishEvent } from "@/lib/services/event-service";
 import { eventStatusSchema } from "@/lib/validation/event";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
  * action (and their own confirmation in the UI) rather than being one more value
  * that can be changed by accident while fixing a typo.
  */
-export async function POST(
+async function handlePOST(
   request: Request,
   { params }: { params: Promise<{ clubId: string; eventId: string }> },
 ) {
@@ -37,3 +38,5 @@ export async function POST(
     return handleRouteError(error);
   }
 }
+
+export const POST = withApiRoute("POST /api/clubs/[clubId]/events/[eventId]/status", handlePOST);

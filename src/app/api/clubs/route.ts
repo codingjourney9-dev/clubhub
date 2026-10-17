@@ -4,6 +4,7 @@ import { requireTenantAccess } from "@/lib/auth/guards";
 import { createClub, listClubs } from "@/lib/services/club-service";
 import { createClubSchema } from "@/lib/validation/club";
 import { z } from "zod";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 const listQuerySchema = z.object({ tenantId: z.uuid("A valid college id is required.") });
 
 /** GET /api/clubs?tenantId=… — clubs in a college, with the caller's own role. */
-export async function GET(request: Request) {
+async function handleGET(request: Request) {
   try {
     const url = new URL(request.url);
     const { tenantId } = listQuerySchema.parse({ tenantId: url.searchParams.get("tenantId") });
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
  * verifies the caller is an Owner/Admin of exactly that college before anything
  * is written. The founder is enrolled as the club's President.
  */
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const input = await parseJsonBody(request, createClubSchema);
     const context = await requireTenantAccess(input.tenantId, "club:create");
@@ -44,3 +45,6 @@ export async function POST(request: Request) {
     return handleRouteError(error);
   }
 }
+
+export const GET = withApiRoute("GET /api/clubs", handleGET);
+export const POST = withApiRoute("POST /api/clubs", handlePOST);

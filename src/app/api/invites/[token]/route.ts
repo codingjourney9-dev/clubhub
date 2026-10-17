@@ -2,6 +2,7 @@ import { fail, handleRouteError, ok } from "@/lib/api/response";
 import { requireUser } from "@/lib/auth/session";
 import { acceptInvite, previewInvite } from "@/lib/services/invite-service";
 import { inviteTokenSchema } from "@/lib/validation/invite";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
  * GET /api/invites/:token — public preview for the join page.
  * Reveals only what is needed to render "You have been invited to X as Y".
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
+async function handleGET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
     const raw = await params;
     const token = inviteTokenSchema.parse(raw.token);
@@ -33,7 +34,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
  * row is locked inside a transaction so a one-use link cannot be redeemed twice
  * concurrently.
  */
-export async function POST(_request: Request, { params }: { params: Promise<{ token: string }> }) {
+async function handlePOST(_request: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
     const raw = await params;
     const token = inviteTokenSchema.parse(raw.token);
@@ -46,3 +47,6 @@ export async function POST(_request: Request, { params }: { params: Promise<{ to
     return handleRouteError(error);
   }
 }
+
+export const GET = withApiRoute("GET /api/invites/[token]", handleGET);
+export const POST = withApiRoute("POST /api/invites/[token]", handlePOST);

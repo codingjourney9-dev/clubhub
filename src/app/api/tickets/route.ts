@@ -1,6 +1,7 @@
 import { handleRouteError, ok } from "@/lib/api/response";
 import { requireUser } from "@/lib/auth/session";
 import { listMyTickets } from "@/lib/services/ticket-service";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
  * row carries the college's timezone so the client can render the same instant
  * correctly for each college (a student can belong to two).
  */
-export async function GET() {
+async function handleGET() {
   try {
     const user = await requireUser();
     const tickets = await listMyTickets(user.id);
@@ -22,3 +23,5 @@ export async function GET() {
     return handleRouteError(error);
   }
 }
+
+export const GET = withApiRoute("GET /api/tickets", handleGET);

@@ -5,6 +5,7 @@ import { requireEventAccess } from "@/lib/auth/guards";
 import { enforceRateLimit } from "@/lib/rate-limit/budgets";
 import { registerForEvent } from "@/lib/services/ticket-service";
 import { registrationBodySchema } from "@/lib/validation/ticket";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
  * 201 for a new seat or queue place, 200 when the request was a harmless repeat
  * of one you already made.
  */
-export async function POST(
+async function handlePOST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
@@ -44,3 +45,5 @@ export async function POST(
     return handleRouteError(error);
   }
 }
+
+export const POST = withApiRoute("POST /api/events/[eventId]/register", handlePOST);

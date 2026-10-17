@@ -32,7 +32,18 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <AppProviders>{children}</AppProviders>
+        {/* Keyboard users should reach the page, not the furniture. */}
+        <a
+          href="#main-content"
+          className="sr-only rounded-md bg-background px-3 py-2 text-sm font-medium shadow focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50"
+        >
+          Skip to content
+        </a>
+        <AppProviders>
+          <div id="main-content" tabIndex={-1} className="outline-none">
+            {children}
+          </div>
+        </AppProviders>
       </body>
     </html>
   );

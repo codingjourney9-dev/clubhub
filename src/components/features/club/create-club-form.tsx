@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createClubSchema, type CreateClubInput } from "@/lib/validation/club";
-import type { ApiFailure, ApiSuccess, FieldErrors } from "@/types/api";
+import { callApi, fieldErrorsOf, notifyFailure } from "@/lib/api/client";
 
 /**
  * Creates a club inside a college.
@@ -34,28 +34,21 @@ export function CreateClubForm({ tenantId, tenantName }: { tenantId: string; ten
   });
 
   async function onSubmit(values: CreateClubInput) {
-    const response = await fetch("/api/clubs", {
+    const result = await callApi<{ club: { name: string } }>("/api/clubs", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...values, tenantId }),
+      json: { ...values, tenantId },
     });
 
-    const payload = (await response.json()) as ApiSuccess<{ club: { name: string } }> | ApiFailure;
-
-    if (!payload.ok) {
-      const details = payload.error.details as FieldErrors | undefined;
-      if (details) {
-        for (const [field, messages] of Object.entries(details)) {
-          const message = messages[0];
-          if (message && field in values) setError(field as keyof CreateClubInput, { message });
-        }
+    if (!result.ok) {
+      for (const [field, message] of Object.entries(fieldErrorsOf(result))) {
+        if (message && field in values) setError(field as keyof CreateClubInput, { message });
       }
-      toast.error("Could not create the club", { description: payload.error.message });
+      notifyFailure(result, "Could not create the club");
       return;
     }
 
     toast.success("Club created", {
-      description: `${payload.data.club.name} is ready — you are its President.`,
+      description: `${result.data.club.name} is ready — you are its President.`,
     });
     reset({ tenantId, name: "", description: "", category: "" });
     router.refresh();

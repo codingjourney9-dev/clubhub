@@ -8,8 +8,8 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { callApi, notifyFailure } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
-import type { ApiFailure, ApiSuccess } from "@/types/api";
 
 export type SeatAvailability = "REGISTERED" | "WAITLISTED" | "FULL";
 
@@ -54,25 +54,22 @@ export function RegisterPanel({
   async function register() {
     setBusy(true);
     try {
-      const response = await fetch(`/api/events/${eventId}/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      const body = (await response.json()) as
-        | ApiSuccess<{ outcome: string; ticket: { status: string; queuePosition: number | null } }>
-        | ApiFailure;
+      const result = await callApi<{
+        outcome: string;
+        ticket: { status: string; queuePosition: number | null };
+      }>(`/api/events/${eventId}/register`, { method: "POST", json: {} });
 
-      if (!body.ok) {
-        toast.error("Could not register", { description: body.error.message });
+      if (!result.ok) {
+        // A full room is a legitimate answer, not a bug — say it plainly.
+        notifyFailure(result, result.code === "CONFLICT" ? "No seats left" : "Could not register");
         return;
       }
 
-      if (body.data.outcome === "waitlisted") {
+      if (result.data.outcome === "waitlisted") {
         toast.success("You are on the waitlist", {
-          description: `You are number ${body.data.ticket.queuePosition} in line. We will not email you — check this page.`,
+          description: `You are number ${result.data.ticket.queuePosition} in line. We will not email you — check this page.`,
         });
-      } else if (body.data.outcome.startsWith("already")) {
+      } else if (result.data.outcome.startsWith("already")) {
         toast.info("You are already on the list", { description: "Nothing changed." });
       } else {
         toast.success("Seat claimed", {
@@ -91,17 +88,16 @@ export function RegisterPanel({
 
     setBusy(true);
     try {
-      const response = await fetch(`/api/tickets/${ticket.id}`, { method: "DELETE" });
-      const body = (await response.json()) as
-        | ApiSuccess<{ promoted: PromotedPerson[] }>
-        | ApiFailure;
+      const result = await callApi<{ promoted: PromotedPerson[] }>(`/api/tickets/${ticket.id}`, {
+        method: "DELETE",
+      });
 
-      if (!body.ok) {
-        toast.error("Could not cancel", { description: body.error.message });
+      if (!result.ok) {
+        notifyFailure(result, "Could not cancel");
         return;
       }
 
-      const promoted = body.data.promoted?.[0];
+      const promoted = result.data.promoted?.[0];
 
       toast.success(ticket.status === "WAITLISTED" ? "You left the waitlist" : "Seat released", {
         description: promoted

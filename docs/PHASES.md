@@ -359,16 +359,100 @@ passes (lint, types, 272 tests, production build, 162/162 smoke).
 
 ---
 
-## Phase 7 — Polish & Observability
+## Phase 7 — Polish & Observability — Complete
 
-- Skeleton loaders, empty states, optimistic updates with rollback, toast notifications for every
-  failure path (wired to the shared envelope's error codes).
-- Responsive pass across dashboard, event pages and scanner; keyboard/ARIA pass on forms and dialogs.
-- Structured request logging with tenant/user context, error boundary, and a `/api/health`
-  readiness payload.
+**Goal.** The difference between "it works" and "it can be handed to a volunteer".
 
-**Acceptance criteria:** no layout breakage from 360 px to 1440 px; every API error surfaces a
-human-readable message; verify gate passes.
+### 1. Every failure says something a person can act on
+
+`src/lib/api/client.ts` is now the only way a screen talks to the API. It fixes three silent
+failures that every component used to have:
+
+| Before | After |
+| --- | --- |
+| `fetch` rejected with no `catch` → the button quietly stopped spinning | `{ code: "NETWORK_ERROR", message: "You appear to be offline…" }` |
+| A proxy error returned HTML → `response.json()` threw a syntax error | `{ code: "INTERNAL_ERROR", message: "The server sent an unexpected reply…" }` |
+| A hung request span forever | a 20 s abort → `{ code: "TIMEOUT", … }` |
+
+It also carries the server's `x-request-id` through to the toast, so a screenshot of an error is
+enough to find the exact log line. `fieldErrorsOf()` lifts a 422's per-field messages onto the right
+inputs, and every call site in the app (register, cancel, create/edit event, publish, delete, create
+club, invite, revoke, change role, remove member, create college, sign up, accept invite) now uses
+it.
+
+### 2. Optimistic updates with rollback
+
+`src/lib/ui/optimistic.ts` — 9 unit tests. Publishing or cancelling an event flips the badge the
+moment you press the button, then either the refresh confirms it or the claim is taken back and the
+row snaps to the truth. The subtle part is *when* a claim stops being a claim: `settlePatches()`
+drops it only when the server's own data agrees, so a claim cannot outlive its request, and a claim
+that the server later contradicts (somebody else cancelled the event) cannot stick.
+
+### 3. Empty states, skeletons and an error boundary
+
+- `EmptyState` — events, tickets; each explains what would fill the space and offers the next step.
+- `PageSkeleton` — shape-matching placeholders wired as `loading.tsx`.
+- `app/error.tsx` — a page that throws renders "That page did not load", the `digest`, a retry and a
+  way back; `app/global-error.tsx` covers a failure in the root layout itself.
+- `app/not-found.tsx` — one page for "wrong address" and "not yours", deliberately identical.
+
+**A trap worth recording:** a `loading.tsx` makes its whole subtree stream, and once the shell is on
+the wire the HTTP status is already sent. A `notFound()` below it then renders the right page with
+**200**, and a `redirect()` turns into a client-side hop. This was caught by the smoke test (pages
+that had answered 404 started answering 200) and fixed by keeping `loading.tsx` only where nothing
+below it can 404 or redirect — the dashboard and `/door`, which is now also protected by middleware
+so its redirect keeps its 307.
+
+### 4. Responsive and keyboard pass
+
+- `npm run test:layout` drives headless Chromium over seven routes at **360, 390, 768, 1024 and 1440
+  px** and asserts, per width: no horizontal overflow, every image has `alt`, every button and link
+  has an accessible name, every form control has a label, exactly one `<h1>`. **100 checks.**
+  (The overflow detector was itself verified by injecting a 2000 px element and watching it fail.)
+- A skip-to-content link is the first thing the keyboard reaches; `#main-content` is focusable; a
+  global `:focus-visible` ring covers links, buttons, inputs, selects, textareas and summaries.
+- `overflow-wrap: break-word` on `body` kills the classic "one long email address widens the page"
+  bug; the sign-up name fields stack below `sm`.
+
+### 5. Structured logging with tenant/user context
+
+- `src/lib/observability/context.ts` — an `AsyncLocalStorage` "backpack" per request. Guards drop
+  the user id (in `requireUser`) and the tenant + role (in `requireClubAccess`/`requireEventAccess`/
+  `requireTenantAccess`); the wrapper reads them when the response is done.
+- `src/lib/observability/logger.ts` — one JSON line per API request:
+  `{"event":"api.request","requestId":…,"method":"POST","path":…,"status":201,"durationMs":12,
+  "userId":…,"tenantId":…,"actorRole":"PRESIDENT"}`. 4xx logs at `warn`, 5xx at `error`;
+  `LOG_LEVEL` filters; tests default to quiet.
+- **`redactPath`** hides invite tokens (a token in a URL *is* a credential) while keeping UUIDs.
+  Email addresses are never logged — ids and roles only.
+- `withApiRoute` wraps **all 23 route files** (everything except the NextAuth catch-all): it mints or
+  accepts `x-request-id`, opens the context, times the handler, writes the line and echoes the id
+  back in the response header.
+
+### 6. Health that means something
+
+`/api/health` now separates *liveness* from *readiness*: `ready` is true only when Postgres answers
+**and** `_prisma_migrations` says a migration has been applied; the payload carries `version`,
+`phase`, `checks.database.latencyMs`, `checks.migrations.applied` + `latest`, and whether demo mode
+is on. A deploy that forgot `prisma migrate deploy` now shows `degraded` with a 503 instead of
+serving 500s while looking healthy.
+
+**Tests added (272 → 299):**
+
+| File | Cases |
+| --- | --- |
+| `tests/unit/api-client.test.ts` (9) | success, JSON body, dead network, HTML reply, error envelope, 422 field errors, junk details, timeout, friendly titles |
+| `tests/unit/logger.test.ts` (9) | path redaction, single-line JSON, `LOG_LEVEL`, context inheritance, "no request" safety, one line per request with tenant/user, level by status |
+| `tests/unit/optimistic.test.ts` (9) | claim, immutability, rollback, optimistic delete, settle on agreement, no-op identity |
+
+Smoke is now **15 sections / 178 checks**, including: correlation id on every response, an error body
+that never leaks `node_modules`/stack frames, the 404 page explaining itself, the skip link, and
+health reporting demo mode. Layout check adds **100** browser assertions.
+
+**Acceptance criteria met:** no layout breakage from 360 px to 1440 px (100 browser checks across
+7 routes × 5 widths); every API error surfaces a human-readable sentence (single client bridge, with
+the network/HTML/timeout cases covered by tests); verify gate passes (lint, types, 299 tests,
+production build).
 
 ---
 
@@ -382,6 +466,7 @@ human-readable message; verify gate passes.
 | 2026-10-17 | 4 — Event Management CRUD | Complete. Event lifecycle with UTC storage and college-time rendering, DST gap/repeat handling, members-only 404s. Gate: lint ✅ typecheck ✅ build ✅ 187 tests ✅ smoke 107/107 ✅ |
 | 2026-10-17 | 5 — Ticketing & Concurrency | Complete. Row-locked registration (proved by a test that fails without the lock), FIFO waitlist with automatic promotion, server-rendered QR tickets, per-user rate limiting. Gate: lint ✅ typecheck ✅ build ✅ 231 tests ✅ smoke 130/130 ✅ |
 | 2026-10-17 | 6 — Scanner & Edge Cases | Complete. Mobile-first scanner with typed door-code fallback, offline queue with idempotent `scanUuid`, browser-side fingerprint verification against a cached manifest, single `decideCheckIn` verdict used by API and UI, attendance report. Gate: lint ✅ typecheck ✅ build ✅ 272 tests ✅ smoke 162/162 ✅ |
+| 2026-10-17 | 7 — Polish & Observability | Complete. One client bridge so every failure is a sentence, optimistic updates with rollback, empty states + skeletons + error boundaries, 100 browser-verified layout checks at 360–1440 px, structured request logs with user/tenant context on all 23 routes, readiness-aware `/api/health`. Gate: lint ✅ typecheck ✅ build ✅ 299 tests ✅ smoke 178/178 ✅ layout 100/100 ✅ |
 
 ---
 

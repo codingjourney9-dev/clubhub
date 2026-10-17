@@ -2,6 +2,7 @@ import { requireUuidParam } from "@/lib/api/params";
 import { handleRouteError, ok } from "@/lib/api/response";
 import { requireEventAccess } from "@/lib/auth/guards";
 import { listEventRoster } from "@/lib/services/ticket-service";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
  * The response deliberately carries no QR secrets — a roster is a list of names,
  * not a wallet of tickets.
  */
-export async function GET(
+async function handleGET(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
@@ -35,3 +36,5 @@ export async function GET(
     return handleRouteError(error);
   }
 }
+
+export const GET = withApiRoute("GET /api/events/[eventId]/tickets", handleGET);

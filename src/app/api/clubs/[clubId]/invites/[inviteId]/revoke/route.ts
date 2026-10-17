@@ -2,6 +2,7 @@ import { handleRouteError, ok } from "@/lib/api/response";
 import { requireClubAccess } from "@/lib/auth/guards";
 import { revokeInvite } from "@/lib/services/invite-service";
 import { z } from "zod";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 const paramsSchema = z.object({ clubId: z.uuid(), inviteId: z.uuid() });
 
 /** POST /api/clubs/:clubId/invites/:inviteId/revoke — cancel a link immediately. */
-export async function POST(
+async function handlePOST(
   _request: Request,
   { params }: { params: Promise<{ clubId: string; inviteId: string }> },
 ) {
@@ -25,3 +26,5 @@ export async function POST(
     return handleRouteError(error);
   }
 }
+
+export const POST = withApiRoute("POST /api/clubs/[clubId]/invites/[inviteId]/revoke", handlePOST);

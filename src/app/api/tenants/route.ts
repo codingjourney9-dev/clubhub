@@ -3,6 +3,7 @@ import { parseJsonBody } from "@/lib/api/request";
 import { requireUser } from "@/lib/auth/session";
 import { createTenantForUser, listTenantsForUser } from "@/lib/services/tenant-service";
 import { createTenantSchema } from "@/lib/validation/tenant";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
  * GET /api/tenants — the colleges the caller belongs to (powers the tenant switcher).
  * POST /api/tenants — self-serve college creation; the caller becomes its Owner.
  */
-export async function GET() {
+async function handleGET() {
   try {
     const user = await requireUser();
     return ok({ tenants: await listTenantsForUser(user.id) });
@@ -20,7 +21,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const user = await requireUser();
     const input = await parseJsonBody(request, createTenantSchema);
@@ -31,3 +32,6 @@ export async function POST(request: Request) {
     return handleRouteError(error);
   }
 }
+
+export const GET = withApiRoute("GET /api/tenants", handleGET);
+export const POST = withApiRoute("POST /api/tenants", handlePOST);

@@ -284,12 +284,40 @@ registered, waitlisted, checked in, and the turn-up rate — and one row per sea
 person actually walked in, in your college's timezone. The times come from the phone, not from when
 the server heard about it, so a scan at 7:41 that syncs at 8:15 still reads 7:41.
 
-### Step 11 — See the app defend itself
+### Step 11 — Watch it fail gracefully (new in Phase 7)
+
+Everything so far showed the app working. This step is about the other half of a real product: what
+somebody sees when something goes wrong.
+
+**A wrong address.** Type `/nonsense` after the preview's address. You get a page that says *"There
+is nothing at this address"* and offers two ways back — not a white screen, and not a stack trace.
+Deliberately, it does not say whether the thing exists but belongs to another college; that would
+leak who exists.
+
+**An HTTPS error, not a dead button.** Every failure in the app now arrives as a sentence with a
+small reference code. The reference is the same id as the server's log line, so "it said *ref
+4f9a2c1e*" is a thing a real user can report and an engineer can find in ten seconds.
+
+**The app says what it is doing.** Open `/api/health` in the preview. It is meant for machines, but
+read it once: `ready: true` only when the database answers *and* the migrations have been applied,
+plus latency, the migration name, the version, and whether demo mode is on. A deploy that forgot to
+migrate shows `degraded` with a 503 rather than serving errors while looking healthy.
+
+**The polite side of a slow connection.** Pages that take a moment now show their shape — grey
+placeholders where the cards will be — instead of an empty page. You will see it on the dashboard on
+a slow connection (this is the one place a skeleton is safe; see the note in `docs/PHASES.md` about
+why a loading skeleton and a 404 status cannot coexist on the same route).
+
+**Keyboard-only, one press.** Press <kbd>Tab</kbd> as soon as any page loads. The first thing that
+appears is a **Skip to content** link — the shortcut screen-reader and keyboard users expect. Every
+button, link and field then shows a clear focus ring.
+
+### Step 12 — See the app defend itself
 
 While signed out (or in the demo), visit `/dashboard` in the preview. You get bounced to the sign-in
 page. You can't sneak into a protected page by typing its address — the app checks every single time.
 
-### Step 12 — (Optional) the real sign-in experience
+### Step 13 — (Optional) the real sign-in experience
 
 Sign-in needs cookies, so run the app on your own machine (§4) and use
 `aarav.president@vit.ac.in` / `password123`. You'll land on the same dashboard — but this time the
@@ -333,11 +361,12 @@ Two commands do the checking for you. This is the habit that separates "it works
 real software.
 
 ```bash
-npm run test          # 231 automated checks — the "robot inspectors"
-npm run test:smoke    # 130 checks against the running website
+npm run test          # 299 automated checks — the "robot inspectors"
+npm run test:smoke    # 178 checks against the running website
+npm run test:layout   # 100 checks in a real browser, at phone and desktop widths
 ```
 
-The 231 tests answer questions like:
+The 299 tests answer questions like:
 
 - *"If someone tries to sneak an event from College B into College A's data, does the filing cabinet
   slam the drawer shut?"* → Yes, it refuses. (That's not politeness; the database physically can't
@@ -354,9 +383,19 @@ The 231 tests answer questions like:
 - *"If someone from another college guesses a club's web address, what do they see?"* → A plain
   "not found" page. Nothing confirms whether that club exists.
 
-And the 130 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
+And the 178 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
 limit, read the dashboard as two different people, mint an invite link and redeem it as a brand-new
-account, and take the last seat in a one-seat event to watch the queue move.
+account, take the last seat in a one-seat event to watch the queue move, and scan that ticket twice
+at the door to see the second scan come back as a receipt instead of an error.
+
+The layout check is the newest one: it opens the read-only pages in a headless browser at 360, 390,
+768, 1024 and 1440 pixels wide and fails if anything sticks out sideways, if an image has no
+description, if a button or link has no name, if a field has no label, or if a page has more than one
+top-level heading. In other words, it checks the things that make an app usable on a phone and with a
+screen reader, which no amount of code review reliably catches.
+
+It needs a browser. If `npm run test:layout` says it cannot find Chromium, install it once with
+`npx playwright install chromium` — it is a one-off download, not part of the app.
 
 **The golden rule:** before finishing any phase, we run
 
@@ -364,7 +403,7 @@ account, and take the last seat in a one-seat event to watch the queue move.
 npm run verify
 ```
 
-…which does *checking for typos* → *checking for type mistakes* → *running all 187 tests* → *building
+…which does *checking for typos* → *checking for type mistakes* → *running all 299 tests* → *building
 the final version*. If any step fails, the phase isn't done. One tip: stop the preview server first
 (`Ctrl-C`), because the build and the server share the same temporary folder.
 

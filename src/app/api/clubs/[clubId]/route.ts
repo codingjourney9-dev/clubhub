@@ -3,12 +3,13 @@ import { parseJsonBody } from "@/lib/api/request";
 import { requireClubAccess } from "@/lib/auth/guards";
 import { getClubById, softDeleteClub, updateClub } from "@/lib/services/club-service";
 import { updateClubSchema } from "@/lib/validation/club";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/clubs/:clubId — club detail (any member of the college). */
-export async function GET(_request: Request, { params }: { params: Promise<{ clubId: string }> }) {
+async function handleGET(_request: Request, { params }: { params: Promise<{ clubId: string }> }) {
   try {
     const { clubId } = await params;
     const context = await requireClubAccess(clubId, "club:read");
@@ -21,7 +22,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ clu
 }
 
 /** PATCH /api/clubs/:clubId — edit name, description, category, logo (President or college admin). */
-export async function PATCH(request: Request, { params }: { params: Promise<{ clubId: string }> }) {
+async function handlePATCH(request: Request, { params }: { params: Promise<{ clubId: string }> }) {
   try {
     const { clubId } = await params;
     const context = await requireClubAccess(clubId, "club:update");
@@ -42,7 +43,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ cl
  * disappear from under events students have already seen. Attendance and ticket
  * history is preserved.
  */
-export async function DELETE(_request: Request, { params }: { params: Promise<{ clubId: string }> }) {
+async function handleDELETE(_request: Request, { params }: { params: Promise<{ clubId: string }> }) {
   try {
     const { clubId } = await params;
     const context = await requireClubAccess(clubId, "club:delete");
@@ -53,3 +54,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return handleRouteError(error);
   }
 }
+
+export const GET = withApiRoute("GET /api/clubs/[clubId]", handleGET);
+export const PATCH = withApiRoute("PATCH /api/clubs/[clubId]", handlePATCH);
+export const DELETE = withApiRoute("DELETE /api/clubs/[clubId]", handleDELETE);

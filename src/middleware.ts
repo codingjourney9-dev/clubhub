@@ -13,5 +13,5 @@ export const { auth: middleware } = NextAuth(authConfig);
 
 /** Must stay in sync with PROTECTED_PREFIXES in src/lib/auth/auth.config.ts. */
 export const config = {
-  matcher: ["/dashboard/:path*", "/scanner/:path*", "/onboarding/:path*"],
+  matcher: ["/dashboard/:path*", "/scanner/:path*", "/onboarding/:path*", "/door/:path*", "/door"],
 };

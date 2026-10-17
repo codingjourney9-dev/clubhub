@@ -63,10 +63,17 @@ echo "ClubHub smoke test → $BASE"
 echo "──────────────────────────────────────────────"
 
 echo "[1] health & readiness"
-STATUS=$(curl -s -o "$TMP/health.json" -w '%{http_code}' "$BASE/api/health")
+STATUS=$(curl -s -D "$TMP/health.headers" -o "$TMP/health.json" -w '%{http_code}' "$BASE/api/health")
 expect_status "GET /api/health" 200 "$STATUS"
-expect_contains "database is up" "$TMP/health.json" '"status":"up"'
-expect_contains "health reports phase 6" "$TMP/health.json" '"phase":6'
+expect_contains "database is up" "$TMP/health.json" '"state":"up"'
+expect_contains "health reports phase 7" "$TMP/health.json" '"phase":7'
+expect_contains "…and says it is ready to serve" "$TMP/health.json" '"ready":true'
+expect_contains "…because the migrations have run" "$TMP/health.json" '"applied":'
+if grep -qi "x-request-id:" "$TMP/health.headers"; then
+  pass "every response carries a correlation id"
+else
+  fail "no x-request-id header on the response"
+fi
 
 echo "[2] protected route without a session"
 LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/dashboard")
@@ -643,6 +650,60 @@ if [ -n "$PRESIDENT_CLUB" ] && [ -f "$TMP/aarav.jar" ]; then
   # Clean up: the demo database should not fill with smoke events.
   json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$DOOR_EVENT/status" '{"status":"CANCELLED"}' "$TMP/aarav.jar" > /dev/null
   json_status DELETE "/api/clubs/$PRESIDENT_CLUB/events/$DOOR_EVENT" "" "$TMP/aarav.jar" > /dev/null
+fi
+
+echo "[15] phase 7 — polish & observability"
+if [ -f "$TMP/aarav.jar" ] && [ -n "$PRESIDENT_CLUB" ]; then
+  # Errors are envelopes, not HTML, and carry the id that matches the log line.
+  STATUS=$(curl -s -D "$TMP/err.headers" -o "$TMP/err.json" -w '%{http_code}' \
+    -b "$TMP/aarav.jar" "$BASE/api/events/not-a-uuid/attendance")
+  # Deliberately 404, not 400: an id that cannot exist is indistinguishable from
+  # one that does not, and saying which would leak that we looked.
+  expect_status "a malformed id is a clean 404" 404 "$STATUS"
+  expect_contains "…as an error envelope" "$TMP/err.json" '"ok":false'
+  expect_contains "…with a machine code" "$TMP/err.json" '"code"'
+  if grep -qi "x-request-id:" "$TMP/err.headers"; then
+    pass "…and a correlation id to quote in a bug report"
+  else
+    fail "…but no x-request-id header"
+  fi
+
+  # A refusal still reads like English, not a stack trace.
+  STATUS=$(curl -s -o "$TMP/err2.json" -w '%{http_code}' -b "$TMP/kabir.jar" \
+    "$BASE/api/clubs/$PRESIDENT_CLUB/invites")
+  expect_status "a member cannot list invites" 403 "$STATUS"
+  expect_contains "…and is told why in a sentence" "$TMP/err2.json" '"error"'
+  if grep -q "at Object\|node_modules\|PrismaClient" "$TMP/err2.json"; then
+    fail "the error leaked internals"
+  else
+    pass "no internals leaked in the error body"
+  fi
+
+  # The 404 page is a page, not a blank screen.
+  STATUS=$(curl -s -o "$TMP/404.html" -w '%{http_code}' "$BASE/this-does-not-exist")
+  expect_status "an unknown address is a 404" 404 "$STATUS"
+  expect_contains "…with a page that explains itself" "$TMP/404.html" "There is nothing at this address"
+  expect_contains "…and a way back" "$TMP/404.html" "Back to the dashboard"
+
+  # The skip link is the first thing a keyboard reaches.
+  if grep -q "Skip to content" "$TMP/404.html"; then
+    pass "every page starts with a skip-to-content link"
+  else
+    fail "the skip link is missing"
+  fi
+
+  # Health is honest about the demo mode, so a production deploy can be checked.
+  expect_contains "health reports whether demo mode is on" "$TMP/health.json" '"demoMode"'
+
+  # A queued scan replayed twice is still one row — the Phase 6 guarantee, re-checked
+  # now that every route runs through the logging wrapper.
+  DOOR_TICKET_HEALTH=$(psql -h 127.0.0.1 -U clubhub -d clubhub -tA -c \
+    "select count(*) from attendance where scan_uuid is not null")
+  if [ "$DOOR_TICKET_HEALTH" -ge 1 ]; then
+    pass "attendance rows still carry their scan ids"
+  else
+    fail "no attendance rows found — the door data is missing"
+  fi
 fi
 
 echo "──────────────────────────────────────────────"

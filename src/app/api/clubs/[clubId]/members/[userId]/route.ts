@@ -6,6 +6,7 @@ import { removeClubMember, updateClubMemberRole } from "@/lib/services/club-serv
 import { updateClubMemberRoleSchema } from "@/lib/validation/club";
 import { ApiError } from "@/lib/api/response";
 import { z } from "zod";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ const paramsSchema = z.object({
 });
 
 /** PATCH /api/clubs/:clubId/members/:userId — change someone's club role. */
-export async function PATCH(
+async function handlePATCH(
   request: Request,
   { params }: { params: Promise<{ clubId: string; userId: string }> },
 ) {
@@ -40,7 +41,7 @@ export async function PATCH(
 }
 
 /** DELETE /api/clubs/:clubId/members/:userId — soft-remove a member (history is kept). */
-export async function DELETE(
+async function handleDELETE(
   _request: Request,
   { params }: { params: Promise<{ clubId: string; userId: string }> },
 ) {
@@ -56,3 +57,6 @@ export async function DELETE(
     return handleRouteError(error);
   }
 }
+
+export const PATCH = withApiRoute("PATCH /api/clubs/[clubId]/members/[userId]", handlePATCH);
+export const DELETE = withApiRoute("DELETE /api/clubs/[clubId]/members/[userId]", handleDELETE);

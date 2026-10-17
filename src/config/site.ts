@@ -5,6 +5,8 @@
 
 export const siteConfig = {
   name: "ClubHub",
+  /** Shown by /api/health so a screenshot of the probe identifies the build. */
+  version: "0.1.0",
   tagline: "Multi-tenant event operations for college clubs",
   description:
     "ClubHub gives every college one tenant, every club one workspace, and every event one pipeline: " +
@@ -68,13 +70,13 @@ export const phaseRoadmap: readonly PhaseRoadmapItem[] = [
     title: "Scanner & Edge Cases",
     summary:
       "Mobile-first QR scanner, local offline queue for poor-network venues, automatic sync and conflict reporting.",
-    status: "in_progress",
+    status: "complete",
   },
   {
     id: 7,
     title: "Polish & Observability",
     summary:
       "Skeletons, toasts, empty/error states, structured logging and a responsive design pass.",
-    status: "planned",
+    status: "in_progress",
   },
 ] as const;

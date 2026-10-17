@@ -126,8 +126,22 @@
   }
   body {
     @apply bg-background text-foreground;
+    /*
+     * A single unbroken string — an email address, a pasted URL, a UPI handle —
+     * is the classic way a 360 px layout grows a horizontal scrollbar. Breaking
+     * anywhere inside a word is ugly for prose and correct for identifiers, and
+     * identifiers are exactly what overflows.
+     */
+    overflow-wrap: break-word;
   }
   html {
     @apply font-sans;
+    /* Mobile Safari inflates font sizes on rotate otherwise. */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Keep the focus ring visible for keyboard users on every interactive element. */
+  :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+    @apply outline-2 outline-offset-2 outline-ring;
   }
 }

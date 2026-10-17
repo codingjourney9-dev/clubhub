@@ -1,12 +1,13 @@
 import { handleRouteError, ok } from "@/lib/api/response";
 import { requireClubAccess } from "@/lib/auth/guards";
 import { listClubMembers } from "@/lib/services/club-service";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET /api/clubs/:clubId/members — active members and their roles. */
-export async function GET(_request: Request, { params }: { params: Promise<{ clubId: string }> }) {
+async function handleGET(_request: Request, { params }: { params: Promise<{ clubId: string }> }) {
   try {
     const { clubId } = await params;
     const context = await requireClubAccess(clubId, "club:view_members");
@@ -17,3 +18,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ clu
     return handleRouteError(error);
   }
 }
+
+export const GET = withApiRoute("GET /api/clubs/[clubId]/members", handleGET);

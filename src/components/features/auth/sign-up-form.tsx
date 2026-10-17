@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
-import type { ApiFailure, ApiSuccess, FieldErrors } from "@/types/api";
+import { callApi, fieldErrorsOf, notifyFailure } from "@/lib/api/client";
 
 interface RegisteredUser {
   id: string;
@@ -35,37 +35,30 @@ export function SignUpForm() {
   });
 
   async function onSubmit(values: RegisterInput) {
-    const response = await fetch("/api/auth/register", {
+    const result = await callApi<{ user: RegisteredUser }>("/api/auth/register", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
+      json: values,
     });
 
-    const payload = (await response.json()) as ApiSuccess<{ user: RegisteredUser }> | ApiFailure;
-
-    if (!payload.ok) {
+    if (!result.ok) {
       // Server-side field errors win over client-side ones: the server is the authority.
-      const details = payload.error.details as FieldErrors | undefined;
-      if (details) {
-        for (const [field, messages] of Object.entries(details)) {
-          const message = messages[0];
-          if (message && field in values) {
-            setError(field as keyof RegisterInput, { message });
-          }
+      for (const [field, message] of Object.entries(fieldErrorsOf(result))) {
+        if (message && field in values) {
+          setError(field as keyof RegisterInput, { message });
         }
       }
-      toast.error("Could not create your account", { description: payload.error.message });
+      notifyFailure(result, "Could not create your account");
       return;
     }
 
     // Account created — sign the user straight in with the same credentials.
-    const result = await signIn("credentials", {
+    const signInResult = await signIn("credentials", {
       email: values.email,
       password: values.password,
       redirect: false,
     });
 
-    if (!result || result.error) {
+    if (!signInResult || signInResult.error) {
       toast.success("Account created", { description: "Please sign in to continue." });
       router.push("/sign-in");
       return;
@@ -78,7 +71,7 @@ export function SignUpForm() {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <Label htmlFor="firstName">First name</Label>
           <Input

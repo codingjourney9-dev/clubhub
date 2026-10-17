@@ -7,6 +7,7 @@ import { requireEventAccess } from "@/lib/auth/guards";
 import { enforceRateLimit } from "@/lib/rate-limit/budgets";
 import { checkIn } from "@/lib/services/check-in-service";
 import { checkInSchema } from "@/lib/validation/check-in";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
  * HTTP error would make the scanner's own logs useless. The body always carries
  * an `outcome` the UI switches on.
  */
-export async function POST(
+async function handlePOST(
   request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
@@ -52,3 +53,5 @@ export async function POST(
     return handleRouteError(error);
   }
 }
+
+export const POST = withApiRoute("POST /api/events/[eventId]/check-in", handlePOST);

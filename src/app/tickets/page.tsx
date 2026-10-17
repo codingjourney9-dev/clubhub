@@ -3,9 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, CalendarDays, Ticket as TicketIcon } from "lucide-react";
 
+import { EmptyState } from "@/components/common/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth/session";
 import { formatDateTimeInZone } from "@/lib/format/date";
 import { listMyTickets } from "@/lib/services/ticket-service";
@@ -50,19 +50,16 @@ export default async function MyTicketsPage() {
       </div>
 
       {tickets.length === 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>No tickets yet</CardTitle>
-            <CardDescription>
-              Register for an event and your QR ticket will appear here.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/events" className={cn(buttonVariants({ variant: "outline" }))}>
+        <EmptyState
+          icon={TicketIcon}
+          title="No tickets yet"
+          description="Claim a seat at an event and your QR ticket appears here — with the door code printed underneath it, for the day the camera will not cooperate."
+          action={
+            <Link href="/events" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
               Browse upcoming events
             </Link>
-          </CardContent>
-        </Card>
+          }
+        />
       ) : (
         <ul className="flex flex-col gap-3">
           {tickets.map((ticket) => (

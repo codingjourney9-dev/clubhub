@@ -5,6 +5,7 @@ import { cache } from "react";
 import { ApiError } from "@/lib/api/response";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/client";
+import { annotateRequest } from "@/lib/observability/context";
 
 /**
  * Request-scoped identity helpers.
@@ -42,6 +43,10 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   });
 
   if (!user) return null;
+
+  // Whoever this request turns out to be acting as, every log line from here on
+  // can say so. An id, never the email address.
+  annotateRequest({ userId: user.id });
 
   return {
     ...user,

@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
 import { enforceRateLimit } from "@/lib/rate-limit/budgets";
 import { cancelTicket } from "@/lib/services/ticket-service";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export const dynamic = "force-dynamic";
  * only their own, and somebody else's ticket answers 404 rather than 403 so ids
  * cannot be probed.
  */
-export async function DELETE(
+async function handleDELETE(
   _request: Request,
   { params }: { params: Promise<{ ticketId: string }> },
 ) {
@@ -63,3 +64,5 @@ export async function DELETE(
     return handleRouteError(error);
   }
 }
+
+export const DELETE = withApiRoute("DELETE /api/tickets/[ticketId]", handleDELETE);

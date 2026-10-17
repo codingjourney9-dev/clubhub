@@ -2,6 +2,7 @@ import { requireUuidParam } from "@/lib/api/params";
 import { handleRouteError, ok } from "@/lib/api/response";
 import { requireEventAccess } from "@/lib/auth/guards";
 import { getDoorManifest } from "@/lib/services/check-in-service";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  *
  * Organisers only (`attendance:scan`).
  */
-export async function GET(
+async function handleGET(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> },
 ) {
@@ -36,3 +37,5 @@ export async function GET(
     return handleRouteError(error);
   }
 }
+
+export const GET = withApiRoute("GET /api/events/[eventId]/check-in/manifest", handleGET);

@@ -3,6 +3,7 @@ import { parseJsonBody } from "@/lib/api/request";
 import { clientIpFrom, checkRateLimit } from "@/lib/rate-limit/token-bucket";
 import { registerUser } from "@/lib/services/user-service";
 import { registerSchema } from "@/lib/validation/auth";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ const SIGNUP_RATE_LIMIT = { limit: 5, refillPerSecond: 5 / 900 } as const;
  * parsed with the same Zod schema the client uses, and rate limiting keeps a
  * script from mass-creating accounts.
  */
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   try {
     const limit = checkRateLimit({
       key: `register:ip:${clientIpFrom(request)}`,
@@ -38,3 +39,5 @@ export async function POST(request: Request) {
     return handleRouteError(error);
   }
 }
+
+export const POST = withApiRoute("POST /api/auth/register", handlePOST);

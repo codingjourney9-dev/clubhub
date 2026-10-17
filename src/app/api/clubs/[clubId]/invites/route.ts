@@ -4,6 +4,7 @@ import { requireClubAccess } from "@/lib/auth/guards";
 import { checkRateLimit } from "@/lib/rate-limit/token-bucket";
 import { createClubInvite, listClubInvites } from "@/lib/services/invite-service";
 import { createClubInviteSchema } from "@/lib/validation/invite";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 const INVITE_RATE_LIMIT = { limit: 30, refillPerSecond: 30 / 3600 } as const;
 
 /** GET /api/clubs/:clubId/invites — the links this club has issued (President/college admin). */
-export async function GET(_request: Request, { params }: { params: Promise<{ clubId: string }> }) {
+async function handleGET(_request: Request, { params }: { params: Promise<{ clubId: string }> }) {
   try {
     const { clubId } = await params;
     const context = await requireClubAccess(clubId, "club:invite");
@@ -31,7 +32,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ clu
  * (`canAssignClubRole`), so an Event Manager can never produce a President link.
  * Rate limited because a leaked session should not be able to spray links.
  */
-export async function POST(request: Request, { params }: { params: Promise<{ clubId: string }> }) {
+async function handlePOST(request: Request, { params }: { params: Promise<{ clubId: string }> }) {
   try {
     const { clubId } = await params;
     const context = await requireClubAccess(clubId, "club:invite");
@@ -57,3 +58,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ clu
     return handleRouteError(error);
   }
 }
+
+export const GET = withApiRoute("GET /api/clubs/[clubId]/invites", handleGET);
+export const POST = withApiRoute("POST /api/clubs/[clubId]/invites", handlePOST);

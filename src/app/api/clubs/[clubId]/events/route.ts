@@ -4,6 +4,7 @@ import { requireClubAccess } from "@/lib/auth/guards";
 import { canClub, type Actor } from "@/lib/auth/rbac";
 import { createEvent, listClubEvents } from "@/lib/services/event-service";
 import { createEventSchema } from "@/lib/validation/event";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
  * events are filtered out for anyone who is not in the club. Both decisions are
  * made here, from the guard's view of the caller — never from a query parameter.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ clubId: string }> }) {
+async function handleGET(_request: Request, { params }: { params: Promise<{ clubId: string }> }) {
   try {
     const { clubId } = await params;
     const context = await requireClubAccess(clubId, "club:read");
@@ -39,7 +40,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ clu
  * The body carries wall-clock times; the college's timezone (from the guard, not
  * from the client) turns them into UTC instants.
  */
-export async function POST(request: Request, { params }: { params: Promise<{ clubId: string }> }) {
+async function handlePOST(request: Request, { params }: { params: Promise<{ clubId: string }> }) {
   try {
     const { clubId } = await params;
     const context = await requireClubAccess(clubId, "event:create");
@@ -59,3 +60,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ clu
     return handleRouteError(error);
   }
 }
+
+export const GET = withApiRoute("GET /api/clubs/[clubId]/events", handleGET);
+export const POST = withApiRoute("POST /api/clubs/[clubId]/events", handlePOST);

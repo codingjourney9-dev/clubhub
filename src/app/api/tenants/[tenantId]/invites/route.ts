@@ -5,6 +5,7 @@ import { checkRateLimit } from "@/lib/rate-limit/token-bucket";
 import { createTenantInvite } from "@/lib/services/invite-service";
 import { createTenantInviteSchema } from "@/lib/validation/invite";
 import { fail } from "@/lib/api/response";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
 const INVITE_RATE_LIMIT = { limit: 30, refillPerSecond: 30 / 3600 } as const;
 
 /** POST /api/tenants/:tenantId/invites — create a link that grants a tenant role. */
-export async function POST(request: Request, { params }: { params: Promise<{ tenantId: string }> }) {
+async function handlePOST(request: Request, { params }: { params: Promise<{ tenantId: string }> }) {
   try {
     const { tenantId } = await params;
     const context = await requireTenantAccess(tenantId, "tenant:invite");
@@ -36,3 +37,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ ten
     return handleRouteError(error);
   }
 }
+
+export const POST = withApiRoute("POST /api/tenants/[tenantId]/invites", handlePOST);

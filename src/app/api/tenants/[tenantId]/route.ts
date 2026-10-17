@@ -3,12 +3,13 @@ import { parseJsonBody } from "@/lib/api/request";
 import { requireTenantAccess } from "@/lib/auth/guards";
 import { updateTenant } from "@/lib/services/tenant-service";
 import { updateTenantSchema } from "@/lib/validation/tenant";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** PATCH /api/tenants/:tenantId — update college name, timezone or branding (Owner/Admin). */
-export async function PATCH(request: Request, { params }: { params: Promise<{ tenantId: string }> }) {
+async function handlePATCH(request: Request, { params }: { params: Promise<{ tenantId: string }> }) {
   try {
     const { tenantId } = await params;
     await requireTenantAccess(tenantId, "tenant:update");
@@ -21,3 +22,5 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ te
     return handleRouteError(error);
   }
 }
+
+export const PATCH = withApiRoute("PATCH /api/tenants/[tenantId]", handlePATCH);

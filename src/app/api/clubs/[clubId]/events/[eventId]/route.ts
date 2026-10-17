@@ -4,6 +4,7 @@ import { requireClubAccess } from "@/lib/auth/guards";
 import { canClub, type Actor } from "@/lib/auth/rbac";
 import { getVisibleEvent, softDeleteEvent, updateEvent } from "@/lib/services/event-service";
 import { updateEventSchema } from "@/lib/validation/event";
+import { withApiRoute } from "@/lib/api/handler";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
  * One event, addressed through its club so the guard can prove the caller belongs
  * to that club's college before the event id is even looked up.
  */
-export async function GET(
+async function handleGET(
   _request: Request,
   { params }: { params: Promise<{ clubId: string; eventId: string }> },
 ) {
@@ -39,7 +40,7 @@ export async function GET(
 }
 
 /** PATCH /api/clubs/:clubId/events/:eventId — edit a draft or published event. */
-export async function PATCH(
+async function handlePATCH(
   request: Request,
   { params }: { params: Promise<{ clubId: string; eventId: string }> },
 ) {
@@ -57,7 +58,7 @@ export async function PATCH(
 }
 
 /** DELETE — soft delete, refused for published events (cancel first). */
-export async function DELETE(
+async function handleDELETE(
   _request: Request,
   { params }: { params: Promise<{ clubId: string; eventId: string }> },
 ) {
@@ -71,3 +72,7 @@ export async function DELETE(
     return handleRouteError(error);
   }
 }
+
+export const GET = withApiRoute("GET /api/clubs/[clubId]/events/[eventId]", handleGET);
+export const PATCH = withApiRoute("PATCH /api/clubs/[clubId]/events/[eventId]", handlePATCH);
+export const DELETE = withApiRoute("DELETE /api/clubs/[clubId]/events/[eventId]", handleDELETE);

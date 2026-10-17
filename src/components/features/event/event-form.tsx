@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { utcToWallClock, zoneAbbreviation } from "@/lib/format/date";
 import { createEventSchema } from "@/lib/validation/event";
-import type { ApiFailure, ApiSuccess, FieldErrors } from "@/types/api";
+import { callApi, fieldErrorsOf, notifyFailure } from "@/lib/api/client";
 
 /**
  * Create/edit form for an event.
@@ -132,40 +132,27 @@ export function EventForm({ clubId, timeZone, event, onDone }: EventFormProps) {
       return;
     }
 
-    const response = await fetch(
+    const result = await callApi<{ event: { title: string } }>(
       isEdit ? `/api/clubs/${clubId}/events/${event?.id}` : `/api/clubs/${clubId}/events`,
-      {
-        method: isEdit ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(parsed.data),
-      },
+      { method: isEdit ? "PATCH" : "POST", json: parsed.data },
     );
 
-    const body = (await response.json()) as
-      | ApiSuccess<{ event: { title: string } }>
-      | ApiFailure;
-
-    if (!body.ok) {
-      const details = body.error.details as FieldErrors | undefined;
-      if (details) {
-        for (const [field, messages] of Object.entries(details)) {
-          const message = messages[0];
-          if (message && field in values) {
-            setError(field as keyof EventFormValues, { message });
-          }
+    if (!result.ok) {
+      // Field-level messages land on the field; everything else above the form.
+      for (const [field, message] of Object.entries(fieldErrorsOf(result))) {
+        if (message && field in values) {
+          setError(field as keyof EventFormValues, { message });
         }
       }
-      setFormError(body.error.message);
-      toast.error(isEdit ? "Could not save the event" : "Could not create the event", {
-        description: body.error.message,
-      });
+      setFormError(result.message);
+      notifyFailure(result, isEdit ? "Could not save the event" : "Could not create the event");
       return;
     }
 
     toast.success(isEdit ? "Event saved" : "Draft event created", {
       description: isEdit
-        ? body.data.event.title
-        : `${body.data.event.title} is a draft — publish it when you are ready to announce it.`,
+        ? result.data.event.title
+        : `${result.data.event.title} is a draft — publish it when you are ready to announce it.`,
     });
 
     if (isEdit) {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
 import { toast } from "sonner";
 
@@ -10,8 +10,15 @@ import { EventForm, type EditableEvent } from "@/components/features/event/event
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { callApi, notifyFailure } from "@/lib/api/client";
 import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
-import type { ApiFailure, ApiSuccess } from "@/types/api";
+import {
+  applyPatch,
+  projectRows,
+  rollbackPatch,
+  settlePatches,
+  type PatchMap,
+} from "@/lib/ui/optimistic";
 
 export interface EventRow {
   id: string;
@@ -63,20 +70,40 @@ export function EventList({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  /**
+   * Optimistic patches, applied on top of the server's list.
+   *
+   * Pressing "Publish" flips the badge *immediately* — a volunteer on a bad
+   * connection should not stare at a spinner to learn something we are about to
+   * do anyway. If the request fails, the patch is removed and the row snaps back
+   * to the truth, which is the "rollback" half of the trick.
+   */
+  const [patches, setPatches] = useState<PatchMap>({});
+
+  // Once the refreshed server data agrees, the claim has done its job.
+  useEffect(() => {
+    setPatches((current) => settlePatches(current, events));
+  }, [events]);
+
+  const rollback = (eventId: string) => {
+    setPatches((current) => rollbackPatch(current, eventId));
+  };
+
+  const rows = projectRows(patches, events);
+
   async function changeStatus(eventId: string, status: "PUBLISHED" | "CANCELLED") {
     setBusyId(eventId);
-    try {
-      const response = await fetch(`/api/clubs/${clubId}/events/${eventId}/status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      const body = (await response.json()) as ApiSuccess<{ event: { status: string } }> | ApiFailure;
+    setPatches((current) => applyPatch(current, eventId, { status }));
 
-      if (!body.ok) {
-        toast.error(status === "PUBLISHED" ? "Could not publish" : "Could not cancel", {
-          description: body.error.message,
-        });
+    try {
+      const result = await callApi(`/api/clubs/${clubId}/events/${eventId}/status`, {
+        method: "POST",
+        json: { status },
+      });
+
+      if (!result.ok) {
+        rollback(eventId);
+        notifyFailure(result, status === "PUBLISHED" ? "Could not publish" : "Could not cancel");
         return;
       }
 
@@ -94,12 +121,14 @@ export function EventList({
 
   async function removeEvent(eventId: string, title: string) {
     setBusyId(eventId);
-    try {
-      const response = await fetch(`/api/clubs/${clubId}/events/${eventId}`, { method: "DELETE" });
-      const body = (await response.json()) as ApiSuccess<unknown> | ApiFailure;
+    setPatches((current) => applyPatch(current, eventId, { removed: true }));
 
-      if (!body.ok) {
-        toast.error("Could not delete", { description: body.error.message });
+    try {
+      const result = await callApi(`/api/clubs/${clubId}/events/${eventId}`, { method: "DELETE" });
+
+      if (!result.ok) {
+        rollback(eventId);
+        notifyFailure(result, "Could not delete");
         return;
       }
 
@@ -123,7 +152,7 @@ export function EventList({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {events.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {canCreate
               ? "No events yet. Create the first one below."
@@ -131,7 +160,7 @@ export function EventList({
           </p>
         ) : (
           <ul className="flex flex-col gap-3">
-            {events.map((event) => {
+            {rows.map((event) => {
               const isEditing = editingId === event.id;
               const start = new Date(event.startTime);
               const end = new Date(event.endTime);

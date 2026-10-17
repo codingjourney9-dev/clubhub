@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import type { ApiFailure, ApiSuccess } from "@/types/api";
+import { callApi, notifyFailure } from "@/lib/api/client";
 
 /**
  * Redeems an invite token.
@@ -28,17 +28,16 @@ export function AcceptInviteButton({
   async function accept() {
     setIsAccepting(true);
     try {
-      const response = await fetch(`/api/invites/${token}`, { method: "POST" });
-      const payload = (await response.json()) as
-        | ApiSuccess<{ membership: { targetName: string; alreadyMember: boolean } }>
-        | ApiFailure;
+      const result = await callApi<{
+        membership: { targetName: string; alreadyMember: boolean };
+      }>(`/api/invites/${token}`, { method: "POST" });
 
-      if (!payload.ok) {
-        toast.error("Could not join", { description: payload.error.message });
+      if (!result.ok) {
+        notifyFailure(result, "Could not join");
         return;
       }
 
-      if (payload.data.membership.alreadyMember) {
+      if (result.data.membership.alreadyMember) {
         toast.info(`You are already a member of ${targetName}`);
       } else {
         toast.success(`Joined ${targetName}`);

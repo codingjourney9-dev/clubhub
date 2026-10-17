@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
+import { annotateRequest, currentRequestContext } from "@/lib/observability/context";
+import { logServerError } from "@/lib/observability/logger";
 import type {
   ApiErrorBody,
   ApiErrorCode,
@@ -111,10 +113,13 @@ export function validationFailed(
  */
 export function handleRouteError(error: unknown): NextResponse<ApiFailure> {
   if (error instanceof ZodError) {
+    // The field names go into the log line; the values never do.
+    annotateRequest({ errorCode: "VALIDATION_ERROR", errorMessage: error.issues[0]?.message });
     return validationFailed(error);
   }
 
   if (error instanceof ApiError) {
+    annotateRequest({ errorCode: error.code, errorMessage: error.message });
     return fail(error.code, error.message, {
       status: error.status,
       details: error.details,
@@ -122,6 +127,15 @@ export function handleRouteError(error: unknown): NextResponse<ApiFailure> {
     });
   }
 
-  console.error("[api] unhandled error:", error);
+  // Unknown throwable: this is a bug, so it gets a log line of its own — the
+  // request line alone would only say "500". The response stays opaque.
+  annotateRequest({
+    errorCode: "INTERNAL_ERROR",
+    errorMessage: error instanceof Error ? error.message : "Unknown error",
+  });
+  logServerError("api.unhandled", error, {
+    requestId: currentRequestContext()?.requestId,
+    path: currentRequestContext()?.path,
+  });
   return fail("INTERNAL_ERROR", "Something went wrong. Please try again.");
 }

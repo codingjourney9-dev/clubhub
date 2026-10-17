@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api/response";
 import { requireUser, type SessionUser } from "@/lib/auth/session";
 import { canClub, canTenant, type Actor, type ClubAction, type TenantAction } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
+import { annotateRequest } from "@/lib/observability/context";
 import type { ClubRole, TenantRole } from "@/generated/prisma/enums";
 
 /**
@@ -77,6 +78,8 @@ export async function requireTenantAccess(
     );
   }
 
+  annotateRequest({ tenantId, actorRole: membership.role });
+
   return {
     user,
     tenantId,
@@ -131,6 +134,8 @@ export async function requireClubAccess(clubId: string, action: ClubAction): Pro
   if (!canClub({ tenantRole, clubRole }, action)) {
     throw ApiError.forbidden(`Your role in ${club.name} cannot ${describe(action)}.`);
   }
+
+  annotateRequest({ tenantId: club.tenantId, actorRole: clubRole ?? tenantRole });
 
   return {
     user,
@@ -262,6 +267,8 @@ export async function requireEventAccess(
   } else if (!canClub(actor, action)) {
     throw ApiError.forbidden(`Your role in ${event.club.name} cannot ${describe(action)}.`);
   }
+
+  annotateRequest({ tenantId: event.tenantId, actorRole: clubRole ?? tenantRole });
 
   return {
     user,

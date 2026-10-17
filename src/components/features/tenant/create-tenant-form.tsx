@@ -13,7 +13,7 @@ import {
   type CreateTenantFormValues,
   type CreateTenantInput,
 } from "@/lib/validation/tenant";
-import type { ApiFailure, ApiSuccess, FieldErrors } from "@/types/api";
+import { callApi, fieldErrorsOf, notifyFailure } from "@/lib/api/client";
 
 /**
  * Self-serve college creation. The creator becomes the college Owner — the only
@@ -34,28 +34,21 @@ export function CreateTenantForm() {
   });
 
   async function onSubmit(values: CreateTenantInput) {
-    const response = await fetch("/api/tenants", {
+    const result = await callApi<{ tenant: { name: string } }>("/api/tenants", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(values),
+      json: values,
     });
 
-    const payload = (await response.json()) as ApiSuccess<{ tenant: { name: string } }> | ApiFailure;
-
-    if (!payload.ok) {
-      const details = payload.error.details as FieldErrors | undefined;
-      if (details) {
-        for (const [field, messages] of Object.entries(details)) {
-          const message = messages[0];
-          if (message && field in values) setError(field as keyof CreateTenantInput, { message });
-        }
+    if (!result.ok) {
+      for (const [field, message] of Object.entries(fieldErrorsOf(result))) {
+        if (message && field in values) setError(field as keyof CreateTenantInput, { message });
       }
-      toast.error("Could not create the college", { description: payload.error.message });
+      notifyFailure(result, "Could not create the college");
       return;
     }
 
     toast.success("College created", {
-      description: `You are now the Owner of ${payload.data.tenant.name}.`,
+      description: `You are now the Owner of ${result.data.tenant.name}.`,
     });
     router.refresh();
   }

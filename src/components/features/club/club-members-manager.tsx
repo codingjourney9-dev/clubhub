@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { ApiFailure, ApiSuccess } from "@/types/api";
+import { callApi, notifyFailure } from "@/lib/api/client";
 
 /**
  * Members table with role controls.
@@ -58,15 +58,13 @@ export function ClubMembersManager({
   async function changeRole(userId: string, role: string) {
     setBusyUserId(userId);
     try {
-      const response = await fetch(`/api/clubs/${clubId}/members/${userId}`, {
+      const result = await callApi(`/api/clubs/${clubId}/members/${userId}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
+        json: { role },
       });
-      const payload = (await response.json()) as ApiSuccess<unknown> | ApiFailure;
 
-      if (!payload.ok) {
-        toast.error("Could not change the role", { description: payload.error.message });
+      if (!result.ok) {
+        notifyFailure(result, "Could not change the role");
         return;
       }
       toast.success("Role updated");
@@ -79,11 +77,10 @@ export function ClubMembersManager({
   async function removeMember(userId: string, displayName: string) {
     setBusyUserId(userId);
     try {
-      const response = await fetch(`/api/clubs/${clubId}/members/${userId}`, { method: "DELETE" });
-      const payload = (await response.json()) as ApiSuccess<unknown> | ApiFailure;
+      const result = await callApi(`/api/clubs/${clubId}/members/${userId}`, { method: "DELETE" });
 
-      if (!payload.ok) {
-        toast.error("Could not remove that member", { description: payload.error.message });
+      if (!result.ok) {
+        notifyFailure(result, "Could not remove that member");
         return;
       }
       toast.success(`${displayName} removed from the club`);
