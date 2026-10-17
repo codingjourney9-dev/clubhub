@@ -358,6 +358,10 @@ shelves → put sample folders in → switch on the website.
 
 ---
 
+> **Putting it on a real server?** [`docs/DEPLOY.md`](./DEPLOY.md) walks through Docker Compose,
+> Vercel, or a plain systemd server — including the three settings that cause real incidents
+> (`DEMO_MODE` left on, a missing `AUTH_SECRET`, migrations run after the app instead of before).
+
 ## 5. How to check everything still works
 
 Two commands do the checking for you. This is the habit that separates "it works on my laptop" from
@@ -367,6 +371,7 @@ real software.
 npm run test          # 299 automated checks — the "robot inspectors"
 npm run test:smoke    # 178 checks against the running website
 npm run test:layout   # 100 checks in a real browser, at phone and desktop widths
+npm run deploy:check  # 14 checks that a real deployment is configured safely
 ```
 
 The 299 tests answer questions like:

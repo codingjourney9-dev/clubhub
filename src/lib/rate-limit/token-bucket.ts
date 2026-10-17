@@ -1,5 +1,7 @@
 import "server-only";
 
+import { assertRateLimitDriverSupported } from "@/lib/rate-limit/driver";
+
 /**
  * In-memory token bucket, deliberately tiny.
  *
@@ -8,9 +10,13 @@ import "server-only";
  * `src/lib/rate-limit/` with a Redis driver and adds per-action budgets for
  * RSVPs and invites; this module stays the contract those call sites use.
  *
- * Caveat: state is per-process. Behind multiple instances, point the driver at
- * Redis (`RATE_LIMIT_DRIVER=redis`) so budgets are shared.
+ * Caveat: state is per-process, so N instances allow N times the budget. There is
+ * no Redis implementation yet, and `assertRateLimitDriverSupported` refuses to
+ * start rather than let a `redis` setting pretend otherwise — see driver.ts.
  */
+
+// Fail at load time, not quietly per request.
+assertRateLimitDriverSupported();
 
 export interface RateLimitResult {
   readonly allowed: boolean;

@@ -4,6 +4,16 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
+  /**
+   * Container builds set BUILD_STANDALONE=1 to emit `.next/standalone` — a
+   * self-contained server with only the modules actually reachable from the app.
+   * That is what keeps the runtime image small enough to deploy quickly.
+   *
+   * It stays opt-in because `next start` is not supported against a standalone
+   * build, and the sandbox preview relies on `next start` (scripts/up.sh).
+   */
+  ...(process.env.BUILD_STANDALONE === "1" ? { output: "standalone" as const } : {}),
+
   // Dev-only. Next.js blocks cross-origin requests to the dev server unless the
   // requesting host is listed here. The sandbox preview is proxied through
   // `*.e2b.app`, so it must be allowed or the preview will not hydrate.

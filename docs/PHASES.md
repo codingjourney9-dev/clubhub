@@ -456,6 +456,39 @@ production build).
 
 ---
 
+## Deployment readiness (post-Phase 7)
+
+Not a phase — the work needed to make the seven phases deployable, requested after Phase 7.
+
+- **`Dockerfile`** (three stages: deps → builder → runner), `.dockerignore`, `docker-compose.yml`
+  with `db` → `migrate` → `app` ordering. Standalone output is opt-in via `BUILD_STANDALONE=1` so the
+  sandbox preview keeps using `next start`.
+- **`scripts/deploy-check.sh`** (`npm run deploy:check`) — 14–15 pre/post-flight assertions: runtime,
+  env, production safety, migration state, and the running service.
+- **`docs/DEPLOY.md`** — three targets (Compose, Vercel, plain systemd), env table, first deploy,
+  every-deploy order, backups, rollback, and an explicit list of what was and was not verified.
+
+**Two real bugs found while writing it:**
+
+1. `RATE_LIMIT_DRIVER=redis` was advertised in `.env.example` and accepted by the env schema, but no
+   Redis driver exists. Setting it did nothing, so an operator could believe rate limits were shared
+   across instances while each process kept its own — a silent under-limit on any scaled deploy. The
+   app now **refuses to boot** with a message naming the missing implementation (`rate-limit/driver.ts`,
+   6 tests). The whitespace case (`"memory "` in a `.env`) was caught by the tests and fixed.
+2. `next build` copies a project-root `.env` into `.next/standalone/`, which would have baked secrets
+   into the image. `.dockerignore` excludes it and the Dockerfile deletes it after copying.
+
+**Also added:** `DIRECT_DATABASE_URL`, preferred by `prisma7.config.ts` so migrations take advisory
+locks against a real connection instead of a transaction-mode pooler — the usual cause of
+"migrations work locally, fail in CI" with Prisma 7.
+
+**Verified here:** migrations against a genuinely empty database; registration over HTTP on that fresh
+database; `/demo` returning 404 in production with `DEMO_MODE=off`; the standalone build serving the
+hashed CSS; the deploy check passing and failing on each of the three dangerous misconfigurations.
+**Not verified here:** no Docker daemon, so the image was not built and Compose was not run end to end.
+
+---
+
 ## Progress log
 
 | Date | Phase | Result |
@@ -467,6 +500,7 @@ production build).
 | 2026-10-17 | 5 — Ticketing & Concurrency | Complete. Row-locked registration (proved by a test that fails without the lock), FIFO waitlist with automatic promotion, server-rendered QR tickets, per-user rate limiting. Gate: lint ✅ typecheck ✅ build ✅ 231 tests ✅ smoke 130/130 ✅ |
 | 2026-10-17 | 6 — Scanner & Edge Cases | Complete. Mobile-first scanner with typed door-code fallback, offline queue with idempotent `scanUuid`, browser-side fingerprint verification against a cached manifest, single `decideCheckIn` verdict used by API and UI, attendance report. Gate: lint ✅ typecheck ✅ build ✅ 272 tests ✅ smoke 162/162 ✅ |
 | 2026-10-17 | 7 — Polish & Observability | Complete. One client bridge so every failure is a sentence, optimistic updates with rollback, empty states + skeletons + error boundaries, 100 browser-verified layout checks at 360–1440 px, structured request logs with user/tenant context on all 23 routes, readiness-aware `/api/health`. Gate: lint ✅ typecheck ✅ build ✅ 299 tests ✅ smoke 178/178 ✅ layout 100/100 ✅ |
+| 2026-10-17 | Deploy readiness | Complete. Multi-stage Dockerfile + Compose (db → migrate → app), `npm run deploy:check` (14 checks), `docs/DEPLOY.md` for Compose/Vercel/systemd. Fixed a silent rate-limit driver lie and a `.env`-in-image leak. Gate: lint ✅ typecheck ✅ build ✅ 305 tests ✅ smoke 178/178 ✅ |
 
 ---
 

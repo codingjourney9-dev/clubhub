@@ -25,7 +25,8 @@
     "test:watch": "vitest",
     "app:up": "bash ./scripts/up.sh",
     "doctor": "bash ./scripts/doctor.sh",
-    "test:layout": "node scripts/layout-check.mjs"
+    "test:layout": "node scripts/layout-check.mjs",
+    "deploy:check": "bash ./scripts/deploy-check.sh"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

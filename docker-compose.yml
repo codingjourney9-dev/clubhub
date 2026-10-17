@@ -1,0 +1,64 @@
+# A single-host deployment: Postgres, a one-shot migration job, then the app.
+#
+#   cp .env.example .env        # then set AUTH_SECRET, POSTGRES_PASSWORD, DEMO_MODE=off
+#   docker compose up -d --build
+#   docker compose logs -f migrate   # wait for "All migrations have been applied"
+#
+# The `migrate` service is the *builder* stage on purpose: it is the only stage
+# that has the Prisma CLI, and it must finish before the app starts serving.
+
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-clubhub}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-clubhub}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-clubhub} -d ${POSTGRES_DB:-clubhub}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    build:
+      context: .
+      target: builder
+    restart: "no"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      DIRECT_DATABASE_URL: ${DIRECT_DATABASE_URL:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["npx", "prisma", "migrate", "deploy"]
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL in .env}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+      AUTH_URL: ${AUTH_URL:-http://localhost:3000}
+      AUTH_TRUST_HOST: "true"
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      DEFAULT_TENANT_TIMEZONE: ${DEFAULT_TENANT_TIMEZONE:-Asia/Kolkata}
+      RATE_LIMIT_DRIVER: ${RATE_LIMIT_DRIVER:-memory}
+      # Keep this OFF in production: /demo renders tenant data without a session.
+      DEMO_MODE: ${DEMO_MODE:-off}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

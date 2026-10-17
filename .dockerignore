@@ -1,0 +1,27 @@
+# Keep the build context small and keep secrets out of it.
+node_modules
+.next
+.git
+.gitignore
+
+# Local database cluster and its logs
+pgdata
+*.log
+
+# Env files: injected at run time, never baked into an image layer
+.env
+.env.*
+!.env.example
+
+# Test and tooling output
+coverage
+dist
+build
+out
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# Editor / OS noise
+.DS_Store
+.vscode
+.idea
