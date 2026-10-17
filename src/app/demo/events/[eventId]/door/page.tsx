@@ -135,6 +135,16 @@ export default async function DemoDoorPage({
   const canScan = canClub(actor, "attendance:scan");
   const report = canScan ? await getAttendanceReport(event.id, event.tenantId) : null;
 
+  const offlineJump = (
+    <a
+      href="#offline-test"
+      className="inline-flex w-fit items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground underline-offset-4 hover:underline"
+    >
+      <WifiOff className="size-3.5" />
+      Skip to the offline test
+    </a>
+  );
+
   const viewerSwitcher = (
     <div className="flex flex-wrap items-center gap-2">
       <span className="text-xs font-medium text-muted-foreground">View as:</span>
@@ -237,6 +247,7 @@ export default async function DemoDoorPage({
       </Alert>
 
       {viewerSwitcher}
+      {offlineJump}
 
       <Link
         href={`/demo/events/${event.id}?as=${account.key}`}
@@ -322,6 +333,64 @@ export default async function DemoDoorPage({
         </CardContent>
       </Card>
 
+      {/* ── Offline ──────────────────────────────────────────────────────── */}
+      <Card id="offline-test" className="scroll-mt-4">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <WifiOff className="size-4 text-muted-foreground" />
+            Offline test: scan three people with no signal
+          </CardTitle>
+          <CardDescription>
+            Before the door opens, the phone downloads a fingerprint of every ticket — never the
+            secret itself. Below is the rehearsal: cut the signal, scan three people, reconnect.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <OfflineDrill tickets={drillTickets} />
+
+          <div className="rounded-lg border bg-muted/40 p-3">
+            <span className="flex items-center gap-2 text-xs font-medium">
+              <Fingerprint className="size-3.5" />
+              One row of the offline guest list
+            </span>
+            <pre className="mt-2 overflow-x-auto text-[11px] leading-relaxed text-muted-foreground">
+{`{
+  "holder": "Aarav Shah",
+  "status": "REGISTERED",
+  "fingerprint": "9f2c…a41d",   // sha256(secret) — verifies, cannot forge
+  "doorCode": "…A1B2C3D4",      // printed on the ticket
+  "checkedInAt": null
+}`}
+            </pre>
+          </div>
+
+          <ul className="flex flex-col gap-2 text-sm">
+            <li className="flex gap-2">
+              <CloudOff className="mt-0.5 size-4 shrink-0 text-amber-600" />
+              <span>
+                A scan with no signal is verified <strong>against the hashes on the phone</strong>, then
+                written to the phone with the time it actually happened.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <CloudOff className="mt-0.5 size-4 shrink-0 text-amber-600" />
+              <span>
+                It is shown as <strong>“accepted offline”</strong> — never “checked in”, because the
+                records do not have it yet.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <CloudOff className="mt-0.5 size-4 shrink-0 text-amber-600" />
+              <span>
+                When the signal returns the queue uploads itself. Each scan carries its own id, so
+                uploading twice creates one row, not two.
+              </span>
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+
+
       {/* ── What would happen ────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
@@ -379,63 +448,6 @@ export default async function DemoDoorPage({
               })}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-
-      {/* ── Offline ──────────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <WifiOff className="size-4 text-muted-foreground" />
-            In the basement
-          </CardTitle>
-          <CardDescription>
-            Before the door opens, the phone downloads a fingerprint of every ticket — never the
-            secret itself. Below is the rehearsal: cut the signal, scan three people, reconnect.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <OfflineDrill tickets={drillTickets} />
-
-          <div className="rounded-lg border bg-muted/40 p-3">
-            <span className="flex items-center gap-2 text-xs font-medium">
-              <Fingerprint className="size-3.5" />
-              One row of the offline guest list
-            </span>
-            <pre className="mt-2 overflow-x-auto text-[11px] leading-relaxed text-muted-foreground">
-{`{
-  "holder": "Aarav Shah",
-  "status": "REGISTERED",
-  "fingerprint": "9f2c…a41d",   // sha256(secret) — verifies, cannot forge
-  "doorCode": "…A1B2C3D4",      // printed on the ticket
-  "checkedInAt": null
-}`}
-            </pre>
-          </div>
-
-          <ul className="flex flex-col gap-2 text-sm">
-            <li className="flex gap-2">
-              <CloudOff className="mt-0.5 size-4 shrink-0 text-amber-600" />
-              <span>
-                A scan with no signal is verified <strong>against the hashes on the phone</strong>, then
-                written to the phone with the time it actually happened.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <CloudOff className="mt-0.5 size-4 shrink-0 text-amber-600" />
-              <span>
-                It is shown as <strong>“accepted offline”</strong> — never “checked in”, because the
-                records do not have it yet.
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <CloudOff className="mt-0.5 size-4 shrink-0 text-amber-600" />
-              <span>
-                When the signal returns the queue uploads itself. Each scan carries its own id, so
-                uploading twice creates one row, not two.
-              </span>
-            </li>
-          </ul>
         </CardContent>
       </Card>
 
