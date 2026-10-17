@@ -4,7 +4,7 @@ import { cache } from "react";
 
 import { ApiError } from "@/lib/api/response";
 import { requireUser, type SessionUser } from "@/lib/auth/session";
-import { canClub, canTenant, type ClubAction, type TenantAction } from "@/lib/auth/rbac";
+import { canClub, canTenant, type Actor, type ClubAction, type TenantAction } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import type { ClubRole, TenantRole } from "@/generated/prisma/enums";
 
@@ -146,6 +146,146 @@ export async function requireClubAccess(clubId: string, action: ClubAction): Pro
   };
 }
 
+/**
+ * Actions scoped to one event.
+ *
+ * `ticket:rsvp` is the odd one out: it is not a role check at all, it is a
+ * visibility check (you may take a seat if you can see the event). The other two
+ * are ordinary club permissions and go through the matrix.
+ */
+export type EventAction = "ticket:rsvp" | "ticket:view_roster" | "ticket:manage";
+
+export interface EventContext {
+  readonly user: SessionUser;
+  readonly event: {
+    readonly id: string;
+    readonly tenantId: string;
+    readonly clubId: string;
+    readonly title: string;
+    readonly description: string | null;
+    readonly location: string | null;
+    readonly startTime: Date;
+    readonly endTime: Date;
+    readonly capacity: number | null;
+    readonly waitlistEnabled: boolean;
+    readonly status: "DRAFT" | "PUBLISHED" | "CANCELLED";
+    readonly isPublic: boolean;
+  };
+  readonly club: {
+    readonly id: string;
+    readonly name: string;
+    readonly slug: string;
+    readonly timezone: string;
+  };
+  readonly tenantRole: TenantRole;
+  readonly clubRole: ClubRole | null;
+  /** Whether this person runs the club — decides roster visibility and drafts. */
+  readonly isOrganizer: boolean;
+}
+
+/**
+ * Resolves one event and decides what the caller may do with it.
+ *
+ * The tenant is taken from the event row itself, then the caller's membership in
+ * that tenant is checked — never the other way round. Otherwise a request naming
+ * an event in another college would be authorised against the caller's own
+ * college and quietly succeed.
+ */
+export async function requireEventAccess(
+  eventId: string,
+  action: EventAction,
+): Promise<EventContext> {
+  const user = await requireUser();
+
+  const event = await db.event.findFirst({
+    where: { id: eventId, deletedAt: null },
+    select: {
+      id: true,
+      tenantId: true,
+      clubId: true,
+      title: true,
+      description: true,
+      location: true,
+      startTime: true,
+      endTime: true,
+      capacity: true,
+      waitlistEnabled: true,
+      status: true,
+      isPublic: true,
+      club: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          deletedAt: true,
+          tenant: { select: { timezone: true, deletedAt: true } },
+        },
+      },
+    },
+  });
+
+  if (!event || event.club.deletedAt || event.club.tenant.deletedAt) {
+    throw ApiError.notFound("That event was not found.");
+  }
+
+  const tenantMembership = await loadTenantMembership(user.id, event.tenantId);
+  if (!tenantMembership) {
+    throw ApiError.notFound("That event was not found.");
+  }
+
+  const clubMembership = await db.clubMember.findFirst({
+    where: { clubId: event.club.id, userId: user.id, deletedAt: null },
+    select: { role: true },
+  });
+
+  const tenantRole = tenantMembership.role;
+  const clubRole = clubMembership?.role ?? null;
+  const actor: Actor = { tenantRole, clubRole };
+  const isOrganizer = canClub(actor, "event:update");
+
+  if (action === "ticket:rsvp") {
+    // A draft is a private workspace, not an event that exists but is closed.
+    if (event.status === "DRAFT" && !isOrganizer) {
+      throw ApiError.notFound("That event was not found.");
+    }
+
+    // Members-only events answer 404 to everyone outside the club — the same
+    // rule the club page follows, so a seat cannot reveal an event either.
+    if (!event.isPublic && !canClub(actor, "event:view_private")) {
+      throw ApiError.notFound("That event was not found.");
+    }
+  } else if (!canClub(actor, action)) {
+    throw ApiError.forbidden(`Your role in ${event.club.name} cannot ${describe(action)}.`);
+  }
+
+  return {
+    user,
+    event: {
+      id: event.id,
+      tenantId: event.tenantId,
+      clubId: event.clubId,
+      title: event.title,
+      description: event.description,
+      location: event.location,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      capacity: event.capacity,
+      waitlistEnabled: event.waitlistEnabled,
+      status: event.status,
+      isPublic: event.isPublic,
+    },
+    club: {
+      id: event.club.id,
+      name: event.club.name,
+      slug: event.club.slug,
+      timezone: event.club.tenant.timezone,
+    },
+    tenantRole,
+    clubRole,
+    isOrganizer,
+  };
+}
+
 /** Human-readable verb for an action code, used in error messages. */
 function describe(action: string): string {
   const verbs: Record<string, string> = {
@@ -164,6 +304,8 @@ function describe(action: string): string {
     "event:update": "edit this club's events",
     "event:publish": "publish this club's events",
     "event:delete": "delete this club's events",
+    "ticket:view_roster": "see who is coming to this event",
+    "ticket:manage": "cancel other people's tickets",
     "attendance:scan": "check attendees in",
     "attendance:report": "view attendance reports",
   };

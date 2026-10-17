@@ -217,9 +217,28 @@ export default async function DemoClubPage({
       status: true,
       isPublic: true,
       waitlistEnabled: true,
-      _count: { select: { tickets: true } },
+      _count: {
+        select: {
+          tickets: { where: { status: "REGISTERED" } },
+        },
+      },
     },
   });
+
+  // Queue lengths for these events in one query, so a full room can say how many
+  // people are waiting behind it.
+  const waitlistCounts = await db.ticket.groupBy({
+    by: ["eventId"],
+    where: {
+      eventId: { in: events.map((event) => event.id) },
+      status: "WAITLISTED",
+    },
+    _count: { _all: true },
+  });
+
+  const waitlistByEvent = new Map(
+    waitlistCounts.map((row) => [row.eventId, row._count._all] as const),
+  );
 
   const members = await db.clubMember.findMany({
     where: { clubId: club.id, deletedAt: null },
@@ -372,7 +391,12 @@ export default async function DemoClubPage({
                     <TableRow key={event.id}>
                       <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-medium">{event.title}</span>
+                          <Link
+                            href={`/demo/events/${event.id}?as=${account.key}`}
+                            className="font-medium underline-offset-4 hover:underline"
+                          >
+                            {event.title}
+                          </Link>
                           {event.location ? (
                             <span className="text-xs text-muted-foreground">{event.location}</span>
                           ) : null}
@@ -408,7 +432,11 @@ export default async function DemoClubPage({
                         {event.capacity ? (
                           <span className="text-muted-foreground"> / {event.capacity}</span>
                         ) : null}
-                        {event.waitlistEnabled ? (
+                        {(waitlistByEvent.get(event.id) ?? 0) > 0 ? (
+                          <span className="block text-xs text-amber-600">
+                            {waitlistByEvent.get(event.id)} waiting
+                          </span>
+                        ) : event.waitlistEnabled ? (
                           <span className="block text-xs text-muted-foreground">waitlist on</span>
                         ) : null}
                       </TableCell>

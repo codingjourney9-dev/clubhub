@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
@@ -149,7 +150,12 @@ export function EventList({
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="flex flex-col gap-1">
                           <span className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium">{event.title}</span>
+                            <Link
+                              href={`/events/${event.id}`}
+                              className="text-sm font-medium underline-offset-4 hover:underline"
+                            >
+                              {event.title}
+                            </Link>
                             <Badge variant={STATUS_STYLES[event.status]}>
                               {event.status.charAt(0) + event.status.slice(1).toLowerCase()}
                             </Badge>

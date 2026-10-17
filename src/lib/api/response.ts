@@ -57,13 +57,20 @@ export class ApiError extends Error {
   readonly code: ApiErrorCode;
   readonly status: number;
   readonly details: unknown;
+  /** Extra response headers, e.g. `Retry-After` on a 429. */
+  readonly headers: HeadersInit | undefined;
 
-  constructor(code: ApiErrorCode, message: string, options?: { status?: number; details?: unknown }) {
+  constructor(
+    code: ApiErrorCode,
+    message: string,
+    options?: { status?: number; details?: unknown; headers?: HeadersInit },
+  ) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = options?.status ?? STATUS_BY_CODE[code];
     this.details = options?.details;
+    this.headers = options?.headers;
   }
 
   static unauthorized(message = "You must be signed in to do that.") {
@@ -108,7 +115,11 @@ export function handleRouteError(error: unknown): NextResponse<ApiFailure> {
   }
 
   if (error instanceof ApiError) {
-    return fail(error.code, error.message, { status: error.status, details: error.details });
+    return fail(error.code, error.message, {
+      status: error.status,
+      details: error.details,
+      headers: error.headers,
+    });
   }
 
   console.error("[api] unhandled error:", error);

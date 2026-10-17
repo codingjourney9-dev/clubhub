@@ -189,12 +189,38 @@ When you run this signed in (§4), the same card gives you **New event**, **Publ
 **Cancel** — and a published event has to be cancelled before it can be deleted, so a student's
 ticket never points at something that quietly vanished.
 
-### Step 8 — See the app defend itself
+### Step 8 — Take a seat (new in Phase 5)
+
+Open the Robotics Club preview and look at the **Events** card. One event — **Debug Night** — is
+deliberately tiny: **3 seats, 3 taken, and one person waiting**.
+
+Click that event's name. You'll land on its own page, showing the time in your college's timezone,
+a capacity bar that is completely full, and a line saying **1 waiting**.
+
+Now use the **View as** buttons at the top and watch the *same page* tell a different story:
+
+| View as | What you see |
+| --- | --- |
+| **Aarav** (President) or **Meera** (Event Manager) | *You are registered* — and their **QR code**, the square black-and-white image that gets scanned at the door. Below it, the **guest list**: the three people with seats, and a separate **waitlist** with Kabir at place 1. |
+| **Kabir** (plain member) | *On the waitlist — number 1*. **No QR code**, because a place in a queue is not a seat. And no guest list: students don't get to see who else is coming. |
+
+That last contrast is the whole point of the phase. Same event, same instant, three different truths
+— and none of them is decided in the browser. Switch to Kabir and then back to Aarav: nothing about
+you changed except who the server thinks you are.
+
+**What happens when somebody gives a seat back?** Kabir moves up *automatically* — no email, no
+refresh by an organiser, no admin clicking "promote". If you run the app on your own machine (§4),
+you can watch it happen: register for a one-seat event as one account, register a second account (it
+joins the queue), then cancel the first. The second person is registered before the page finishes
+reloading, and the canceller is told so: *"Meera Patel just moved up from the waitlist and took your
+seat."*
+
+### Step 9 — See the app defend itself
 
 While signed out (or in the demo), visit `/dashboard` in the preview. You get bounced to the sign-in
 page. You can't sneak into a protected page by typing its address — the app checks every single time.
 
-### Step 9 — (Optional) the real sign-in experience
+### Step 10 — (Optional) the real sign-in experience
 
 Sign-in needs cookies, so run the app on your own machine (§4) and use
 `aarav.president@vit.ac.in` / `password123`. You'll land on the same dashboard — but this time the
@@ -238,11 +264,11 @@ Two commands do the checking for you. This is the habit that separates "it works
 real software.
 
 ```bash
-npm run test          # 187 automated checks — the "robot inspectors"
-npm run test:smoke    # 107 checks against the running website
+npm run test          # 231 automated checks — the "robot inspectors"
+npm run test:smoke    # 130 checks against the running website
 ```
 
-The 187 tests answer questions like:
+The 231 tests answer questions like:
 
 - *"If someone tries to sneak an event from College B into College A's data, does the filing cabinet
   slam the drawer shut?"* → Yes, it refuses. (That's not politeness; the database physically can't
@@ -251,14 +277,17 @@ The 187 tests answer questions like:
 - *"If we re-run the sample data, do we get duplicates?"* → No.
 - *"If two people click the same one-use invite link at the same instant, can both get in?"* → No,
   exactly one gets in.
+- *"If 20 students tap Register in the same second for a 5-seat room, does anybody get a 6th seat?"*
+  → No. Exactly 5 get in and 15 join the queue. We proved this test has teeth by deleting the safety
+  mechanism and watching it fail — 10 people got into that 5-seat room.
 - *"Can a club's last President remove themselves and leave the club with nobody in charge?"* → No,
   it's refused with a message telling you what to do instead.
 - *"If someone from another college guesses a club's web address, what do they see?"* → A plain
   "not found" page. Nothing confirms whether that club exists.
 
-And the 107 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
+And the 130 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
 limit, read the dashboard as two different people, mint an invite link and redeem it as a brand-new
-account.
+account, and take the last seat in a one-seat event to watch the queue move.
 
 **The golden rule:** before finishing any phase, we run
 
@@ -282,16 +311,19 @@ one passes.
 | 1 | Set up the empty house — tools, styles, structure | ✅ Done |
 | 2 | Build the filing cabinet + install the front door lock | ✅ Done |
 | 3 | Creating colleges & clubs, inviting members | ✅ Done |
-| 4 | Creating events (the actual dashboard) | ✅ Done (you're here) |
-| 5 | Sign-ups that can't overbook + QR tickets | ⬜ Next |
-| 6 | The phone scanner + works without internet | ⬜ |
+| 4 | Creating events (the actual dashboard) | ✅ Done |
+| 5 | Sign-ups that can't overbook + QR tickets | ✅ Done (you're here) |
+| 6 | The phone scanner + works without internet | ⬜ Next |
 | 7 | Make it pretty and bulletproof | ⬜ |
 
 **In plain words, right now:** you can log in, create a college, create clubs inside it, invite
-people with a link that works once, and — new in Phase 4 — **create events**, write them as drafts,
-publish them to the whole college, cancel them, and set a capacity with an optional waitlist. Every
-time you type is stored as a precise moment in UTC and shown back in your college's own timezone.
-What you *cannot* do yet is register for an event and get a QR ticket — that's Phase 5.
+people with a link, create and publish events — and, new in Phase 5, **claim a seat, join a waitlist,
+and get a QR ticket**. A room can no longer be oversold, not even when 20 people tap at the same
+instant, and cancelling a seat hands it to the next person in line automatically.
+
+What you *cannot* do yet is **use** that QR code: there is nothing to scan it with, and no way to tick
+somebody off at the door. That's Phase 6 — the phone camera, the door list, and the case where the
+basement has no internet.
 
 ---
 
@@ -344,26 +376,28 @@ Rule of thumb while learning: **a screen lives in `src/app`, reusable pieces liv
 
 ## 9. What's next, and how you can steer it
 
-**Phase 4 is built.** Events now exist: drafts, publishing, cancelling, capacities and waitlists, all
-stored in UTC and shown in your college's timezone. The three defaults from Phase 3 (invite links,
-self-serve colleges, per-college club names) were accepted when you approved that phase.
+**Phase 5 is built.** A student can claim one of a fixed number of seats, join a queue when the room
+is full, cancel and hand their seat to whoever is next in line, and hold a QR ticket that is theirs
+alone. The room cannot be oversold — and that is a test that fires 20 simultaneous requests at a
+5-seat event, not a promise.
 
-**Phase 5 — sign-ups that cannot overbook, and QR tickets.** This is the phase your original
-specification called the hard one:
+**Phase 6 — the door, and the basement with no internet.** The QR codes exist but nothing reads them
+yet:
 
-- **Registering** for an event, with the last seat protected by a database lock — two students
-  clicking "register" at the same instant for the final place cannot both get it.
-- A **waitlist** that promotes people automatically (first come, first served) when someone drops out.
-- A **QR ticket** for each registration, and a wallet page listing your tickets.
+- A **scanner page** for Event Managers: the phone camera points at a QR code, the person is checked
+  in, and a duplicate scan says "already inside" instead of checking them in twice.
+- **Offline resilience:** the basement has no signal, so accepted scans are held on the phone and
+  synced when it comes back. Each queued scan carries its own idempotency key, so a retry cannot
+  create a second check-in.
+- A **manual fallback**: type the short code when a screen is cracked or the camera refuses to focus.
+- An **attendance report** for the club, so "40 signed up, 12 turned up" becomes a number somebody
+  can look at.
 
-That is where *"the database never books more people than the room holds"* stops being a promise and
-becomes a test that fires dozens of simultaneous requests at the last seat.
-
-**How to approve Phase 4:**
+**How to approve Phase 5:**
 
 ```bash
 npm run app:up        # start the app
-npm run test:smoke    # watch it check all 107 behaviours
+npm run test:smoke    # watch it check all 130 behaviours
 ```
 
-Then tell me *"Phase 4 looks good"* (or what you would like changed) and I'll start Phase 5.
+Then tell me *"Phase 5 looks good"* (or what you would like changed) and I'll start Phase 6.

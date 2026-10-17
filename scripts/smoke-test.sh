@@ -8,7 +8,8 @@
 # validation, duplicate-account conflict, registration rate limiting,
 # credentials sign-in, role-specific dashboard content, the cookie-free demo
 # preview, (phase 3) colleges, clubs, the RBAC-guarded club page and the full
-# invite lifecycle, and (phase 4) the event lifecycle with its UTC/timezone rules.
+# invite lifecycle, (phase 4) the event lifecycle with its UTC/timezone rules, and
+# (phase 5) capacity-safe registration, waitlists and QR tickets.
 set -uo pipefail
 
 BASE="${BASE:-http://localhost:3000}"
@@ -63,7 +64,7 @@ echo "[1] health & readiness"
 STATUS=$(curl -s -o "$TMP/health.json" -w '%{http_code}' "$BASE/api/health")
 expect_status "GET /api/health" 200 "$STATUS"
 expect_contains "database is up" "$TMP/health.json" '"status":"up"'
-expect_contains "health reports phase 4" "$TMP/health.json" '"phase":4'
+expect_contains "health reports phase 5" "$TMP/health.json" '"phase":5'
 
 echo "[2] protected route without a session"
 LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/dashboard")
@@ -405,6 +406,96 @@ if [ -n "$PRESIDENT_CLUB" ]; then
 
     STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$EVENT_ID/status" '{"status":"DRAFT"}' "$TMP/aarav.jar")
     expect_status "a draft cannot be resurrected through the status endpoint" 422 "$STATUS"
+  fi
+fi
+
+echo "[13] phase 5 — ticketing: seats, waitlist, queue order"
+if [ -n "$PRESIDENT_CLUB" ]; then
+  # The Event Manager is the second student in this story: she is a club member
+  # but not the organiser, which is exactly the position a queue forms behind.
+  STATUS=$(sign_in "meera.manager@vit.ac.in" "$PASSWORD" "$TMP/meera.jar")
+  case "$STATUS" in
+    200|302) pass "Event Manager signs in ($STATUS)" ;;
+    *) fail "Event Manager sign-in failed with $STATUS" ;;
+  esac
+
+  # A one-seat event with a waitlist, published so students can actually see it.
+  START=$(node -e 'const d=new Date(Date.now()+4*864e5);d.setUTCHours(6,30,0,0);process.stdout.write(d.toISOString().slice(0,16))')
+  END=$(node -e 'const d=new Date(Date.now()+4*864e5);d.setUTCHours(9,30,0,0);process.stdout.write(d.toISOString().slice(0,16))')
+
+  STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events" \
+    "{\"title\":\"Smoke Seat Test\",\"start\":\"$START\",\"end\":\"$END\",\"capacity\":1,\"waitlistEnabled\":true,\"isPublic\":true}" \
+    "$TMP/aarav.jar")
+  expect_status "an organiser creates a one-seat event" 201 "$STATUS"
+  SEAT_EVENT=$(node -e 'const b=require(process.argv[1]);process.stdout.write((b.data.event||{}).id||"")' "$TMP/body.json")
+
+  if [ -n "$SEAT_EVENT" ]; then
+    STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$SEAT_EVENT/status" '{"status":"PUBLISHED"}' "$TMP/aarav.jar")
+    expect_status "publish it" 200 "$STATUS"
+
+    # First student takes the only seat.
+    STATUS=$(json_status POST "/api/events/$SEAT_EVENT/register" '{}' "$TMP/kabir.jar")
+    expect_status "the first student claims the only seat" 201 "$STATUS"
+    expect_contains "…and is registered" "$TMP/body.json" '"status":"REGISTERED"'
+    TICKET_ID=$(node -e 'const b=require(process.argv[1]);process.stdout.write(((b.data||{}).ticket||{}).id||"")' "$TMP/body.json")
+
+    # Second student goes to the queue, with a visible place in line.
+    STATUS=$(json_status POST "/api/events/$SEAT_EVENT/register" '{}' "$TMP/meera.jar")
+    expect_status "the second student joins the waitlist" 201 "$STATUS"
+    expect_contains "…at the front of the queue" "$TMP/body.json" '"queuePosition":1'
+
+    # The most common cause of a double request is a slow thumb, not mischief.
+    STATUS=$(json_status POST "/api/events/$SEAT_EVENT/register" '{}' "$TMP/kabir.jar")
+    expect_status "registering twice is harmless" 200 "$STATUS"
+    expect_contains "…and changes nothing" "$TMP/body.json" '"outcome":"already-registered"'
+
+    # The guest list is not public: students cannot see who else is coming.
+    STATUS=$(json_status GET "/api/events/$SEAT_EVENT/tickets" "" "$TMP/kabir.jar")
+    expect_status "a student cannot read the guest list" 403 "$STATUS"
+
+    STATUS=$(json_status GET "/api/events/$SEAT_EVENT/tickets" "" "$TMP/aarav.jar")
+    expect_status "the organiser can" 200 "$STATUS"
+    expect_contains "…and sees who holds the seat" "$TMP/body.json" '"registered"'
+    expect_contains "…and who is waiting" "$TMP/body.json" '"waitlisted"'
+
+    # The ticket itself: a QR image, and only for its owner.
+    STATUS=$(curl -s -b "$TMP/kabir.jar" -o "$TMP/ticket.html" -w '%{http_code}' "$BASE/tickets/$TICKET_ID")
+    expect_status "the ticket page renders" 200 "$STATUS"
+    expect_contains "with a QR image embedded, not fetched from elsewhere" "$TMP/ticket.html" "data:image/png;base64"
+
+    STATUS=$(curl -s -b "$TMP/meera.jar" -o /dev/null -w '%{http_code}' "$BASE/tickets/$TICKET_ID")
+    expect_status "somebody else's ticket is a 404" 404 "$STATUS"
+
+    # Giving the seat back promotes the person at the front of the queue.
+    STATUS=$(json_status DELETE "/api/tickets/$TICKET_ID" "" "$TMP/kabir.jar")
+    expect_status "the seat is given back" 200 "$STATUS"
+    expect_contains "…the ticket really changed" "$TMP/body.json" '"changed":true'
+    expect_contains "…and the queue moved up automatically" "$TMP/body.json" 'Meera'
+
+    STATUS=$(json_status GET "/api/events/$SEAT_EVENT/tickets" "" "$TMP/aarav.jar")
+    expect_contains "the queue is empty afterwards" "$TMP/body.json" '"waitlisted":[]'
+
+    # A full room with no waitlist says no, rather than growing a hidden queue.
+    STATUS=$(json_status POST "/api/clubs/$PRESIDENT_CLUB/events" \
+      "{\"title\":\"Smoke Full Test\",\"start\":\"$START\",\"end\":\"$END\",\"capacity\":1,\"waitlistEnabled\":false,\"isPublic\":true}" \
+      "$TMP/aarav.jar")
+    FULL_EVENT=$(node -e 'const b=require(process.argv[1]);process.stdout.write((b.data.event||{}).id||"")' "$TMP/body.json")
+    json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$FULL_EVENT/status" '{"status":"PUBLISHED"}' "$TMP/aarav.jar" > /dev/null
+    json_status POST "/api/events/$FULL_EVENT/register" '{}' "$TMP/kabir.jar" > /dev/null
+
+    STATUS=$(json_status POST "/api/events/$FULL_EVENT/register" '{}' "$TMP/meera.jar")
+    expect_status "a full room without a waitlist refuses politely" 409 "$STATUS"
+    expect_contains "…and says why" "$TMP/body.json" "full"
+
+    # An unknown body field is rejected, so nobody can register on behalf of another.
+    STATUS=$(json_status POST "/api/events/$FULL_EVENT/register" '{"userId":"someone-else"}' "$TMP/meera.jar")
+    expect_status "a request naming another user is rejected" 422 "$STATUS"
+
+    # Clean up: cancel then delete, because a published event cannot be deleted.
+    for CLEANUP in "$SEAT_EVENT" "$FULL_EVENT"; do
+      json_status POST "/api/clubs/$PRESIDENT_CLUB/events/$CLEANUP/status" '{"status":"CANCELLED"}' "$TMP/aarav.jar" > /dev/null
+      json_status DELETE "/api/clubs/$PRESIDENT_CLUB/events/$CLEANUP" "" "$TMP/aarav.jar" > /dev/null
+    done
   fi
 fi
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { ArrowRight, KeyRound, LayoutGrid, Plus } from "lucide-react";
+import { ArrowRight, CalendarDays, KeyRound, LayoutGrid, Plus, Ticket as TicketIcon } from "lucide-react";
 
 import { MemberOverviewView } from "@/components/features/dashboard/member-overview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -80,6 +80,14 @@ export default async function DashboardPage() {
               <Plus data-icon="inline-start" />
               Create or browse clubs
             </Link>
+            <Link href="/events" className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}>
+              <CalendarDays data-icon="inline-start" />
+              Browse upcoming events
+            </Link>
+            <Link href="/tickets" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+              <TicketIcon data-icon="inline-start" />
+              Your tickets
+            </Link>
             <Link href="/demo" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
               Compare what each role sees
             </Link>
@@ -91,11 +99,11 @@ export default async function DashboardPage() {
 
       <Alert>
         <KeyRound />
-        <AlertTitle>Phase 3 of 7 is complete</AlertTitle>
+        <AlertTitle>Phase 5 of 7 is complete</AlertTitle>
         <AlertDescription>
-          Colleges, clubs, member roles and invite links are live, with the RBAC matrix enforced on
-          every route. Next: creating and publishing events (Phase 4), then capacity-safe RSVPs and QR
-          tickets (Phase 5).
+          Events, capacity-safe registration, waitlists and QR tickets are live. A room can no longer
+          be oversold, even when everybody clicks at once. Next: the door — scanning tickets in, and
+          surviving a scanner with no internet (Phase 6).
         </AlertDescription>
       </Alert>
 

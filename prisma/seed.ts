@@ -37,6 +37,19 @@ const EVENT = {
   robowars: "0f1d2c3b-4a59-4e6d-8b7c-300000000001",
   workshop: "0f1d2c3b-4a59-4e6d-8b7c-300000000002",
   debate: "0f1d2c3b-4a59-4e6d-8b7c-300000000003",
+  debugNight: "0f1d2c3b-4a59-4e6d-8b7c-300000000004",
+} as const;
+
+/** Fixed ticket ids/secrets keep this seed idempotent (Phase 5). */
+const TICKET = {
+  robowarsAarav: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000001", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000001" },
+  robowarsMeera: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000002", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000002" },
+  robowarsKabir: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000003", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000003" },
+  robowarsNisha: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000004", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000004" },
+  debugAarav: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000005", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000005" },
+  debugMeera: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000006", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000006" },
+  debugNisha: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000007", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000007" },
+  debugKabir: { id: "0f1d2c3b-4a59-4e6d-8b7c-400000000008", qr: "0f1d2c3b-4a59-4e6d-8b7c-500000000008" },
 } as const;
 
 const DEMO_PASSWORD = "password123";
@@ -196,6 +209,21 @@ async function main() {
       createdById: USER.aarav,
     },
     {
+      id: EVENT.debugNight,
+      clubId: robotics.id,
+      title: "Debug Night: RoboWars Warm-up",
+      description:
+        "Three seats only: bring a broken bot and leave with it working. Organisers keep the room small on purpose so everybody gets help.",
+      location: "Robotics Lab, Block D",
+      startTime: utcDate(4, 13, 30), // 19:00 IST
+      endTime: utcDate(4, 16, 30), // 22:00 IST
+      capacity: 3,
+      waitlistEnabled: true,
+      status: "PUBLISHED" as const,
+      isPublic: true,
+      createdById: USER.aarav,
+    },
+    {
       id: EVENT.workshop,
       clubId: robotics.id,
       title: "Line-Follower Workshop (members only)",
@@ -230,6 +258,43 @@ async function main() {
     });
   }
 
+  // ── Tickets: a room with people in it, and a real queue to look at ────────
+  // Without these every event would read "0 / 120" and the demo could not show a
+  // full room, a waitlist, or a ticket with a QR code on it.
+  const tickets = [
+    { seat: TICKET.robowarsAarav, eventId: EVENT.robowars, userId: USER.aarav, status: "REGISTERED" as const, position: null },
+    { seat: TICKET.robowarsMeera, eventId: EVENT.robowars, userId: USER.meera, status: "REGISTERED" as const, position: null },
+    { seat: TICKET.robowarsKabir, eventId: EVENT.robowars, userId: USER.kabir, status: "REGISTERED" as const, position: null },
+    { seat: TICKET.robowarsNisha, eventId: EVENT.robowars, userId: USER.nisha, status: "REGISTERED" as const, position: null },
+
+    // Debug Night is deliberately full: 3 seats, 3 holders, and Kabir waiting.
+    { seat: TICKET.debugAarav, eventId: EVENT.debugNight, userId: USER.aarav, status: "REGISTERED" as const, position: null },
+    { seat: TICKET.debugMeera, eventId: EVENT.debugNight, userId: USER.meera, status: "REGISTERED" as const, position: null },
+    { seat: TICKET.debugNisha, eventId: EVENT.debugNight, userId: USER.nisha, status: "REGISTERED" as const, position: null },
+    { seat: TICKET.debugKabir, eventId: EVENT.debugNight, userId: USER.kabir, status: "WAITLISTED" as const, position: 1 },
+  ];
+
+  for (const ticket of tickets) {
+    await db.ticket.upsert({
+      where: { eventId_userId: { eventId: ticket.eventId, userId: ticket.userId } },
+      update: {
+        status: ticket.status,
+        waitlistPosition: ticket.position,
+        cancelledAt: null,
+        deletedAt: null,
+      },
+      create: {
+        id: ticket.seat.id,
+        tenantId: tenant.id,
+        eventId: ticket.eventId,
+        userId: ticket.userId,
+        qrCodeUuid: ticket.seat.qr,
+        status: ticket.status,
+        waitlistPosition: ticket.position,
+      },
+    });
+  }
+
   console.log(`
   Seed complete ────────────────────────────────────────────────
   Tenant   ${tenant.name}  (${tenant.timezone})
@@ -241,7 +306,8 @@ async function main() {
     kabir.member@vit.ac.in      Tenant Member  · Member in both clubs
     dean.admin@vit.ac.in        Tenant Admin   · no club role (cross-club visibility)
 
-  Clubs    2   Events   3 (2 published · 1 draft members-only)
+  Clubs    2   Events   4 (3 published · 1 draft members-only)
+  Tickets  8 (7 seats held · 1 person queuing for a full room)
   Invites  1   public demo link: join/${DEMO_INVITE_TOKEN}
   ──────────────────────────────────────────────────────────────
 `);

@@ -220,17 +220,66 @@ tests, production build).
 
 ---
 
-## Phase 5 — Ticketing & Concurrency
+## Phase 5 — Ticketing & Concurrency ✅ Complete
 
-- RSVP endpoint inside an interactive transaction with `SELECT … FOR UPDATE` on the event row.
-- Waitlist: when capacity is reached, `Waitlisted` tickets; promotion on cancellation (FIFO).
-- QR generation (`qrcode`) for each `Registered` ticket; ticket wallet page.
-- Rate limiting on RSVP/invite endpoints (`429` + `Retry-After`).
-- **Concurrency test:** fire N parallel RSVPs at the last seat(s) and assert the database never
-  exceeds capacity and exactly the expected number succeed.
+- **Taking a seat.** `POST /api/events/:eventId/register` → `REGISTERED`, `WAITLISTED`, or a 409 when
+  the room is full and nobody opened a queue. Registration closes when the event **starts**, not when
+  it ends.
+- **The race.** Every write that can change the number of seats held takes a Postgres row lock first:
+  `SELECT … FROM events WHERE id = $1 FOR UPDATE`, then counts, then writes. Requests for the same
+  event queue on that lock; different events never block each other.
+- **The database has its own opinion.** `UNIQUE (event_id, user_id)` makes a second ticket for one
+  person on one event impossible even if this code were wrong.
+- **Waitlist.** FIFO by an ever-increasing `waitlistPosition`. Cancelling a seat promotes the person
+  at the front **inside the same transaction**, so two people cancelling at once cannot promote the
+  same waiter twice. Leaving the queue promotes nobody. Raising an event's capacity promotes as many
+  people as the new seats allow.
+- **QR tickets.** Each ticket carries a `qrCodeUuid` secret, separate from its id, encoded as
+  `clubhub:ticket:<uuid>` and rendered **server-side** into a data-URI PNG (`qrcode`). A waitlisted
+  person gets no QR code — a queue place is not a seat. Re-registering after a cancellation **rotates
+  the secret**, so a screenshot of the old ticket stops working.
+- **Pages:** `/events` (what is on), `/events/[eventId]` (register / join queue / cancel, plus the
+  organiser's guest list), `/tickets` (wallet) and `/tickets/[ticketId]` (the QR itself).
+- **Rate limiting** per **user id**, not per IP — a campus lab shares one address. `429` carries
+  `Retry-After`.
 
-**Acceptance criteria:** the concurrency test passes repeatedly; duplicate RSVPs hit
-`UNIQUE(event_id, user_id)`; QR payloads verify; verify gate passes.
+**Route surface**
+
+| Route | Who | What |
+| --- | --- | --- |
+| `POST /api/events/:eventId/register` | any tenant member who can see the event | claim a seat / join the queue |
+| `DELETE /api/tickets/:ticketId` | the owner, or an organiser (`ticket:manage`) | give the seat back |
+| `GET /api/events/:eventId/tickets` | President / Event Manager | the guest list, without any QR secrets |
+| `GET /api/tickets` | the signed-in user | their own tickets, across colleges |
+
+**The concurrency proof.** `tests/integration/tickets.test.ts` fires 20 simultaneous RSVPs at a
+5-seat room and asserts exactly 5 `REGISTERED`, 15 `WAITLISTED`, 20 rows. The test was then run
+against a version of the service **with the `FOR UPDATE` line removed**: it sold **10 seats in a
+5-seat room** and failed loudly. With the lock restored it passes. (Also covered: 15 concurrent
+requests against 3 seats with no waitlist → 3 successes, 12 clean 409s; one person tapping five times
+at once → exactly one ticket.)
+
+**Tests added (187 → 231):**
+
+| File | Cases |
+| --- | --- |
+| `tests/unit/ticket-rules.test.ts` (15) | seat decisions at the exact boundary, unlimited capacity, overbooked rooms, position numbering that never reuses a number, queue ranks with gaps, and the registration window |
+| `tests/unit/ticket-qr.test.ts` (5) | payload round trip, case/whitespace normalisation, and rejection of foreign QR codes |
+| `tests/integration/tickets.test.ts` (23) | the whole lifecycle, both concurrency stampedes, promotion on cancel and on capacity increase, 404 for someone else's ticket, tenant scoping, and QR rotation on re-registration |
+| `tests/integration/seed.test.ts` (+1) | the demo really contains a full room with a queue behind it |
+
+Smoke test grew to **13 sections / 130 checks**; section `[13]` drives a one-seat event over HTTP:
+claim → queue → double tap → guest-list 403 → QR page 200 → somebody else's ticket 404 → cancel →
+promotion to Meera → empty queue → full room without waitlist → 409 → unknown body field → 422.
+
+**Bug found by the new tests (fixed):** `registeredCount` was `_count.tickets`, which counts
+**cancelled** tickets too. Harmless while nobody could cancel; the first cancellation would have shown
+"7 / 6". Counts are now grouped by status, and the events list carries `registeredCount` and
+`waitlistedCount` separately.
+
+**Acceptance criteria met:** the concurrency test passes repeatedly (and provably fails without the
+lock); duplicate RSVPs hit `UNIQUE(event_id, user_id)` and return the existing ticket; QR payloads
+round-trip and reject foreign codes; verify gate passes (lint, types, 231 tests, production build).
 
 ---
 
@@ -268,6 +317,9 @@ human-readable message; verify gate passes.
 | --- | --- | --- |
 | 2026-10-14 | 1 — Initialization & Boilerplate | Complete. Next 15.5.27 + React 19 + Tailwind v4 + shadcn (`@base-ui/react`), strict TS, response envelope, env contract, `/api/health`, landing page, docs. Gate: lint ✅ typecheck ✅ build ✅ |
 | 2026-10-14 | 2 — Database & Auth | Complete. Postgres 17 + Prisma 7 (driver adapter, composite tenant FKs), migration + idempotent seed, Auth.js v5 credentials/JWT, register API with rate limiting, middleware gate, dashboard reading tenant/club roles in zone-correct time. Gate: lint ✅ typecheck ✅ build ✅ smoke 25/25 ✅ |
+| 2026-10-15 | 3 — Tenant & Club Scaffolding | Complete. Colleges, clubs, RBAC matrix, invite links, cookie-free `/demo` preview. Gate: lint ✅ typecheck ✅ build ✅ 142 tests ✅ smoke 82/82 ✅ |
+| 2026-10-17 | 4 — Event Management CRUD | Complete. Event lifecycle with UTC storage and college-time rendering, DST gap/repeat handling, members-only 404s. Gate: lint ✅ typecheck ✅ build ✅ 187 tests ✅ smoke 107/107 ✅ |
+| 2026-10-17 | 5 — Ticketing & Concurrency | Complete. Row-locked registration (proved by a test that fails without the lock), FIFO waitlist with automatic promotion, server-rendered QR tickets, per-user rate limiting. Gate: lint ✅ typecheck ✅ build ✅ 231 tests ✅ smoke 130/130 ✅ |
 
 ---
 

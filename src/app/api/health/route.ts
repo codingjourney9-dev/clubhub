@@ -32,7 +32,7 @@ export async function GET() {
     {
       status: database.status === "up" ? "ok" : "degraded",
       service: siteConfig.name,
-      phase: 4,
+      phase: 5,
       environment: process.env.NODE_ENV ?? "development",
       timestamp: new Date().toISOString(),
       uptimeSeconds: Math.round(process.uptime()),

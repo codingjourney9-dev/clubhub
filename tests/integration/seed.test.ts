@@ -25,7 +25,8 @@ const EXPECTED = {
   tenantMembers: 4,
   clubs: 2,
   clubMembers: 6,
-  events: 3,
+  events: 4,
+  tickets: 8,
 } as const;
 
 beforeAll(async () => {
@@ -74,10 +75,32 @@ describe("seed script", () => {
   it("seeds both a public published event and a members-only draft", async () => {
     const db = testDb();
 
-    expect(await db.event.count({ where: { isPublic: true, status: "PUBLISHED" } })).toBe(2);
+    expect(await db.event.count({ where: { isPublic: true, status: "PUBLISHED" } })).toBe(3);
     expect(
       await db.event.count({ where: { isPublic: false, status: "DRAFT", deletedAt: null } }),
     ).toBe(1);
+  });
+
+  it("seeds a full room with a real queue behind it", async () => {
+    const db = testDb();
+
+    // The demo needs a room that is actually full, otherwise a waitlist is an
+    // abstract idea in a screenshot instead of a visible queue.
+    expect(await db.ticket.count()).toBe(EXPECTED.tickets);
+    expect(await db.ticket.count({ where: { status: "REGISTERED" } })).toBe(7);
+    expect(await db.ticket.count({ where: { status: "WAITLISTED" } })).toBe(1);
+
+    const debugNight = await db.event.findFirstOrThrow({
+      where: { title: { contains: "Debug Night" } },
+      select: { id: true, capacity: true },
+    });
+
+    const seated = await db.ticket.count({
+      where: { eventId: debugNight.id, status: "REGISTERED" },
+    });
+
+    // Exactly full: no seats left, which is what makes the queue meaningful.
+    expect(seated).toBe(debugNight.capacity);
   });
 
   it("is idempotent — re-running it creates no duplicates", async () => {
@@ -90,5 +113,6 @@ describe("seed script", () => {
     expect(await db.club.count()).toBe(EXPECTED.clubs);
     expect(await db.clubMember.count()).toBe(EXPECTED.clubMembers);
     expect(await db.event.count()).toBe(EXPECTED.events);
+    expect(await db.ticket.count()).toBe(EXPECTED.tickets);
   }, 120_000);
 });

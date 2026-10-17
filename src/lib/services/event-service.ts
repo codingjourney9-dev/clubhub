@@ -3,6 +3,7 @@ import "server-only";
 import { ApiError } from "@/lib/api/response";
 import { db } from "@/lib/db/client";
 import { wallClockToUtc } from "@/lib/format/date";
+import { promoteAfterCapacityChange } from "@/lib/services/ticket-service";
 import type { EventStatus } from "@/generated/prisma/enums";
 import type { CreateEventInput, UpdateEventInput } from "@/lib/validation/event";
 
@@ -41,8 +42,45 @@ const EVENT_LIST_SELECT = {
   status: true,
   isPublic: true,
   createdAt: true,
-  _count: { select: { tickets: true } },
 } as const;
+
+/**
+ * How many seats are actually held, and how many people are queuing.
+ *
+ * This used to be `_count.tickets`, which counts *every* row — including
+ * cancelled ones. With no ticketing that was harmless; the moment students can
+ * cancel, it would show "7 / 6" and make the bar look broken. A seat is held
+ * only by a REGISTERED ticket; people in the queue hold nothing yet.
+ *
+ * One grouped query for the whole page rather than one count per row.
+ */
+export async function ticketCountsByEvent(
+  eventIds: readonly string[],
+): Promise<Map<string, { registered: number; waitlisted: number }>> {
+  const counts = new Map<string, { registered: number; waitlisted: number }>();
+  for (const id of eventIds) counts.set(id, { registered: 0, waitlisted: 0 });
+
+  if (eventIds.length === 0) return counts;
+
+  const rows = await db.ticket.groupBy({
+    by: ["eventId", "status"],
+    where: {
+      eventId: { in: [...eventIds] },
+      status: { in: ["REGISTERED", "WAITLISTED"] },
+    },
+    _count: { _all: true },
+  });
+
+  for (const row of rows) {
+    const entry = counts.get(row.eventId);
+    if (!entry) continue;
+
+    if (row.status === "REGISTERED") entry.registered = row._count._all;
+    else entry.waitlisted = row._count._all;
+  }
+
+  return counts;
+}
 
 export interface EventListOptions {
   /** Drafts are only ever shown to people who can edit them. */
@@ -78,9 +116,12 @@ export async function listClubEvents(
     select: EVENT_LIST_SELECT,
   });
 
+  const counts = await ticketCountsByEvent(events.map((event) => event.id));
+
   return events.map((event) => ({
     ...event,
-    registeredCount: event._count.tickets,
+    registeredCount: counts.get(event.id)?.registered ?? 0,
+    waitlistedCount: counts.get(event.id)?.waitlisted ?? 0,
   }));
 }
 
@@ -111,7 +152,6 @@ export async function getVisibleEvent(eventId: string, tenantId: string, canView
       createdAt: true,
       updatedAt: true,
       club: { select: { name: true, slug: true } },
-      _count: { select: { tickets: true } },
     },
   });
 
@@ -122,7 +162,13 @@ export async function getVisibleEvent(eventId: string, tenantId: string, canView
     throw ApiError.notFound("That event was not found.");
   }
 
-  return { ...event, registeredCount: event._count.tickets };
+  const counts = await ticketCountsByEvent([event.id]);
+
+  return {
+    ...event,
+    registeredCount: counts.get(event.id)?.registered ?? 0,
+    waitlistedCount: counts.get(event.id)?.waitlisted ?? 0,
+  };
 }
 
 export interface CreateEventArgs {
@@ -245,7 +291,7 @@ export async function updateEvent(
   const startTime = input.start ? wallClockToUtc(input.start, timeZone) : undefined;
   const endTime = input.end ? wallClockToUtc(input.end, timeZone) : undefined;
 
-  return db.event.update({
+  const updated = await db.event.update({
     where: { id: eventId },
     data: {
       ...(input.title === undefined ? {} : { title: input.title }),
@@ -267,6 +313,22 @@ export async function updateEvent(
       isPublic: true,
     },
   });
+
+  // Raising the capacity is a promise to the queue as much as to the room: the
+  // people who were told "no space" should be let in immediately, not when
+  // somebody happens to cancel. (A null capacity means unlimited, and an unlimited
+  // event never had a queue to begin with.)
+  const grew =
+    input.capacity !== undefined &&
+    input.capacity !== null &&
+    existing.capacity !== null &&
+    input.capacity > existing.capacity;
+
+  if (grew) {
+    await promoteAfterCapacityChange(eventId, tenantId);
+  }
+
+  return updated;
 }
 
 /**
@@ -361,4 +423,71 @@ export async function softDeleteEvent(eventId: string, tenantId: string) {
   // Ticket and attendance rows are deliberately untouched: a cancelled event's
   // history is what makes attendance reports possible later.
   return { id: event.id, deletedAt: new Date().toISOString() };
+}
+
+/**
+ * Published, upcoming events this person is allowed to see, across every college
+ * they belong to.
+ *
+ * The visibility rule is the product's, not the UI's: a public event is visible to
+ * anyone in the college, a members-only event only to that club's members. The
+ * query applies it in SQL so a members-only event cannot leak into a list by
+ * being filtered client-side afterwards.
+ *
+ * Drafts never appear here — they are somebody's unfinished work, and this is the
+ * "what is on this week" page.
+ */
+export async function listUpcomingEventsForUser(userId: string) {
+  const [tenantMemberships, clubMemberships] = await Promise.all([
+    db.tenantMember.findMany({
+      where: { userId, deletedAt: null, tenant: { deletedAt: null } },
+      select: { tenantId: true },
+    }),
+    db.clubMember.findMany({
+      where: { userId, deletedAt: null, club: { deletedAt: null } },
+      select: { clubId: true },
+    }),
+  ]);
+
+  const tenantIds = tenantMemberships.map((membership) => membership.tenantId);
+  if (tenantIds.length === 0) return [];
+
+  const clubIds = clubMemberships.map((membership) => membership.clubId);
+
+  const events = await db.event.findMany({
+    where: {
+      tenantId: { in: tenantIds },
+      deletedAt: null,
+      status: "PUBLISHED",
+      endTime: { gt: new Date() },
+      OR: [{ isPublic: true }, { clubId: { in: clubIds } }],
+    },
+    orderBy: { startTime: "asc" },
+    take: 60,
+    select: {
+      id: true,
+      title: true,
+      location: true,
+      startTime: true,
+      endTime: true,
+      capacity: true,
+      waitlistEnabled: true,
+      isPublic: true,
+      club: {
+        select: {
+          id: true,
+          name: true,
+          tenant: { select: { name: true, timezone: true } },
+        },
+      },
+    },
+  });
+
+  const counts = await ticketCountsByEvent(events.map((event) => event.id));
+
+  return events.map((event) => ({
+    ...event,
+    registeredCount: counts.get(event.id)?.registered ?? 0,
+    waitlistedCount: counts.get(event.id)?.waitlisted ?? 0,
+  }));
 }

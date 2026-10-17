@@ -39,6 +39,10 @@ export const CLUB_MATRIX = {
   "event:publish": ["PRESIDENT", "EVENT_MANAGER"],
   "event:delete": ["PRESIDENT"],
   "event:view_private": ["PRESIDENT", "EVENT_MANAGER", "MEMBER"],
+  /** Who is coming, and who is queuing — organisers only, never other students. */
+  "ticket:view_roster": ["PRESIDENT", "EVENT_MANAGER"],
+  /** Cancelling somebody else's ticket (a no-show, a duplicate, a mistake). */
+  "ticket:manage": ["PRESIDENT", "EVENT_MANAGER"],
   "attendance:scan": ["PRESIDENT", "EVENT_MANAGER"],
   "attendance:report": ["PRESIDENT", "EVENT_MANAGER"],
 } as const satisfies Record<string, readonly ClubRole[]>;
