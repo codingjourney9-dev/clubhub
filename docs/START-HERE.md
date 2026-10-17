@@ -69,8 +69,14 @@ The app is running right now. **The preview panel next to this chat is the websi
 > | **A. Demo preview** (easiest) | Open `/demo` in the preview, then the "Open a club" buttons | The real dashboard **and club pages**, readable without signing in, with a switcher to compare roles |
 > | **B. Real sign-in** | Run the app on your own machine (`npm run dev`, see §4) | The genuine login flow, cookies and all |
 >
-> Opening the preview link in a separate browser tab does **not** work — that address only serves
-> inside the chat.
+> **If you see a grey page saying “403 FORBIDDEN — MISSING TRAFFIC ACCESS TOKEN”, nothing is broken.**
+> That page comes from the sandbox that hosts the app, not from ClubHub. Every request into the
+> sandbox must carry a short-lived pass, and the chat's preview panel attaches it automatically — a
+> normal browser tab cannot, so it is turned away at the door. **Fix: come back to the chat and use
+> the preview panel.** Don't paste the address into a new tab.
+>
+> If the preview panel itself is blank or stuck, the server has probably gone to sleep between
+> sessions — say so in the chat and it will be restarted (the data is kept).
 
 ### Step 1 — Look at the front page
 
