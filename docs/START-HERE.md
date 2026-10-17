@@ -78,6 +78,9 @@ The app is running right now. **The preview panel next to this chat is the websi
 > If the preview panel itself is blank or stuck, the server has probably gone to sleep between
 > sessions — say so in the chat and it will be restarted (the data is kept).
 
+> **Want everything in one place?** [`docs/TOUR.md`](./TOUR.md) lists every feature from all seven
+> phases with the exact link to see it. This file is the slower, learn-by-doing version.
+
 ### Step 1 — Look at the front page
 
 You should see a page titled **"One platform for every club event on campus."**
