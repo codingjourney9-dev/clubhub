@@ -1,7 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, Check, Info, Link2, ShieldCheck, Users, X } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  Check,
+  DoorOpen,
+  Info,
+  Link2,
+  ShieldCheck,
+  Users,
+  X,
+} from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +29,7 @@ import { DEMO_ACCOUNTS, DEMO_INVITE_TOKEN, findDemoAccount } from "@/config/demo
 import { db } from "@/lib/db/client";
 import { isDemoModeEnabled } from "@/lib/demo/mode";
 import { canClub, type Actor, type ClubAction } from "@/lib/auth/rbac";
+import { checkInWindowState } from "@/lib/domain/check-in";
 import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
 import { listClubInvites } from "@/lib/services/invite-service";
 import { cn } from "@/lib/utils";
@@ -202,6 +213,9 @@ export default async function DemoClubPage({
     tenantRole: tenantMembership.role,
     clubRole: clubMembership?.role ?? null,
   };
+
+  const now = new Date();
+  const canRunDoor = canClub(actor, "attendance:scan");
 
   const events = await db.event.findMany({
     where: { clubId: club.id, deletedAt: null },
@@ -399,6 +413,15 @@ export default async function DemoClubPage({
                           </Link>
                           {event.location ? (
                             <span className="text-xs text-muted-foreground">{event.location}</span>
+                          ) : null}
+                          {canRunDoor && checkInWindowState(event, club.tenant.timezone, now) === "OPEN" ? (
+                            <Link
+                              href={`/demo/events/${event.id}/door?as=${account.key}`}
+                              className="mt-1 inline-flex w-fit items-center gap-1 rounded-md border border-emerald-600/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400"
+                            >
+                              <DoorOpen className="size-3" />
+                              Door is open — try the scanner
+                            </Link>
                           ) : null}
                         </div>
                       </TableCell>

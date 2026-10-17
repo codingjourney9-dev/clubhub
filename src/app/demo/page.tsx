@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, Info, Users } from "lucide-react";
+import { ArrowRight, DoorOpen, Info, Users } from "lucide-react";
 
 import { MemberOverviewView } from "@/components/features/dashboard/member-overview";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/lib/db/client";
+import { checkInWindowState } from "@/lib/domain/check-in";
 import { isDemoModeEnabled } from "@/lib/demo/mode";
 import { loadMemberOverview } from "@/lib/services/dashboard-service";
 import { cn } from "@/lib/utils";
@@ -78,6 +79,30 @@ export default async function DemoPage({
     },
   });
 
+  // The event whose door is open right now: that is the one the scanner demo uses.
+  // If the seed is old and nothing is live today, the card simply does not appear.
+  const doorEvent = await db.event.findFirst({
+    where: {
+      deletedAt: null,
+      status: "PUBLISHED",
+      club: { deletedAt: null, tenant: { deletedAt: null } },
+      startTime: { lte: new Date() },
+      endTime: { gte: new Date() },
+    },
+    orderBy: { startTime: "desc" },
+    select: {
+      id: true,
+      title: true,
+      startTime: true,
+      endTime: true,
+      club: { select: { name: true, tenant: { select: { timezone: true } } } },
+    },
+  });
+
+  const doorIsOpen =
+    doorEvent !== null &&
+    checkInWindowState(doorEvent, doorEvent.club.tenant.timezone, new Date()) === "OPEN";
+
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8">
       <Alert className="border-amber-500/40 bg-amber-500/10">
@@ -121,6 +146,35 @@ export default async function DemoPage({
           );
         })}
       </div>
+
+      {doorEvent && doorIsOpen ? (
+        <Card className="border-emerald-600/30 bg-emerald-500/5">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DoorOpen className="size-4 text-emerald-700 dark:text-emerald-400" />
+              Phase 6 — the door is open right now
+            </CardTitle>
+            <CardDescription>
+              {doorEvent.club.name} is running &ldquo;{doorEvent.title}&rdquo; today. This is the
+              scanner a volunteer holds at the entrance: cut the signal, scan three people, reconnect
+              and watch the queue sync without duplicates.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <Link
+              href={`/demo/events/${doorEvent.id}/door?as=${account.key}#offline-test`}
+              className={cn(buttonVariants({ variant: "default" }), "gap-2")}
+            >
+              Open the door preview
+              <ArrowRight data-icon="inline-end" />
+            </Link>
+            <span className="self-center text-xs text-muted-foreground">
+              Aarav and Meera can work this door. Kabir and the Dean get the refusal page — which is
+              the point.
+            </span>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <MemberOverviewView overview={overview} />
 
