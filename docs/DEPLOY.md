@@ -1,5 +1,8 @@
 # Deploying ClubHub
 
+> **New to this?** Read [`DEPLOY-BEGINNER.md`](./DEPLOY-BEGINNER.md) instead — same content, but every
+> term explained and every click spelled out. This file is the reference version.
+
 A real walkthrough: what to run, in what order, and what to check before you let anyone use it.
 
 Three targets, in order of how well they fit this codebase:

@@ -358,7 +358,13 @@ shelves → put sample folders in → switch on the website.
 
 ---
 
-> **Putting it on a real server?** [`docs/DEPLOY.md`](./DEPLOY.md) walks through Docker Compose,
+> **Starting from absolutely nothing?** [`docs/FROM-ZERO.md`](./FROM-ZERO.md) goes from the
+> downloaded zip → GitHub account → repository → live site, with a screenshot-description of every
+> screen and no assumed knowledge.
+>
+> **Putting it on the internet?** [`docs/DEPLOY-BEGINNER.md`](./DEPLOY-BEGINNER.md) is the
+> hand-holding version (every term explained, two paths: Vercel or your own server).
+> [`docs/DEPLOY.md`](./DEPLOY.md) is the short reference. It walks through Docker Compose,
 > Vercel, or a plain systemd server — including the three settings that cause real incidents
 > (`DEMO_MODE` left on, a missing `AUTH_SECRET`, migrations run after the app instead of before).
 
