@@ -77,6 +77,6 @@ export const phaseRoadmap: readonly PhaseRoadmapItem[] = [
     title: "Polish & Observability",
     summary:
       "Skeletons, toasts, empty/error states, structured logging and a responsive design pass.",
-    status: "in_progress",
+    status: "complete",
   },
 ] as const;

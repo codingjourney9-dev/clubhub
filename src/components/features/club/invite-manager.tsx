@@ -35,7 +35,7 @@ export interface ClubInviteRow {
 }
 
 const STATUS_STYLES: Record<ClubInviteRow["status"], string> = {
-  active: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  active: "border-success/40 bg-success/10 text-success",
   expired: "border-border bg-muted text-muted-foreground",
   used_up: "border-border bg-muted text-muted-foreground",
   revoked: "border-destructive/30 bg-destructive/10 text-destructive",

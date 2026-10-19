@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/api/response";
 import { db } from "@/lib/db/client";
 import { wallClockToUtc } from "@/lib/format/date";
 import { promoteAfterCapacityChange } from "@/lib/services/ticket-service";
+import type { Prisma } from "@/generated/prisma/client";
 import type { EventStatus } from "@/generated/prisma/enums";
 import type { CreateEventInput, UpdateEventInput } from "@/lib/validation/event";
 
@@ -57,23 +58,38 @@ const EVENT_LIST_SELECT = {
 export async function ticketCountsByEvent(
   eventIds: readonly string[],
 ): Promise<Map<string, { registered: number; waitlisted: number }>> {
-  const counts = new Map<string, { registered: number; waitlisted: number }>();
-  for (const id of eventIds) counts.set(id, { registered: 0, waitlisted: 0 });
+  if (eventIds.length === 0) return new Map();
+  return groupTicketCounts({ eventId: { in: [...eventIds] } });
+}
 
-  if (eventIds.length === 0) return counts;
+/**
+ * The same counts, for every event matching `event` — so a list page can ask for
+ * its events and their counts *at the same time* instead of waiting for the ids.
+ * Events the page ends up not showing (past its `take`) are simply never read.
+ */
+async function ticketCountsForEventsWhere(
+  event: Prisma.EventWhereInput,
+): Promise<Map<string, { registered: number; waitlisted: number }>> {
+  return groupTicketCounts({ event });
+}
+
+async function groupTicketCounts(
+  where: Prisma.TicketWhereInput,
+): Promise<Map<string, { registered: number; waitlisted: number }>> {
+  const counts = new Map<string, { registered: number; waitlisted: number }>();
 
   const rows = await db.ticket.groupBy({
     by: ["eventId", "status"],
-    where: {
-      eventId: { in: [...eventIds] },
-      status: { in: ["REGISTERED", "WAITLISTED"] },
-    },
+    where: { ...where, status: { in: ["REGISTERED", "WAITLISTED"] } },
     _count: { _all: true },
   });
 
   for (const row of rows) {
-    const entry = counts.get(row.eventId);
-    if (!entry) continue;
+    let entry = counts.get(row.eventId);
+    if (!entry) {
+      entry = { registered: 0, waitlisted: 0 };
+      counts.set(row.eventId, entry);
+    }
 
     if (row.status === "REGISTERED") entry.registered = row._count._all;
     else entry.waitlisted = row._count._all;
@@ -438,52 +454,47 @@ export async function softDeleteEvent(eventId: string, tenantId: string) {
  * "what is on this week" page.
  */
 export async function listUpcomingEventsForUser(userId: string) {
-  const [tenantMemberships, clubMemberships] = await Promise.all([
-    db.tenantMember.findMany({
-      where: { userId, deletedAt: null, tenant: { deletedAt: null } },
-      select: { tenantId: true },
-    }),
-    db.clubMember.findMany({
-      where: { userId, deletedAt: null, club: { deletedAt: null } },
-      select: { clubId: true },
-    }),
-  ]);
+  // The membership rule lives inside the query (relation filters) rather than
+  // in a first round trip that fetches membership ids, and the ticket counts
+  // are fetched in parallel against the same rule: one round trip, not three.
+  const visible: Prisma.EventWhereInput = {
+    deletedAt: null,
+    status: "PUBLISHED",
+    endTime: { gt: new Date() },
+    // Any college you belong to (and that still exists)…
+    club: { tenant: { deletedAt: null, members: { some: { userId, deletedAt: null } } } },
+    // …and within it, public events or members-only events of your own clubs.
+    OR: [
+      { isPublic: true },
+      { club: { deletedAt: null, members: { some: { userId, deletedAt: null } } } },
+    ],
+  };
 
-  const tenantIds = tenantMemberships.map((membership) => membership.tenantId);
-  if (tenantIds.length === 0) return [];
-
-  const clubIds = clubMemberships.map((membership) => membership.clubId);
-
-  const events = await db.event.findMany({
-    where: {
-      tenantId: { in: tenantIds },
-      deletedAt: null,
-      status: "PUBLISHED",
-      endTime: { gt: new Date() },
-      OR: [{ isPublic: true }, { clubId: { in: clubIds } }],
-    },
-    orderBy: { startTime: "asc" },
-    take: 60,
-    select: {
-      id: true,
-      title: true,
-      location: true,
-      startTime: true,
-      endTime: true,
-      capacity: true,
-      waitlistEnabled: true,
-      isPublic: true,
-      club: {
-        select: {
-          id: true,
-          name: true,
-          tenant: { select: { name: true, timezone: true } },
+  const [events, counts] = await Promise.all([
+    db.event.findMany({
+      where: visible,
+      orderBy: { startTime: "asc" },
+      take: 60,
+      select: {
+        id: true,
+        title: true,
+        location: true,
+        startTime: true,
+        endTime: true,
+        capacity: true,
+        waitlistEnabled: true,
+        isPublic: true,
+        club: {
+          select: {
+            id: true,
+            name: true,
+            tenant: { select: { name: true, timezone: true } },
+          },
         },
       },
-    },
-  });
-
-  const counts = await ticketCountsByEvent(events.map((event) => event.id));
+    }),
+    ticketCountsForEventsWhere(visible),
+  ]);
 
   return events.map((event) => ({
     ...event,

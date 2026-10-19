@@ -31,17 +31,17 @@ export default async function DoorIndexPage() {
   const now = new Date();
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 lg:py-14">
       <Link
         href="/dashboard"
-        className="flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
+        className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
-        <ArrowLeft className="size-3" />
+        <ArrowLeft className="size-4" />
         Back to dashboard
       </Link>
 
       <div className="flex flex-col gap-1">
-        <h1 className="flex items-center gap-2 font-heading text-2xl font-semibold tracking-tight">
+        <h1 className="flex items-center gap-2 text-3xl leading-[1.08] font-bold sm:text-4xl">
           <ScanLine className="size-5 text-muted-foreground" />
           Doors
         </h1>

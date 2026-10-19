@@ -68,18 +68,18 @@ export default async function DoorPage({ params }: { params: Promise<{ eventId: 
   const state = checkInWindowState(event, club.timezone, new Date());
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-5 px-4 py-8">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-8 sm:px-6 lg:py-12">
       <Link
         href={`/events/${eventId}`}
-        className="flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
+        className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
-        <ArrowLeft className="size-3" />
+        <ArrowLeft className="size-4" />
         Back to the event
       </Link>
 
       <div className="flex flex-col gap-1">
-        <h1 className="flex items-center gap-2 font-heading text-xl font-semibold tracking-tight">
-          <ScanLine className="size-5 text-muted-foreground" />
+        <h1 className="flex items-center gap-2 text-2xl leading-tight font-bold sm:text-3xl">
+          <span className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground"><ScanLine className="size-5" /></span>
           Door
         </h1>
         <p className="text-sm">

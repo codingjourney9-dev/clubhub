@@ -25,9 +25,22 @@ export interface SessionUser {
   readonly displayName: string;
 }
 
-export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
+/**
+ * The signed-in user's id, straight from the session cookie — no database trip.
+ *
+ * The guards use it to start their permission lookups *at the same time* as the
+ * user lookup instead of after it. Against a remote database that is one whole
+ * round trip saved on every page. Trusting the id is safe: the cookie is signed,
+ * and the guards still wait for `requireUser()` (which checks the account still
+ * exists and is not deleted) before returning anything.
+ */
+export const getSessionUserId = cache(async (): Promise<string | null> => {
   const session = await auth();
-  const userId = session?.user?.id;
+  return session?.user?.id ?? null;
+});
+
+export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
+  const userId = await getSessionUserId();
   if (!userId) return null;
 
   const user = await db.user.findFirst({

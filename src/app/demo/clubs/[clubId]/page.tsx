@@ -181,7 +181,7 @@ export default async function DemoClubPage({
   // ── The viewer cannot see this college at all: show what the real app shows ──
   if (!tenantMembership) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 lg:py-14">
         {viewerSwitcher(club.id)}
         <Card>
           <CardHeader>
@@ -271,9 +271,9 @@ export default async function DemoClubPage({
   const invites = seesInvites ? await listClubInvites(club.id, club.tenantId) : [];
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8">
-      <Alert className="border-amber-500/40 bg-amber-500/10">
-        <Info className="text-amber-600" />
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 lg:py-12">
+      <Alert className="border-dashed border-primary/45 bg-primary/[0.06]">
+        <Info className="text-primary" />
         <AlertTitle>Demo preview — read-only, no sign-in required</AlertTitle>
         <AlertDescription>
           This is the same club page a signed-in member sees at{" "}
@@ -286,15 +286,23 @@ export default async function DemoClubPage({
 
       <Link
         href={`/demo?as=${account.key}`}
-        className="flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
+        className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
-        <ArrowLeft className="size-3" />
+        <ArrowLeft className="size-4" />
         Back to {account.displayName}&apos;s dashboard
       </Link>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">{club.name}</h1>
+      <div className="flex items-start gap-5">
+        <span
+          aria-hidden="true"
+          className="hidden size-16 shrink-0 items-center justify-center rounded-lg bg-foreground font-heading text-3xl font-extrabold text-background shadow-print-sm sm:flex"
+        >
+          {club.name.charAt(0)}
+        </span>
+        <div className="flex min-w-0 flex-col gap-2">
+        <span className="eyebrow text-primary">Club</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl leading-[1.08] font-bold sm:text-4xl">{club.name}</h1>
           {clubMembership ? (
             <Badge>
               {CLUB_ROLE_LABELS[clubMembership.role]}
@@ -311,6 +319,7 @@ export default async function DemoClubPage({
           <code className="font-mono">/{club.slug}</code> · scheduling timezone {club.tenant.timezone}
         </p>
       </div>
+        </div>
 
       {viewerSwitcher(club.id)}
 
@@ -352,7 +361,7 @@ export default async function DemoClubPage({
                     )}
                   </span>
                   {allowed ? (
-                    <Badge className="shrink-0 gap-1 bg-emerald-600/90 text-white dark:bg-emerald-600">
+                    <Badge className="shrink-0 gap-1 bg-success/90 text-white dark:bg-success">
                       <Check className="size-3" />
                       Yes
                     </Badge>
@@ -417,7 +426,7 @@ export default async function DemoClubPage({
                           {canRunDoor && checkInWindowState(event, club.tenant.timezone, now) === "OPEN" ? (
                             <Link
                               href={`/demo/events/${event.id}/door?as=${account.key}`}
-                              className="mt-1 inline-flex w-fit items-center gap-1 rounded-md border border-emerald-600/30 bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400"
+                              className="mt-1 inline-flex w-fit items-center gap-1 rounded-md border border-success/30 bg-success/10 px-2 py-0.5 text-xs font-medium text-success hover:bg-success/20"
                             >
                               <DoorOpen className="size-3" />
                               Door is open — try the scanner

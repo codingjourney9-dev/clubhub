@@ -47,7 +47,7 @@ export default async function DemoPage({
 
   if (!user) {
     return (
-      <div className="mx-auto w-full max-w-5xl px-4 py-10">
+      <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:py-14">
         <Alert>
           <Info />
           <AlertTitle>The demo data has not been seeded yet</AlertTitle>
@@ -60,53 +60,57 @@ export default async function DemoPage({
     );
   }
 
-  const overview = await loadMemberOverview(user.id);
-
-  // Every club in the colleges this viewer belongs to — including clubs they have
-  // not joined, which is exactly how a college admin sees the place. Each one
-  // links to the read-only club preview below.
-  const clubs = await db.club.findMany({
-    where: {
-      tenantId: { in: overview.tenantRoles.map((membership) => membership.tenant.id) },
-      deletedAt: null,
-    },
-    orderBy: { name: "asc" },
-    select: {
-      id: true,
-      name: true,
-      category: true,
-      _count: { select: { members: { where: { deletedAt: null } } } },
-    },
-  });
-
-  // The event whose door is open right now: that is the one the scanner demo uses.
-  // If the seed is old and nothing is live today, the card simply does not appear.
-  const doorEvent = await db.event.findFirst({
-    where: {
-      deletedAt: null,
-      status: "PUBLISHED",
-      club: { deletedAt: null, tenant: { deletedAt: null } },
-      startTime: { lte: new Date() },
-      endTime: { gte: new Date() },
-    },
-    orderBy: { startTime: "desc" },
-    select: {
-      id: true,
-      title: true,
-      startTime: true,
-      endTime: true,
-      club: { select: { name: true, tenant: { select: { timezone: true } } } },
-    },
-  });
+  // The overview, the college's clubs and today's door event do not depend on
+  // each other, so they are fetched together (one round trip, not three).
+  const now = new Date();
+  const [overview, clubs, doorEvent] = await Promise.all([
+    loadMemberOverview(user.id),
+    // Every club in the colleges this viewer belongs to — including clubs they
+    // have not joined, which is exactly how a college admin sees the place.
+    // Each one links to the read-only club preview below.
+    db.club.findMany({
+      where: {
+        tenant: { deletedAt: null, members: { some: { userId: user.id, deletedAt: null } } },
+        deletedAt: null,
+      },
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        category: true,
+        _count: { select: { members: { where: { deletedAt: null } } } },
+      },
+    }),
+    // The event whose door is open right now: that is the one the scanner demo
+    // uses. If the seed is old and nothing is live today, the card simply does
+    // not appear.
+    db.event.findFirst({
+      where: {
+        deletedAt: null,
+        status: "PUBLISHED",
+        club: { deletedAt: null, tenant: { deletedAt: null } },
+        startTime: { lte: now },
+        endTime: { gte: now },
+      },
+      orderBy: { startTime: "desc" },
+      select: {
+        id: true,
+        title: true,
+        startTime: true,
+        endTime: true,
+        club: { select: { name: true, tenant: { select: { timezone: true } } } },
+      },
+    }),
+  ]);
 
   const doorIsOpen =
     doorEvent !== null &&
     checkInWindowState(doorEvent, doorEvent.club.tenant.timezone, new Date()) === "OPEN";
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8">
-      <Alert className="border-amber-500/40 bg-amber-500/10">
-        <Info className="text-amber-600" />
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 lg:py-12">
+      <Alert className="border-dashed border-primary/45 bg-primary/[0.06]">
+        <Info className="text-primary" />
         <AlertTitle>Demo preview — read-only, no sign-in required</AlertTitle>
         <AlertDescription>
           An embedded preview frame is not allowed to store cookies, so a real sign-in cannot complete
@@ -116,8 +120,9 @@ export default async function DemoPage({
         </AlertDescription>
       </Alert>
 
-      <div className="flex flex-col gap-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">
+      <div className="flex flex-col gap-2">
+        <span className="eyebrow text-primary">Demo dashboard</span>
+        <h1 className="text-3xl leading-[1.08] font-bold sm:text-4xl">
           Hello, {account.displayName}
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -126,8 +131,8 @@ export default async function DemoPage({
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground">View as:</span>
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2">
+        <span className="eyebrow px-2">View as</span>
         {DEMO_ACCOUNTS.map((candidate) => {
           const active = candidate.key === account.key;
           return (
@@ -148,10 +153,10 @@ export default async function DemoPage({
       </div>
 
       {doorEvent && doorIsOpen ? (
-        <Card className="border-emerald-600/30 bg-emerald-500/5">
+        <Card className="border-success/30 bg-success/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <DoorOpen className="size-4 text-emerald-700 dark:text-emerald-400" />
+              <DoorOpen className="size-4 text-success" />
               Phase 6 — the door is open right now
             </CardTitle>
             <CardDescription>

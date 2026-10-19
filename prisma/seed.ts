@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 
 import { PrismaClient } from "../src/generated/prisma/client";
 import { DEMO_INVITE_TOKEN } from "../src/config/demo";
+import { normalizeSslMode } from "../src/lib/db/connection-string";
 
 /**
  * Deterministic seed for local development and demos.
@@ -19,7 +20,7 @@ if (!connectionString) {
   throw new Error("DATABASE_URL is not set. Copy .env.example to .env first.");
 }
 
-const db = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: normalizeSslMode(connectionString) }) });
 
 // ── Fixed ids ────────────────────────────────────────────────────────────────
 const TENANT_ID = "0f1d2c3b-4a59-4e6d-8b7c-100000000001";

@@ -260,7 +260,7 @@ export function OfflineDrill({ tickets }: { tickets: readonly DrillTicket[] }) {
             key={line.id}
             className={cn(
               "text-xs",
-              line.tone === "ok" && "text-emerald-700 dark:text-emerald-400",
+              line.tone === "ok" && "text-success",
               line.tone === "warn" && "text-amber-700 dark:text-amber-400",
               line.tone === "bad" && "text-destructive",
               line.tone === "muted" && "text-muted-foreground",

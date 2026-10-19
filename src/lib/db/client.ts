@@ -5,6 +5,8 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 import { serverEnv } from "@/lib/env";
 
+import { normalizeSslMode } from "./connection-string";
+
 /**
  * Prisma 7 client, constructed with a driver adapter (required in v7 — the
  * Rust query engine is gone, so connections are pooled by `pg` underneath).
@@ -31,11 +33,37 @@ function poolMax(): number | undefined {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
+/**
+ * How long an unused connection stays open before the pool closes it.
+ *
+ * `pg` closes idle connections after 10 s. Against a remote database (Neon from
+ * India) opening a new one costs TCP + TLS + SCRAM login — five or six round
+ * trips, often over a second — so a user who pauses ten seconds between clicks
+ * paid that on every page. On a long-lived server (`next dev`, `next start`) we
+ * keep connections for five minutes; TCP keep-alive stops routers dropping them
+ * silently, and the adapter's idle-error handler discards any the database
+ * closes (e.g. Neon suspending), so the next query simply reconnects.
+ *
+ * On serverless (Vercel) the function is frozen between requests, so the pg
+ * default is left alone there.
+ */
+function poolIdleMs(): number | undefined {
+  const raw = process.env.DATABASE_POOL_IDLE_MS;
+  if (raw) {
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+  }
+  return process.env.VERCEL ? undefined : 5 * 60_000;
+}
+
 function createPrismaClient(): PrismaClient {
   const max = poolMax();
+  const idleTimeoutMillis = poolIdleMs();
   const adapter = new PrismaPg({
-    connectionString: serverEnv().DATABASE_URL,
+    connectionString: normalizeSslMode(serverEnv().DATABASE_URL),
+    keepAlive: true,
     ...(max ? { max } : {}),
+    ...(idleTimeoutMillis !== undefined ? { idleTimeoutMillis } : {}),
   });
 
   return new PrismaClient({

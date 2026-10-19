@@ -386,7 +386,7 @@ export function ScannerPanel({
         <span className="flex items-center gap-2 text-sm">
           {online ? (
             <>
-              <span className="size-2 rounded-full bg-emerald-500" aria-hidden />
+              <span className="size-2 rounded-full bg-success" aria-hidden />
               Online — scans are recorded immediately
             </>
           ) : (
@@ -500,7 +500,7 @@ export function ScannerPanel({
           className={cn(
             "flex flex-col gap-1 rounded-xl border-2 p-4",
             latest.admitted
-              ? "border-emerald-500/50 bg-emerald-500/10"
+              ? "border-success/50 bg-success/10"
               : "border-rose-500/50 bg-rose-500/10",
           )}
           role="status"
@@ -508,7 +508,7 @@ export function ScannerPanel({
         >
           <span className="flex items-center gap-2 text-base font-semibold">
             {latest.admitted ? (
-              <CheckCircle2 className="size-5 text-emerald-600" />
+              <CheckCircle2 className="size-5 text-success" />
             ) : (
               <XCircle className="size-5 text-rose-600" />
             )}
@@ -535,7 +535,7 @@ export function ScannerPanel({
               <li key={result.id} className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
                 <span className="flex items-center gap-2">
                   {result.admitted ? (
-                    <CheckCircle2 className="size-3.5 text-emerald-600" />
+                    <CheckCircle2 className="size-3.5 text-success" />
                   ) : (
                     <TriangleAlert className="size-3.5 text-rose-600" />
                   )}

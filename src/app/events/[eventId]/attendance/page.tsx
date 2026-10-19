@@ -81,17 +81,17 @@ export default async function AttendancePage({
   const noShows = report.rows.filter((row) => row.checkInTime === null && row.status === "REGISTERED");
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 lg:py-14">
       <Link
         href={`/events/${eventId}`}
-        className="flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
+        className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
-        <ArrowLeft className="size-3" />
+        <ArrowLeft className="size-4" />
         Back to the event
       </Link>
 
       <div className="flex flex-col gap-1">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight">Attendance</h1>
+        <h1 className="text-3xl leading-[1.08] font-bold sm:text-4xl">Attendance</h1>
         <p className="text-sm text-muted-foreground">
           {report.event.title} ·{" "}
           {formatDateTimeInZone(new Date(report.event.startTime), report.event.timezone)}
@@ -131,7 +131,7 @@ export default async function AttendancePage({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CheckCircle2 className="size-4 text-emerald-600" />
+            <CheckCircle2 className="size-4 text-success" />
             Checked in ({checkedIn.length})
           </CardTitle>
           <CardDescription>

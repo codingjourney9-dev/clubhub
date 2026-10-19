@@ -42,7 +42,10 @@ export interface MemberOverview {
 }
 
 export const loadMemberOverview = cache(async (userId: string): Promise<MemberOverview> => {
-  const [tenantRoles, clubRoles] = await Promise.all([
+  // All three questions go out together. "Events of my clubs" is expressed as
+  // a relation filter instead of waiting for the club ids — against a remote
+  // database that turns three round trips into one.
+  const [tenantRoles, clubRoles, upcomingEvents] = await Promise.all([
     db.tenantMember.findMany({
       where: { userId, deletedAt: null },
       select: {
@@ -59,31 +62,26 @@ export const loadMemberOverview = cache(async (userId: string): Promise<MemberOv
       },
       orderBy: { joinedAt: "asc" },
     }),
+    db.event.findMany({
+      where: {
+        club: { members: { some: { userId, deletedAt: null } } },
+        status: "PUBLISHED",
+        deletedAt: null,
+        endTime: { gte: new Date() },
+      },
+      orderBy: { startTime: "asc" },
+      take: 5,
+      select: {
+        id: true,
+        title: true,
+        startTime: true,
+        capacity: true,
+        isPublic: true,
+        club: { select: { name: true, tenant: { select: { timezone: true } } } },
+        _count: { select: { tickets: { where: { status: "REGISTERED" } } } },
+      },
+    }),
   ]);
-
-  const clubIds = clubRoles.map((membership) => membership.club.id);
-
-  const upcomingEvents = clubIds.length
-    ? await db.event.findMany({
-        where: {
-          clubId: { in: clubIds },
-          status: "PUBLISHED",
-          deletedAt: null,
-          endTime: { gte: new Date() },
-        },
-        orderBy: { startTime: "asc" },
-        take: 5,
-        select: {
-          id: true,
-          title: true,
-          startTime: true,
-          capacity: true,
-          isPublic: true,
-          club: { select: { name: true, tenant: { select: { timezone: true } } } },
-          _count: { select: { tickets: { where: { status: "REGISTERED" } } } },
-        },
-      })
-    : [];
 
   return { tenantRoles, clubRoles, upcomingEvents };
 });

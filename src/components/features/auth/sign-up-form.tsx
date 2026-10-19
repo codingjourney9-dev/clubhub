@@ -140,7 +140,7 @@ export function SignUpForm() {
         ) : null}
       </div>
 
-      <Button type="submit" disabled={isSubmitting} className="mt-1">
+      <Button type="submit" size="lg" disabled={isSubmitting} className="mt-2 w-full">
         {isSubmitting ? "Creating account…" : "Create account"}
       </Button>
 

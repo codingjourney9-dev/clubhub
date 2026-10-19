@@ -3,7 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { ApiError } from "@/lib/api/response";
-import { requireUser, type SessionUser } from "@/lib/auth/session";
+import { getSessionUserId, requireUser, type SessionUser } from "@/lib/auth/session";
 import { canClub, canTenant, type Actor, type ClubAction, type TenantAction } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { annotateRequest } from "@/lib/observability/context";
@@ -43,6 +43,21 @@ export interface ClubContext {
   readonly clubRole: ClubRole | null;
 }
 
+/**
+ * The caller's id from the signed session cookie (no database trip).
+ * @throws ApiError UNAUTHORIZED when nobody is signed in
+ */
+async function requireSessionUserId(): Promise<string> {
+  const userId = await getSessionUserId();
+  if (!userId) throw ApiError.unauthorized();
+  return userId;
+}
+
+/** Only the caller's own, live membership rows ride along with a lookup. */
+function ownMembership(userId: string) {
+  return { where: { userId, deletedAt: null }, select: { role: true }, take: 1 } as const;
+}
+
 /** Shared, request-scoped lookup of the caller's memberships. */
 const loadTenantMembership = cache(async (userId: string, tenantId: string) => {
   return db.tenantMember.findFirst({
@@ -63,9 +78,13 @@ export async function requireTenantAccess(
   tenantId: string,
   action: TenantAction,
 ): Promise<TenantContext> {
-  const user = await requireUser();
-
-  const membership = await loadTenantMembership(user.id, tenantId);
+  // Who you are and what you are in this college are independent questions:
+  // ask both at once (see getSessionUserId).
+  const userId = await requireSessionUserId();
+  const [user, membership] = await Promise.all([
+    requireUser(),
+    loadTenantMembership(userId, tenantId),
+  ]);
 
   // No membership → treat the tenant as non-existent for this caller.
   if (!membership || membership.tenant.deletedAt) {
@@ -99,18 +118,26 @@ export async function requireTenantAccess(
  *         the required club role nor a college admin role
  */
 export async function requireClubAccess(clubId: string, action: ClubAction): Promise<ClubContext> {
-  const user = await requireUser();
-
-  const club = await db.club.findFirst({
-    where: { id: clubId, deletedAt: null },
-    select: {
-      id: true,
-      tenantId: true,
-      name: true,
-      slug: true,
-      tenant: { select: { timezone: true, deletedAt: true } },
-    },
-  });
+  // One query fetches the club together with the caller's own college and club
+  // memberships (relationJoins makes it a single round trip), and it runs at
+  // the same time as the user lookup.
+  const userId = await requireSessionUserId();
+  const [user, club] = await Promise.all([
+    requireUser(),
+    db.club.findFirst({
+      where: { id: clubId, deletedAt: null },
+      select: {
+        id: true,
+        tenantId: true,
+        name: true,
+        slug: true,
+        tenant: {
+          select: { timezone: true, deletedAt: true, members: ownMembership(userId) },
+        },
+        members: ownMembership(userId),
+      },
+    }),
+  ]);
 
   if (!club || club.tenant.deletedAt) {
     throw ApiError.notFound("That club was not found.");
@@ -118,17 +145,12 @@ export async function requireClubAccess(clubId: string, action: ClubAction): Pro
 
   // Tenant scope FIRST: without this, a user from another college could probe
   // club ids and learn which ones exist.
-  const tenantMembership = await loadTenantMembership(user.id, club.tenantId);
+  const tenantMembership = club.tenant.members[0];
   if (!tenantMembership) {
     throw ApiError.notFound("That club was not found.");
   }
 
-  const clubMembership = await db.clubMember.findFirst({
-    where: { clubId: club.id, userId: user.id, deletedAt: null },
-    select: { role: true },
-  });
-
-  const clubRole = clubMembership?.role ?? null;
+  const clubRole = club.members[0]?.role ?? null;
   const tenantRole = tenantMembership.role;
 
   if (!canClub({ tenantRole, clubRole }, action)) {
@@ -205,51 +227,54 @@ export async function requireEventAccess(
   eventId: string,
   action: EventAction,
 ): Promise<EventContext> {
-  const user = await requireUser();
-
-  const event = await db.event.findFirst({
-    where: { id: eventId, deletedAt: null },
-    select: {
-      id: true,
-      tenantId: true,
-      clubId: true,
-      title: true,
-      description: true,
-      location: true,
-      startTime: true,
-      endTime: true,
-      capacity: true,
-      waitlistEnabled: true,
-      status: true,
-      isPublic: true,
-      club: {
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          deletedAt: true,
-          tenant: { select: { timezone: true, deletedAt: true } },
+  // Same shape as requireClubAccess: the event, its club, and the caller's own
+  // memberships in one query, alongside the user lookup. The composite foreign
+  // key (clubId, tenantId) guarantees the club's college IS the event's college.
+  const userId = await requireSessionUserId();
+  const [user, event] = await Promise.all([
+    requireUser(),
+    db.event.findFirst({
+      where: { id: eventId, deletedAt: null },
+      select: {
+        id: true,
+        tenantId: true,
+        clubId: true,
+        title: true,
+        description: true,
+        location: true,
+        startTime: true,
+        endTime: true,
+        capacity: true,
+        waitlistEnabled: true,
+        status: true,
+        isPublic: true,
+        club: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            deletedAt: true,
+            tenant: {
+              select: { timezone: true, deletedAt: true, members: ownMembership(userId) },
+            },
+            members: ownMembership(userId),
+          },
         },
       },
-    },
-  });
+    }),
+  ]);
 
   if (!event || event.club.deletedAt || event.club.tenant.deletedAt) {
     throw ApiError.notFound("That event was not found.");
   }
 
-  const tenantMembership = await loadTenantMembership(user.id, event.tenantId);
+  const tenantMembership = event.club.tenant.members[0];
   if (!tenantMembership) {
     throw ApiError.notFound("That event was not found.");
   }
 
-  const clubMembership = await db.clubMember.findFirst({
-    where: { clubId: event.club.id, userId: user.id, deletedAt: null },
-    select: { role: true },
-  });
-
   const tenantRole = tenantMembership.role;
-  const clubRole = clubMembership?.role ?? null;
+  const clubRole = event.club.members[0]?.role ?? null;
   const actor: Actor = { tenantRole, clubRole };
   const isOrganizer = canClub(actor, "event:update");
 

@@ -177,8 +177,8 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
       {cookiesBlocked ? (
-        <Alert className="border-amber-500/40 bg-amber-500/10">
-          <TriangleAlert className="text-amber-600" />
+        <Alert className="border-dashed border-primary/45 bg-primary/[0.06]">
+          <TriangleAlert className="text-primary" />
           <AlertTitle>This view blocks cookies — use the demo instead</AlertTitle>
           <AlertDescription className="flex flex-col gap-2">
             <span>
@@ -233,7 +233,7 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
           <button
             type="button"
             onClick={() => setShowPassword((visible) => !visible)}
-            className="flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
+            className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
             aria-pressed={showPassword}
           >
             {showPassword ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
@@ -255,7 +255,7 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
         ) : null}
       </div>
 
-      <Button type="submit" disabled={isSubmitting} className="mt-1">
+      <Button type="submit" size="lg" disabled={isSubmitting} className="mt-2 w-full">
         {isSubmitting ? "Signing in…" : "Sign in"}
       </Button>
 

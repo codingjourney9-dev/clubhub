@@ -12,7 +12,14 @@
      invalid, which silently disabled the Geist stack. */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
-  --font-heading: var(--font-sans);
+  /* Display face: a grotesque with some ink-trap character, so headings read as
+     designed rather than defaulted. Body copy stays on Geist for legibility. */
+  --font-heading: var(--font-display), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -52,72 +59,92 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* ── ClubHub palette ─────────────────────────────────────────────────────────
+     Warm paper and printer's ink, with one loud colour: vermilion, the red of a
+     ticket stub or a festival poster. Everything else stays quiet so that red
+     always means "this is the thing to press".                                 */
+  --paper: oklch(0.975 0.007 85);
+  --ink: oklch(0.21 0.014 60);
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: oklch(0.995 0.003 85);
+  --card-foreground: var(--ink);
+  --popover: oklch(0.995 0.003 85);
+  --popover-foreground: var(--ink);
+  --primary: oklch(0.6 0.195 33);
+  --primary-foreground: oklch(0.99 0.008 85);
+  --secondary: oklch(0.935 0.012 82);
+  --secondary-foreground: var(--ink);
+  --muted: oklch(0.945 0.01 84);
+  --muted-foreground: oklch(0.49 0.018 65);
+  --accent: oklch(0.93 0.016 80);
+  --accent-foreground: var(--ink);
+  --destructive: oklch(0.55 0.2 25);
+  --success: oklch(0.52 0.11 155);
+  --success-foreground: oklch(0.99 0.008 85);
+  --warning: oklch(0.72 0.15 75);
+  --border: oklch(0.885 0.013 80);
+  --input: oklch(0.86 0.014 78);
+  --ring: oklch(0.6 0.195 33);
+  /* The hard, offset "printed" shadow used on primary actions and tickets. */
+  --shadow-ink: var(--ink);
+  --chart-1: oklch(0.6 0.195 33);
+  --chart-2: oklch(0.52 0.11 155);
+  --chart-3: oklch(0.72 0.15 75);
+  --chart-4: oklch(0.45 0.08 250);
+  --chart-5: oklch(0.21 0.014 60);
+  --radius: 0.5rem;
+  --sidebar: oklch(0.96 0.009 84);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: oklch(0.6 0.195 33);
+  --sidebar-primary-foreground: oklch(0.99 0.008 85);
+  --sidebar-accent: oklch(0.93 0.016 80);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: oklch(0.885 0.013 80);
+  --sidebar-ring: oklch(0.6 0.195 33);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Not inverted paper: a warm charcoal, like a dimmed auditorium. */
+  --paper: oklch(0.175 0.009 60);
+  --ink: oklch(0.94 0.012 85);
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: oklch(0.21 0.01 60);
+  --card-foreground: var(--ink);
+  --popover: oklch(0.225 0.01 60);
+  --popover-foreground: var(--ink);
+  --primary: oklch(0.69 0.175 38);
+  --primary-foreground: oklch(0.16 0.012 50);
+  --secondary: oklch(0.26 0.011 60);
+  --secondary-foreground: var(--ink);
+  --muted: oklch(0.245 0.01 60);
+  --muted-foreground: oklch(0.71 0.016 78);
+  --accent: oklch(0.27 0.012 60);
+  --accent-foreground: var(--ink);
+  --destructive: oklch(0.7 0.18 25);
+  --success: oklch(0.72 0.13 155);
+  --success-foreground: oklch(0.16 0.012 50);
+  --warning: oklch(0.8 0.14 80);
+  --border: oklch(0.31 0.011 60);
+  --input: oklch(0.36 0.012 60);
+  --ring: oklch(0.69 0.175 38);
+  --shadow-ink: oklch(0.06 0.005 60);
+  --chart-1: oklch(0.69 0.175 38);
+  --chart-2: oklch(0.72 0.13 155);
+  --chart-3: oklch(0.8 0.14 80);
+  --chart-4: oklch(0.7 0.09 250);
+  --chart-5: oklch(0.94 0.012 85);
+  --sidebar: oklch(0.2 0.01 60);
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: oklch(0.69 0.175 38);
+  --sidebar-primary-foreground: oklch(0.16 0.012 50);
+  --sidebar-accent: oklch(0.27 0.012 60);
+  --sidebar-accent-foreground: var(--ink);
+  --sidebar-border: oklch(0.31 0.011 60);
+  --sidebar-ring: oklch(0.69 0.175 38);
 }
 
 @layer base {
@@ -144,4 +171,105 @@
   :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
     @apply outline-2 outline-offset-2 outline-ring;
   }
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 28%, transparent);
+  }
+
+  /* A faint paper grain. Fixed, behind everything, never intercepts clicks. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.045;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.9 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  }
+  .dark body::before {
+    opacity: 0.07;
+    filter: invert(1);
+  }
+}
+
+/* ── Signature pieces ────────────────────────────────────────────────────────
+   Small, repeated details are what make a UI feel made by someone: the mono
+   "label-maker" eyebrow, the printed offset shadow, the ticket notch and the
+   perforated tear line. Each is a utility so pages stay declarative.          */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+@utility shadow-print {
+  box-shadow: 3px 3px 0 0 var(--shadow-ink);
+}
+
+@utility shadow-print-sm {
+  box-shadow: 2px 2px 0 0 var(--shadow-ink);
+}
+
+@utility shadow-print-lg {
+  box-shadow: 6px 6px 0 0 var(--shadow-ink);
+}
+
+/* Two half-circle bites out of the left and right edges at --notch-y. */
+@utility ticket-notch {
+  --notch: 11px;
+  -webkit-mask:
+    radial-gradient(circle var(--notch) at 0 var(--notch-y, 50%), #0000 98%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% var(--notch-y, 50%), #0000 98%, #000) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle var(--notch) at 0 var(--notch-y, 50%), #0000 98%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% var(--notch-y, 50%), #0000 98%, #000) right / 51% 100% no-repeat;
+}
+
+@utility perforation {
+  background-image: linear-gradient(to right, var(--border) 55%, transparent 0);
+  background-size: 9px 2px;
+  background-repeat: repeat-x;
+  background-position: center;
+  height: 2px;
+}
+
+@utility perforation-y {
+  background-image: linear-gradient(to bottom, var(--border) 55%, transparent 0);
+  background-size: 2px 9px;
+  background-repeat: repeat-y;
+  background-position: center;
+  width: 2px;
+}
+
+/* Graph-paper dots for hero areas. */
+@utility bg-dots {
+  background-image: radial-gradient(color-mix(in oklch, var(--foreground) 14%, transparent) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+
+/* A highlighter stroke under a word — drawn, not underlined. */
+@utility marker {
+  background-image: linear-gradient(
+    transparent 58%,
+    color-mix(in oklch, var(--primary) 32%, transparent) 58%,
+    color-mix(in oklch, var(--primary) 32%, transparent) 90%,
+    transparent 90%
+  );
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding-inline: 0.04em;
 }

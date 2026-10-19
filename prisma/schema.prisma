@@ -14,6 +14,11 @@
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
+  // Load `include`d relations with one LATERAL JOIN query instead of one query
+  // per relation. Against a remote database every query is a network round
+  // trip (~80–250 ms from India), so this alone cuts most pages by a third.
+  // Preview in Prisma 7, verified against @prisma/adapter-pg by the test suite.
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {

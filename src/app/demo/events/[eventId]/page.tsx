@@ -115,7 +115,7 @@ export default async function DemoEventPage({
   // event does not exist for this person.
   if (!tenantMembership) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 lg:py-14">
         <Card>
           <CardHeader>
             <CardTitle>Nothing to see here — and that is the point</CardTitle>
@@ -132,7 +132,7 @@ export default async function DemoEventPage({
   const seesPrivate = event.isPublic || canClub(actor, "event:view_private");
   if (!seesPrivate) {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 lg:py-14">
         <Card>
           <CardHeader>
             <CardTitle>Members only — and {account.displayName} is not a member</CardTitle>
@@ -215,9 +215,9 @@ export default async function DemoEventPage({
       : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
-      <Alert className="border-amber-500/40 bg-amber-500/10">
-        <Info className="text-amber-600" />
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-6 lg:py-12">
+      <Alert className="border-dashed border-primary/45 bg-primary/[0.06]">
+        <Info className="text-primary" />
         <AlertTitle>Demo preview — read-only, no sign-in required</AlertTitle>
         <AlertDescription>
           Real data, no buttons. Sign in on your own machine (<code className="font-mono text-xs">password123</code>)
@@ -247,15 +247,15 @@ export default async function DemoEventPage({
 
       <Link
         href={`/demo/clubs/${event.club.id}?as=${account.key}`}
-        className="flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
+        className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
-        <ArrowLeft className="size-3" />
+        <ArrowLeft className="size-4" />
         Back to {event.club.name}
       </Link>
 
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">{event.title}</h1>
+          <h1 className="text-3xl leading-[1.08] font-bold sm:text-4xl">{event.title}</h1>
           <Badge variant={event.status === "CANCELLED" ? "destructive" : "default"}>
             {event.status.charAt(0) + event.status.slice(1).toLowerCase()}
           </Badge>

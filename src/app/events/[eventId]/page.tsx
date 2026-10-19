@@ -7,6 +7,7 @@ import {
   RegisterPanel,
   type SeatAvailability,
 } from "@/components/features/ticket/register-panel";
+import { DateBlock } from "@/components/common/date-block";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -105,98 +106,90 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
     event.capacity === null ? 0 : Math.min(100, Math.round((registered / event.capacity) * 100));
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-10 sm:px-6 lg:py-14">
       <Link
         href="/events"
-        className="flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:underline"
+        className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
-        <ArrowLeft className="size-3" />
+        <ArrowLeft className="size-4" />
         All upcoming events
       </Link>
 
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-heading text-2xl font-semibold tracking-tight">{event.title}</h1>
-          <Badge variant={event.status === "CANCELLED" ? "destructive" : "default"}>
-            {event.status.charAt(0) + event.status.slice(1).toLowerCase()}
-          </Badge>
-          <Badge variant={event.isPublic ? "secondary" : "outline"}>
-            {event.isPublic ? "Whole college" : "Members only"}
-          </Badge>
-        </div>
-
-        <p className="text-sm text-muted-foreground">
+      <header className="flex flex-col gap-6 border-b border-border pb-8 sm:flex-row sm:items-start">
+        <DateBlock date={event.startTime} timeZone={club.timezone} size="lg" className="shadow-print-sm" />
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
           <Link
             href={`/clubs/${club.id}`}
-            className="underline-offset-4 hover:underline"
+            className="eyebrow self-start text-primary underline-offset-4 hover:underline"
           >
             {club.name}
           </Link>
-          {event.location ? (
-            <>
-              {" · "}
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="size-3" />
-                {event.location}
-              </span>
-            </>
-          ) : null}
-        </p>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarDays className="size-4 text-muted-foreground" />
-            When and where
-          </CardTitle>
-          <CardDescription>
-            Stored as one instant in UTC, shown in {club.timezone} — the college&apos;s timezone.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-            <span className="flex items-center gap-2">
-              <Clock className="size-4 text-muted-foreground" />
+          <h1 className="text-3xl leading-[1.05] font-extrabold sm:text-5xl">{event.title}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant={event.status === "CANCELLED" ? "destructive" : "default"}>
+              {event.status.charAt(0) + event.status.slice(1).toLowerCase()}
+            </Badge>
+            <Badge variant={event.isPublic ? "secondary" : "outline"}>
+              {event.isPublic ? "Whole college" : "Members only"}
+            </Badge>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5">
+              <Clock className="size-4" />
               {formatDateTimeInZone(event.startTime, club.timezone)}
               {" → "}
               {formatDateTimeInZone(event.endTime, club.timezone)}
-              <span className="text-xs text-muted-foreground">
-                ({zoneAbbreviation(event.startTime, club.timezone)})
+              <span className="text-xs">({zoneAbbreviation(event.startTime, club.timezone)})</span>
+            </span>
+            {event.location ? (
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin className="size-4" />
+                {event.location}
               </span>
-            </span>
-            <span className="flex items-center gap-2 text-muted-foreground">
-              <Users className="size-4" />
-              {registered} registered
-              {event.capacity === null ? " · unlimited seats" : ` of ${event.capacity}`}
-              {waitlisted > 0 ? ` · ${waitlisted} waiting` : ""}
-            </span>
+            ) : null}
+          </div>
+        </div>
+      </header>
+
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        {/* Box office: on phones it comes first, on desktop it sticks to the right. */}
+        <aside className="flex flex-col gap-5 rounded-lg border border-foreground/80 bg-card p-5 shadow-print lg:sticky lg:top-24 lg:order-last dark:border-foreground/25">
+          <div className="flex flex-col gap-1">
+            <span className="eyebrow">Your seat</span>
+            <p className="text-sm text-muted-foreground">
+              One ticket per person. Cancelling returns the seat to the first person in the queue,
+              automatically.
+            </p>
           </div>
 
-          {event.capacity !== null ? (
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-all"
-                style={{ width: `${fillPercent}%` }}
-              />
+          <div className="flex flex-col gap-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-heading text-3xl font-bold tabular-nums">
+                {registered}
+                {event.capacity !== null ? (
+                  <span className="text-lg font-semibold text-muted-foreground"> / {event.capacity}</span>
+                ) : null}
+              </span>
+              <span className="inline-flex items-center gap-1 text-sm text-muted-foreground">
+                <Users className="size-4" />
+                {event.capacity === null ? "unlimited seats" : "registered"}
+              </span>
             </div>
-          ) : null}
+            {event.capacity !== null ? (
+              <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className={cn("h-full rounded-full transition-all", fillPercent >= 100 ? "bg-primary" : "bg-foreground/75")}
+                  style={{ width: `${Math.max(fillPercent, 2)}%` }}
+                />
+              </div>
+            ) : null}
+            {waitlisted > 0 ? (
+              <span className="font-mono text-xs text-muted-foreground">{waitlisted} waiting in the queue</span>
+            ) : null}
+          </div>
 
-          {event.description ? (
-            <p className="text-sm text-muted-foreground">{event.description}</p>
-          ) : null}
-        </CardContent>
-      </Card>
+          <div className="perforation" aria-hidden="true" />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Your seat</CardTitle>
-          <CardDescription>
-            One ticket per person. Cancelling returns the seat to the first person in the queue,
-            automatically.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
           <RegisterPanel
             eventId={eventId}
             availability={availability}
@@ -212,6 +205,25 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
             }
             waitlistEnabled={event.waitlistEnabled}
           />
+        </aside>
+
+        <div className="flex min-w-0 flex-col gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarDays className="size-4 text-primary" />
+            About this event
+          </CardTitle>
+          <CardDescription>
+            Stored as one instant in UTC, shown in {club.timezone} — the college&apos;s timezone.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {event.description ? (
+            <p className="leading-relaxed whitespace-pre-line text-foreground/85">{event.description}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">The organisers have not added a description yet.</p>
+          )}
         </CardContent>
       </Card>
 
@@ -219,7 +231,7 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ScanLine className="size-4 text-muted-foreground" />
+              <ScanLine className="size-4 text-primary" />
               The door
             </CardTitle>
             <CardDescription>
@@ -230,7 +242,7 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
           <CardContent className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
               <span className="flex items-center gap-2">
-                <CheckCircle2 className="size-4 text-emerald-600" />
+                <CheckCircle2 className="size-4 text-success" />
                 {attendance.counts.checkedIn} of {attendance.counts.registered} turned up
               </span>
               <span className="text-xs text-muted-foreground">
@@ -336,6 +348,8 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
           </AlertDescription>
         </Alert>
       )}
+        </div>
+      </div>
     </div>
   );
 }
