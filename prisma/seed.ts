@@ -113,7 +113,17 @@ async function main() {
   for (const person of people) {
     await db.user.upsert({
       where: { email: person.email },
-      update: { firstName: person.firstName, lastName: person.lastName },
+      // Re-seeding must leave every practice account usable with the published
+      // password — even if one of these emails was registered earlier with a
+      // different one (e.g. while trying out "Create account"), or the database
+      // was branched from another copy. Without resetting the hash here, the seed
+      // would report success while sign-in kept failing for that account.
+      update: {
+        firstName: person.firstName,
+        lastName: person.lastName,
+        passwordHash,
+        deletedAt: null,
+      },
       create: { ...person, passwordHash, timezone: "Asia/Kolkata" },
     });
   }
