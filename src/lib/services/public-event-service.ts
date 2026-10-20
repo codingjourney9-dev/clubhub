@@ -4,6 +4,7 @@ import { cache } from "react";
 import { db } from "@/lib/db/client";
 import { uuidParamSchema } from "@/lib/validation/ticket";
 import type { Prisma } from "@/generated/prisma/client";
+import type { EventTag } from "@/generated/prisma/enums";
 
 /**
  * What people WITHOUT an account (or from another college) may see.
@@ -37,6 +38,12 @@ const PUBLIC_EVENT_SELECT = {
   capacity: true,
   waitlistEnabled: true,
   status: true,
+  posterUrl: true,
+  tags: true,
+  instagramUrl: true,
+  // Selected only to answer "is there a group?" — the link itself is stripped
+  // below and never leaves this file.
+  whatsappUrl: true,
   club: {
     select: {
       id: true,
@@ -49,19 +56,35 @@ const PUBLIC_EVENT_SELECT = {
   _count: { select: { tickets: { where: { status: "REGISTERED" } } } },
 } as const satisfies Prisma.EventSelect;
 
-export type PublicEvent = Prisma.EventGetPayload<{ select: typeof PUBLIC_EVENT_SELECT }>;
+type PublicEventRow = Prisma.EventGetPayload<{ select: typeof PUBLIC_EVENT_SELECT }>;
+
+/** What callers get: everything selected, except the WhatsApp link becomes a yes/no. */
+export type PublicEvent = Omit<PublicEventRow, "whatsappUrl"> & { readonly hasWhatsapp: boolean };
+
+function toPublic({ whatsappUrl, ...event }: PublicEventRow): PublicEvent {
+  return { ...event, hasWhatsapp: Boolean(whatsappUrl) };
+}
 
 /** Feed size: enough to fill a page, small enough to stay one fast query. */
 export const PUBLIC_FEED_LIMIT = 24;
 
-/** Upcoming public events from every college, soonest first. */
-export async function listPublicUpcomingEvents(limit: number = PUBLIC_FEED_LIMIT): Promise<PublicEvent[]> {
-  return db.event.findMany({
-    where: { ...publicEventWhere(), status: "PUBLISHED", endTime: { gt: new Date() } },
+/** Upcoming public events from every college, soonest first — optionally only one tag. */
+export async function listPublicUpcomingEvents(
+  limit: number = PUBLIC_FEED_LIMIT,
+  options: { readonly tag?: EventTag | null } = {},
+): Promise<PublicEvent[]> {
+  const rows = await db.event.findMany({
+    where: {
+      ...publicEventWhere(),
+      status: "PUBLISHED",
+      endTime: { gt: new Date() },
+      ...(options.tag ? { tags: { has: options.tag } } : {}),
+    },
     orderBy: { startTime: "asc" },
     take: Math.min(Math.max(limit, 1), 100),
     select: PUBLIC_EVENT_SELECT,
   });
+  return rows.map(toPublic);
 }
 
 /**
@@ -74,8 +97,9 @@ export async function listPublicUpcomingEvents(limit: number = PUBLIC_FEED_LIMIT
 export const getPublicEvent = cache(async (eventId: string): Promise<PublicEvent | null> => {
   if (!uuidParamSchema.safeParse(eventId).success) return null;
 
-  return db.event.findFirst({
+  const row = await db.event.findFirst({
     where: { ...publicEventWhere(), id: eventId, status: { in: ["PUBLISHED", "CANCELLED"] } },
     select: PUBLIC_EVENT_SELECT,
   });
+  return row ? toPublic(row) : null;
 });

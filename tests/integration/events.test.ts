@@ -10,7 +10,9 @@ import {
   publishEvent,
   softDeleteEvent,
   updateEvent,
+  whatsappLinkFor,
 } from "../../src/lib/services/event-service";
+import { getPublicEvent, listPublicUpcomingEvents } from "../../src/lib/services/public-event-service";
 import { assertTestDatabase, testDb, truncateAll } from "../helpers/db";
 import { p3, seedClubWorkspace } from "../helpers/phase3";
 
@@ -437,6 +439,27 @@ describe("editing", () => {
     expect(error.message).toContain("2 people");
   });
 
+  it("does not count the waitlist as seats, so a full event with a queue stays editable", async () => {
+    const event = await draftEvent();
+    await updateEvent(event.id, p3.tenant, KL, { capacity: 1, waitlistEnabled: true });
+    await testDb().ticket.createMany({
+      data: [
+        { tenantId: p3.tenant, eventId: event.id, userId: p3.member, qrCodeUuid: crypto.randomUUID() },
+        {
+          tenantId: p3.tenant,
+          eventId: event.id,
+          userId: p3.president,
+          qrCodeUuid: crypto.randomUUID(),
+          status: "WAITLISTED",
+          waitlistPosition: 1,
+        },
+      ],
+    });
+
+    const updated = await updateEvent(event.id, p3.tenant, KL, { capacity: 1, title: "Renamed" });
+    expect(updated.title).toBe("Renamed");
+  });
+
   it("refuses a waitlist with no capacity", async () => {
     const event = await draftEvent();
 
@@ -485,5 +508,92 @@ describe("timezone handling across colleges", () => {
     // Same 09:00 reading, different instant: London's offset is not India's.
     expect(stored?.startTime.toISOString()).toBe(wallClockToUtc(start, LONDON)?.toISOString());
     expect(stored?.startTime.toISOString()).not.toBe(wallClockToUtc(start, KL)?.toISOString());
+  });
+});
+
+describe("posters, tags and links (Phase 9)", () => {
+  const GROUP = "https://chat.whatsapp.com/DemoInviteCodeClubHub0001";
+
+  async function createDetailedEvent(): Promise<string> {
+    const event = await createEvent({
+      clubId: p3.club,
+      tenantId: p3.tenant,
+      timeZone: KL,
+      createdById: p3.president,
+      input: {
+        ...baseInput,
+        title: "Poster Night",
+        start: tomorrowAt(9),
+        end: tomorrowAt(11),
+        posterUrl: "https://example.org/poster.jpg",
+        tags: ["TECHNICAL", "WORKSHOP"],
+        instagramUrl: "https://www.instagram.com/vit_robotics/",
+        whatsappUrl: GROUP,
+      },
+    });
+    await publishEvent(event.id, p3.tenant);
+    return event.id;
+  }
+
+  it("stores them, and an edit can clear one without touching the others", async () => {
+    const eventId = await createDetailedEvent();
+    await updateEvent(eventId, p3.tenant, KL, { posterUrl: null });
+
+    const row = await testDb().event.findUniqueOrThrow({ where: { id: eventId } });
+    expect(row.posterUrl).toBeNull();
+    expect(row.tags).toEqual(["TECHNICAL", "WORKSHOP"]);
+    expect(row.whatsappUrl).toBe(GROUP);
+  });
+
+  it("the database itself refuses a fourth tag", async () => {
+    const eventId = await createDetailedEvent();
+    await expect(
+      testDb().event.update({ where: { id: eventId }, data: { tags: ["TECHNICAL", "WORKSHOP", "TALK", "MUSIC"] } }),
+    ).rejects.toThrow();
+  });
+
+  it("lists never carry the WhatsApp link unless asked for (organisers only)", async () => {
+    await createDetailedEvent();
+    const memberView = await listClubEvents(p3.club, p3.tenant, { includeDrafts: false });
+    expect(memberView[0]).not.toHaveProperty("whatsappUrl");
+    expect(memberView[0]?.tags).toEqual(["TECHNICAL", "WORKSHOP"]);
+
+    const organiserView = await listClubEvents(p3.club, p3.tenant, { includeDrafts: true, includeWhatsapp: true });
+    expect(organiserView[0]).toHaveProperty("whatsappUrl", GROUP);
+  });
+
+  it("gives the WhatsApp link to organisers and seat holders only", async () => {
+    const eventId = await createDetailedEvent();
+    const ask = (userId: string, isOrganizer = false) => whatsappLinkFor(eventId, p3.tenant, { userId, isOrganizer });
+
+    expect(await ask(p3.president, true)).toEqual({ exists: true, url: GROUP });
+    expect(await ask(p3.member)).toEqual({ exists: true, url: null });
+
+    const ticket = await testDb().ticket.create({
+      data: { tenantId: p3.tenant, eventId, userId: p3.member, qrCodeUuid: crypto.randomUUID(), status: "WAITLISTED", waitlistPosition: 1 },
+    });
+    expect((await ask(p3.member)).url).toBeNull(); // waiting in the queue is not a seat
+
+    await testDb().ticket.update({ where: { id: ticket.id }, data: { status: "REGISTERED", waitlistPosition: null } });
+    expect((await ask(p3.member)).url).toBe(GROUP);
+
+    await testDb().ticket.update({ where: { id: ticket.id }, data: { status: "CANCELLED", cancelledAt: new Date() } });
+    expect((await ask(p3.member)).url).toBeNull();
+
+    // Another college asking about this event learns nothing.
+    expect(await whatsappLinkFor(eventId, p3.otherTenant, { userId: p3.outsider, isOrganizer: true })).toEqual({
+      exists: false,
+      url: null,
+    });
+  });
+
+  it("the public feed says whether a group exists but never includes the link, and filters by tag", async () => {
+    const eventId = await createDetailedEvent();
+    const publicEvent = await getPublicEvent(eventId);
+    expect(publicEvent?.hasWhatsapp).toBe(true);
+    expect(JSON.stringify(publicEvent)).not.toContain("chat.whatsapp.com");
+
+    expect((await listPublicUpcomingEvents(24, { tag: "WORKSHOP" })).map((e) => e.id)).toContain(eventId);
+    expect((await listPublicUpcomingEvents(24, { tag: "MUSIC" })).map((e) => e.id)).not.toContain(eventId);
   });
 });

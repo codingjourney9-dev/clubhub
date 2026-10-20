@@ -47,6 +47,21 @@ enum EventStatus {
   CANCELLED
 }
 
+/// A fixed vocabulary on purpose: "Tech", "tech" and "Technical" must not become
+/// three different filters on the public board.
+enum EventTag {
+  TECHNICAL
+  CULTURAL
+  WORKSHOP
+  SPORTS
+  COMPETITION
+  TALK
+  MUSIC
+  ARTS
+  SOCIAL
+  CAREER
+}
+
 enum TicketStatus {
   REGISTERED
   WAITLISTED
@@ -263,6 +278,17 @@ model Event {
   /// false → visible only to club members
   isPublic         Boolean @default(false) @map("is_public")
 
+  /// Poster image — a pasted https link (or a site-relative path for seeded
+  /// demo posters). Never fetched by the server, only rendered by browsers.
+  posterUrl    String?    @map("poster_url")
+  /// At most 3, from the fixed vocabulary above.
+  tags         EventTag[] @default([])
+  /// Public: shown to everyone who can see the event.
+  instagramUrl String?    @map("instagram_url")
+  /// NOT public: only organisers and people holding a ticket ever receive it,
+  /// so a public event doesn't hand its group chat to spammers.
+  whatsappUrl  String?    @map("whatsapp_url")
+
   createdById String? @map("created_by_id") @db.Uuid
 
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -280,6 +306,7 @@ model Event {
   @@index([tenantId, startTime])
   @@index([clubId, status, deletedAt])
   @@index([tenantId, isPublic, deletedAt])
+  @@index([tags], type: Gin)
   @@map("events")
 }
 

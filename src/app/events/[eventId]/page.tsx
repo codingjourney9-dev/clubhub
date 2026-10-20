@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PublicEventView } from "@/components/features/explore/public-event-view";
+import { EventLinks, EventPoster, TagChips } from "@/components/features/event/event-extras";
 import { ApiError } from "@/lib/api/response";
 import { authHref } from "@/lib/auth/callback-url";
 import { requireEventAccess, type EventContext } from "@/lib/auth/guards";
@@ -28,7 +29,7 @@ import { decideSeat, registrationClosedReason } from "@/lib/domain/ticket-rules"
 import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
 import { getAttendanceReport } from "@/lib/services/check-in-service";
 import { findTicketForUser, listEventRoster } from "@/lib/services/ticket-service";
-import { ticketCountsByEvent } from "@/lib/services/event-service";
+import { ticketCountsByEvent, whatsappLinkFor } from "@/lib/services/event-service";
 import { getPublicEvent, type PublicEvent } from "@/lib/services/public-event-service";
 import { cn } from "@/lib/utils";
 
@@ -94,11 +95,13 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
   const { context } = result;
   const { event, club } = context;
 
-  const [counts, myTicket, roster, attendance] = await Promise.all([
+  const [counts, myTicket, roster, attendance, whatsapp] = await Promise.all([
     ticketCountsByEvent([eventId]),
     findTicketForUser(eventId, context.user.id),
     context.isOrganizer ? listEventRoster(eventId, event.tenantId) : Promise.resolve(null),
     context.isOrganizer ? getAttendanceReport(eventId, event.tenantId) : Promise.resolve(null),
+    // The group link is only read out for organisers and people holding a seat.
+    whatsappLinkFor(eventId, event.tenantId, { userId: context.user.id, isOrganizer: context.isOrganizer }),
   ]);
 
   const registered = counts.get(eventId)?.registered ?? 0;
@@ -147,6 +150,7 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
               {event.isPublic ? "Open to everyone" : "Members only"}
             </Badge>
           </div>
+          <TagChips tags={event.tags} linkTo={event.isPublic ? "board" : undefined} />
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Clock className="size-4" />
@@ -219,9 +223,13 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
             }
             waitlistEnabled={event.waitlistEnabled}
           />
+          <EventLinks instagramUrl={event.instagramUrl} whatsapp={whatsapp} />
         </aside>
 
         <div className="flex min-w-0 flex-col gap-6">
+      {event.posterUrl ? (
+        <EventPoster src={event.posterUrl} title={event.title} variant="hero" className="max-w-sm" />
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

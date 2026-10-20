@@ -33,6 +33,7 @@ import { checkInWindowState } from "@/lib/domain/check-in";
 import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
 import { listClubInvites } from "@/lib/services/invite-service";
 import { cn } from "@/lib/utils";
+import { TagChips } from "@/components/features/event/event-extras";
 
 export const metadata: Metadata = { title: "Club preview" };
 export const dynamic = "force-dynamic";
@@ -231,6 +232,7 @@ export default async function DemoClubPage({
       status: true,
       isPublic: true,
       waitlistEnabled: true,
+      tags: true,
       _count: {
         select: {
           tickets: { where: { status: "REGISTERED" } },
@@ -423,6 +425,7 @@ export default async function DemoClubPage({
                           {event.location ? (
                             <span className="text-xs text-muted-foreground">{event.location}</span>
                           ) : null}
+                          <TagChips tags={event.tags} className="pt-1" />
                           {canRunDoor && checkInWindowState(event, club.tenant.timezone, now) === "OPEN" ? (
                             <Link
                               href={`/demo/events/${event.id}/door?as=${account.key}`}

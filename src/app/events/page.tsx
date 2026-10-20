@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
 
 import { DateBlock } from "@/components/common/date-block";
+import { EventPoster, TagChips } from "@/components/features/event/event-extras";
 import { EmptyState } from "@/components/common/empty-state";
 import { PageHeading } from "@/components/common/page-heading";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +77,11 @@ export default async function UpcomingEventsPage() {
                   href={`/events/${event.id}`}
                   className="group flex h-full flex-col rounded-lg border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-foreground/45 hover:shadow-print"
                 >
+                  {event.posterUrl ? (
+                    <div className="overflow-hidden rounded-t-lg">
+                      <EventPoster src={event.posterUrl} title={event.title} variant="card" />
+                    </div>
+                  ) : null}
                   <div className="flex items-start gap-4 p-5">
                     <DateBlock date={event.startTime} timeZone={timeZone} size="lg" />
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -95,6 +101,7 @@ export default async function UpcomingEventsPage() {
                           </span>
                         ) : null}
                       </span>
+                      <TagChips tags={event.tags} className="pt-1" />
                     </div>
                   </div>
 

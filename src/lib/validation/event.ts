@@ -1,6 +1,13 @@
 import { z } from "zod";
 
-import { EventStatus } from "@/generated/prisma/enums";
+import { EventStatus, EventTag } from "@/generated/prisma/enums";
+import {
+  MAX_EVENT_TAGS,
+  normalizeInstagramUrl,
+  normalizePosterUrl,
+  normalizeWhatsappUrl,
+  type LinkCheck,
+} from "@/lib/domain/event-details";
 import { parseWallClock, wallClockToUtc, WALL_CLOCK_PATTERN } from "@/lib/format/date";
 
 /**
@@ -40,6 +47,37 @@ const capacitySchema = z.coerce
   .max(100_000, "That is more people than we can track.")
   .nullish();
 
+/**
+ * An optional link field: empty text means "no link" (null), anything else must
+ * pass its normaliser, and what is stored is the tidied-up version.
+ */
+function linkSchema(normalize: (raw: string) => LinkCheck) {
+  return z
+    .string()
+    .max(2048, "That link is too long.")
+    .nullish()
+    .transform((value, ctx) => {
+      if (value === undefined) return undefined;
+      if (value === null || value.trim() === "") return null;
+      const checked = normalize(value);
+      if (!checked.ok) {
+        ctx.addIssue({ code: "custom", message: checked.message });
+        return z.NEVER;
+      }
+      return checked.url;
+    })
+    .optional();
+}
+
+const posterUrlSchema = linkSchema(normalizePosterUrl);
+const instagramUrlSchema = linkSchema(normalizeInstagramUrl);
+const whatsappUrlSchema = linkSchema(normalizeWhatsappUrl);
+
+const tagsSchema = z
+  .array(z.enum(EventTag, { message: "Pick tags from the list." }))
+  .max(MAX_EVENT_TAGS, `Pick up to ${MAX_EVENT_TAGS} tags.`)
+  .transform((tags) => [...new Set(tags)]);
+
 /** Fields shared by create and update. */
 const commonFields = {
   title: titleSchema,
@@ -48,6 +86,10 @@ const commonFields = {
   capacity: capacitySchema,
   waitlistEnabled: z.boolean().default(false),
   isPublic: z.boolean().default(false),
+  posterUrl: posterUrlSchema,
+  tags: tagsSchema.optional(),
+  instagramUrl: instagramUrlSchema,
+  whatsappUrl: whatsappUrlSchema,
 };
 
 /** Events longer than this are almost always a typo in the end date. */
@@ -142,6 +184,10 @@ export function updateEventSchema(timeZone: string) {
       capacity: capacitySchema,
       waitlistEnabled: z.boolean().optional(),
       isPublic: z.boolean().optional(),
+      posterUrl: posterUrlSchema,
+      tags: tagsSchema.optional(),
+      instagramUrl: instagramUrlSchema,
+      whatsappUrl: whatsappUrlSchema,
       start: wallClockSchema.optional(),
       end: wallClockSchema.optional(),
     })

@@ -336,6 +336,31 @@ it, and it shows them only public events.)
 6. Click **I have an account**. The sign-in page now says *why* you're there: "Starting a club needs an
    account, so we know who its President is." After signing in you're taken straight to club creation.
 
+### Step 12¾ — Posters, tags and links (new in Phase 9)
+
+1. Go to the guest board (`/dashboard`, or **Explore events as a guest** on the front page). Cards now
+   show the event's **poster** and small **tags** like *Technical* or *Talk*.
+2. Under **Upcoming events** there's a row of round buttons: **All, Technical, Cultural, Workshop…**
+   Click **Talk**. Only the debate is left. Click **All** to see everything again.
+3. Click **RoboWars 2026 — Qualifiers**. Below the ticket box is **Follow along**: an **Instagram**
+   button (anyone can use it) and a grey line with a padlock: **Get a ticket to join the WhatsApp
+   group**. The link itself is not on the page at all — not even hidden.
+4. See the difference a ticket makes: open `/demo`, click **Robotics Club**, then click
+   **Debug Night: RoboWars Warm-up**. Use the **View as** buttons at the top:
+   - **Kabir Rao** is only on the *waitlist* → he sees the padlock line.
+   - **Aarav Shah** runs the club → he sees a green **Join the WhatsApp group** button.
+5. *(On your own computer, signed in as Aarav)* open the Robotics Club page and click **Edit** on an
+   event. New fields:
+   - **Tags** — click up to three; the rest grey out.
+   - **Poster link** — paste an image link. From Google Drive: right-click the file → **Share** →
+     *General access* → **Anyone with the link** → **Copy link**, then paste. A small preview appears.
+     Paste an Instagram post link instead and it tells you why that won't work.
+   - **Instagram** — `@yourclub` is enough.
+   - **WhatsApp group** — the group's invite link; the hint reminds you only ticket holders see it.
+
+> The WhatsApp link on the demo events is a dummy (`DemoInviteCodeClubHub0001`) — it won't open a real
+> group.
+
 ### Step 13 — (Optional) the real sign-in experience
 
 Sign-in needs cookies, so run the app on your own machine (§4) and use
@@ -453,9 +478,9 @@ with a review, and nothing starts until the previous one passes.
 | 5 | Sign-ups that can't overbook + QR tickets | ✅ Done |
 | 6 | The phone scanner + works without internet | ✅ Done |
 | 7 | Make it pretty and bulletproof | ✅ Done |
-| 8 | Front door: guests can browse events, "Start a new club" asks them to sign in | ✅ Built — waiting for your review |
-| 9 | Richer events: poster link, tags, Instagram / WhatsApp links | ⬜ Next |
-| 10 | Roles: "Lead" instead of Event Manager, removing people, handing over the presidency, members-only announcements | ⬜ |
+| 8 | Front door: guests can browse events, "Start a new club" asks them to sign in | ✅ Done |
+| 9 | Richer events: poster link, tags, Instagram / WhatsApp links | ✅ Built — waiting for your review |
+| 10 | Roles: "Lead" instead of Event Manager, removing people, handing over the presidency, members-only announcements | ⬜ Next |
 | 11 | Recruitment board: clubs post openings, students apply | ⬜ |
 | 12 | Any student can start a club; it stays Pending until a professor's code is entered | ⬜ |
 | 13 | The remaining screens in the new look + final checks | ⬜ |

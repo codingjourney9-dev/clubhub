@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
 
 import { PrismaClient } from "../src/generated/prisma/client";
+import type { EventTag } from "../src/generated/prisma/enums";
 import { DEMO_INVITE_TOKEN } from "../src/config/demo";
 import { normalizeSslMode } from "../src/lib/db/connection-string";
 
@@ -210,6 +211,7 @@ async function main() {
   });
 
   // ── Events: public + members-only, past + upcoming ────────────────────────
+  const WA_DEMO = "https://chat.whatsapp.com/DemoInviteCodeClubHub0001";
   const events = [
     {
       id: EVENT.debate,
@@ -223,6 +225,10 @@ async function main() {
       waitlistEnabled: true,
       status: "PUBLISHED" as const,
       isPublic: true,
+      posterUrl: "/posters/parliamentary-debate.jpg",
+      tags: ["TALK", "COMPETITION"] as EventTag[],
+      instagramUrl: "https://www.instagram.com/vit_debating_society/",
+      whatsappUrl: null,
       createdById: USER.kabir,
     },
     {
@@ -237,6 +243,13 @@ async function main() {
       waitlistEnabled: true,
       status: "PUBLISHED" as const,
       isPublic: true,
+      // Posters in the seed are files in public/posters/ so the demo works
+      // offline; organisers paste https links (the API refuses anything else).
+      posterUrl: "/posters/robowars-2026.jpg",
+      tags: ["TECHNICAL", "COMPETITION"] as EventTag[],
+      instagramUrl: "https://www.instagram.com/vit_robotics_club/",
+      // A dummy invite: seat holders see it, everyone else sees "get a ticket".
+      whatsappUrl: WA_DEMO,
       createdById: USER.aarav,
     },
     {
@@ -252,6 +265,10 @@ async function main() {
       waitlistEnabled: true,
       status: "PUBLISHED" as const,
       isPublic: true,
+      posterUrl: "/posters/debug-night.jpg",
+      tags: ["TECHNICAL", "WORKSHOP"] as EventTag[],
+      instagramUrl: null,
+      whatsappUrl: WA_DEMO,
       createdById: USER.aarav,
     },
     {
@@ -269,6 +286,10 @@ async function main() {
       waitlistEnabled: true,
       status: "PUBLISHED" as const,
       isPublic: true,
+      posterUrl: null,
+      tags: ["TECHNICAL", "SOCIAL"] as EventTag[],
+      instagramUrl: "https://www.instagram.com/vit_robotics_club/",
+      whatsappUrl: null,
       createdById: USER.aarav,
     },
     {
@@ -283,6 +304,10 @@ async function main() {
       waitlistEnabled: false,
       status: "DRAFT" as const,
       isPublic: false,
+      posterUrl: null,
+      tags: ["WORKSHOP"] as EventTag[],
+      instagramUrl: null,
+      whatsappUrl: null,
       createdById: USER.meera,
     },
   ];
@@ -300,6 +325,10 @@ async function main() {
         waitlistEnabled: event.waitlistEnabled,
         status: event.status,
         isPublic: event.isPublic,
+        posterUrl: event.posterUrl,
+        tags: event.tags,
+        instagramUrl: event.instagramUrl,
+        whatsappUrl: event.whatsappUrl,
         deletedAt: null,
       },
       create: { tenantId: tenant.id, ...event },

@@ -8,6 +8,8 @@ import { toast } from "sonner";
 
 import { EventForm, type EditableEvent } from "@/components/features/event/event-form";
 import { Badge } from "@/components/ui/badge";
+import { EventPoster, TagChips } from "@/components/features/event/event-extras";
+import type { EventTag } from "@/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { callApi, notifyFailure } from "@/lib/api/client";
@@ -33,6 +35,11 @@ export interface EventRow {
   status: "DRAFT" | "PUBLISHED" | "CANCELLED";
   isPublic: boolean;
   registeredCount: number;
+  posterUrl: string | null;
+  tags: readonly EventTag[];
+  instagramUrl: string | null;
+  /** Filled in only for organisers (the server never selects it for anyone else). */
+  whatsappUrl: string | null;
 }
 
 interface EventListProps {
@@ -177,7 +184,11 @@ export function EventList({
                   ) : (
                     <>
                       <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div className="flex flex-col gap-1">
+                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                        {event.posterUrl ? (
+                          <EventPoster src={event.posterUrl} title={event.title} variant="thumb" />
+                        ) : null}
+                        <div className="flex min-w-0 flex-col gap-1">
                           <span className="flex flex-wrap items-center gap-2">
                             <Link
                               href={`/events/${event.id}`}
@@ -195,6 +206,8 @@ export function EventList({
                           {event.description ? (
                             <span className="text-xs text-muted-foreground">{event.description}</span>
                           ) : null}
+                          <TagChips tags={event.tags} className="pt-0.5" />
+                        </div>
                         </div>
 
                         <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -326,5 +339,9 @@ function toEditable(event: EventRow): EditableEvent {
     capacity: event.capacity,
     isPublic: event.isPublic,
     waitlistEnabled: event.waitlistEnabled,
+    posterUrl: event.posterUrl,
+    tags: event.tags,
+    instagramUrl: event.instagramUrl,
+    whatsappUrl: event.whatsappUrl,
   };
 }

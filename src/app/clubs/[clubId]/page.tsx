@@ -96,7 +96,10 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
     canInvite ? listClubInvites(clubId, context.club.tenantId) : Promise.resolve([]),
     // Drafts are included only for people who can edit events; the service applies
     // the same rule as the API, so the page and the endpoint cannot disagree.
-    listClubEvents(clubId, context.club.tenantId, { includeDrafts: canCreateEvent }),
+    listClubEvents(clubId, context.club.tenantId, {
+      includeDrafts: canCreateEvent,
+      includeWhatsapp: canEditEvent,
+    }),
   ]);
 
   const eventRows: EventRow[] = events
@@ -113,6 +116,11 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
       status: event.status,
       isPublic: event.isPublic,
       registeredCount: event.registeredCount,
+      posterUrl: event.posterUrl,
+      tags: event.tags,
+      instagramUrl: event.instagramUrl,
+      // Only selected for organisers; `undefined` for everyone else, so it never reaches their browser.
+      whatsappUrl: "whatsappUrl" in event ? (event.whatsappUrl ?? null) : null,
     }));
 
   const memberRows: ClubMemberRow[] = members.map((member) => ({

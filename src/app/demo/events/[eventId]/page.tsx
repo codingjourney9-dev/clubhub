@@ -33,7 +33,9 @@ import { doorCodeFromSecret } from "@/lib/domain/check-in";
 import { decideSeat, queueRank, registrationClosedReason } from "@/lib/domain/ticket-rules";
 import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
 import { encodeTicketQr } from "@/lib/tickets/qr";
+import { whatsappLinkFor } from "@/lib/services/event-service";
 import { cn } from "@/lib/utils";
+import { EventLinks, EventPoster, TagChips } from "@/components/features/event/event-extras";
 
 export const metadata: Metadata = { title: "Event preview" };
 export const dynamic = "force-dynamic";
@@ -76,6 +78,9 @@ export default async function DemoEventPage({
       waitlistEnabled: true,
       status: true,
       isPublic: true,
+      posterUrl: true,
+      tags: true,
+      instagramUrl: true,
       club: {
         select: {
           id: true,
@@ -188,6 +193,8 @@ export default async function DemoEventPage({
 
   const isOrganizer = canClub(actor, "event:update");
   const timeZone = event.club.tenant.timezone;
+  // Same rule as the real event page: the group link only for organisers and seat holders.
+  const whatsapp = await whatsappLinkFor(event.id, event.tenantId, { userId: viewer.id, isOrganizer });
 
   const closed = registrationClosedReason({
     status: event.status,
@@ -278,6 +285,7 @@ export default async function DemoEventPage({
         <p className="text-xs text-muted-foreground">
           Stored as one instant in UTC, shown in {timeZone}.
         </p>
+        <TagChips tags={event.tags} />
       </div>
 
       <Card>
@@ -308,6 +316,10 @@ export default async function DemoEventPage({
 
           {event.description ? (
             <p className="text-sm text-muted-foreground">{event.description}</p>
+          ) : null}
+
+          {event.posterUrl ? (
+            <EventPoster src={event.posterUrl} title={event.title} variant="hero" className="max-w-xs" />
           ) : null}
         </CardContent>
       </Card>
@@ -389,6 +401,8 @@ export default async function DemoEventPage({
               </span>
             </div>
           )}
+
+          <EventLinks instagramUrl={event.instagramUrl} whatsapp={whatsapp} className="max-w-md" />
         </CardContent>
       </Card>
 

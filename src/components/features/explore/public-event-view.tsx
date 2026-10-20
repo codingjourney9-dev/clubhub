@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, CalendarDays, Clock, Lock, MapPin, Users } from "lucide-react";
 
 import { DateBlock } from "@/components/common/date-block";
+import { EventLinks, EventPoster, TagChips } from "@/components/features/event/event-extras";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { authHref } from "@/lib/auth/callback-url";
@@ -101,6 +102,7 @@ export function PublicEventView({
             {event.club.category ? <Badge variant="secondary">{event.club.category}</Badge> : null}
             <Badge variant="outline">Open to everyone</Badge>
           </div>
+          <TagChips tags={event.tags} linkTo="board" />
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <Clock className="size-4" />
@@ -138,8 +140,14 @@ export function PublicEventView({
           ) : null}
           <div className="perforation" aria-hidden="true" />
           {boxOffice}
+          {/* A guest never holds a seat, so the WhatsApp link is never sent — only whether one exists. */}
+          <EventLinks instagramUrl={event.instagramUrl} whatsapp={{ exists: event.hasWhatsapp, url: null }} />
         </aside>
 
+        <div className="flex min-w-0 flex-col gap-6">
+        {event.posterUrl ? (
+          <EventPoster src={event.posterUrl} title={event.title} variant="hero" className="max-w-sm" />
+        ) : null}
         <section className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card p-6">
           <h2 className="flex items-center gap-2 font-heading text-lg font-bold">
             <CalendarDays className="size-4 text-primary" />
@@ -154,6 +162,7 @@ export function PublicEventView({
             Times are shown in {event.club.tenant.name}&apos;s local time ({timeZone}).
           </p>
         </section>
+        </div>
       </div>
     </div>
   );

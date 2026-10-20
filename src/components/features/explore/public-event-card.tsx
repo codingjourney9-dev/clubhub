@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, Clock, MapPin } from "lucide-react";
 
 import { DateBlock } from "@/components/common/date-block";
+import { EventPoster, TagChips } from "@/components/features/event/event-extras";
 import { seatsLabel } from "@/lib/domain/seats";
 import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
 import type { PublicEvent } from "@/lib/services/public-event-service";
@@ -24,8 +25,13 @@ export function PublicEventCard({ event }: { event: PublicEvent }) {
   return (
     <Link
       href={`/events/${event.id}`}
-      className="group ticket-notch flex h-full flex-col rounded-lg border border-border bg-card transition-all [--notch-y:68%] hover:-translate-y-0.5 hover:border-foreground/50 hover:shadow-print-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="group ticket-notch flex h-full flex-col rounded-lg border border-border bg-card transition-all [--notch-y:calc(100%_-_51px)] hover:-translate-y-0.5 hover:border-foreground/50 hover:shadow-print-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
+      {event.posterUrl ? (
+        <div className="overflow-hidden rounded-t-lg">
+          <EventPoster src={event.posterUrl} title={event.title} variant="card" />
+        </div>
+      ) : null}
       <div className="flex flex-1 flex-col gap-4 p-5">
         <div className="flex items-start gap-4">
           <DateBlock date={event.startTime} timeZone={timeZone} />
@@ -39,6 +45,8 @@ export function PublicEventCard({ event }: { event: PublicEvent }) {
           </div>
           <ArrowUpRight className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
         </div>
+
+        <TagChips tags={event.tags} />
 
         <ul className="flex flex-col gap-1.5 text-sm text-muted-foreground">
           <li className="flex items-start gap-2">
@@ -83,14 +91,35 @@ export function PublicEventCard({ event }: { event: PublicEvent }) {
 }
 
 /** The grid plus its empty state, shared by the guest and member dashboards. */
-export function PublicEventGrid({ events }: { events: readonly PublicEvent[] }) {
+export function PublicEventGrid({
+  events,
+  filteredBy,
+}: {
+  events: readonly PublicEvent[];
+  /** Label of the active tag filter, if any — changes the empty-state wording. */
+  filteredBy?: string | null;
+}) {
   if (events.length === 0) {
     return (
       <div className="flex flex-col items-start gap-2 rounded-lg border border-dashed border-foreground/25 bg-card/60 p-8">
-        <p className="font-heading text-lg font-bold">Nothing on the board yet.</p>
+        <p className="font-heading text-lg font-bold">
+          {filteredBy ? `No ${filteredBy.toLowerCase()} events coming up.` : "Nothing on the board yet."}
+        </p>
         <p className="max-w-lg text-sm text-muted-foreground">
-          When a club publishes an event that&apos;s open to everyone, it shows up here — from every
-          college on ClubHub.
+          {filteredBy ? (
+            <>
+              Try another tag, or{" "}
+              <Link href="/dashboard" className="font-medium text-foreground underline underline-offset-4">
+                see everything
+              </Link>
+              .
+            </>
+          ) : (
+            <>
+              When a club publishes an event that&apos;s open to everyone, it shows up here — from every
+              college on ClubHub.
+            </>
+          )}
         </p>
       </div>
     );

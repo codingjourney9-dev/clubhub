@@ -7,7 +7,7 @@ import { getSessionUserId, requireUser, type SessionUser } from "@/lib/auth/sess
 import { canClub, canTenant, type Actor, type ClubAction, type TenantAction } from "@/lib/auth/rbac";
 import { db } from "@/lib/db/client";
 import { annotateRequest } from "@/lib/observability/context";
-import type { ClubRole, TenantRole } from "@/generated/prisma/enums";
+import type { ClubRole, EventTag, TenantRole } from "@/generated/prisma/enums";
 
 /**
  * Authorisation guards. Every route handler that reads or writes tenant-owned
@@ -202,6 +202,9 @@ export interface EventContext {
     readonly waitlistEnabled: boolean;
     readonly status: "DRAFT" | "PUBLISHED" | "CANCELLED";
     readonly isPublic: boolean;
+    readonly posterUrl: string | null;
+    readonly tags: readonly EventTag[];
+    readonly instagramUrl: string | null;
   };
   readonly club: {
     readonly id: string;
@@ -248,6 +251,9 @@ export async function requireEventAccess(
         waitlistEnabled: true,
         status: true,
         isPublic: true,
+        posterUrl: true,
+        tags: true,
+        instagramUrl: true,
         club: {
           select: {
             id: true,
@@ -310,6 +316,9 @@ export async function requireEventAccess(
       waitlistEnabled: event.waitlistEnabled,
       status: event.status,
       isPublic: event.isPublic,
+      posterUrl: event.posterUrl,
+      tags: event.tags,
+      instagramUrl: event.instagramUrl,
     },
     club: {
       id: event.club.id,

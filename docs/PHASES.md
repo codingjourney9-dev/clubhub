@@ -489,7 +489,7 @@ hashed CSS; the deploy check passing and failing on each of the three dangerous 
 
 ---
 
-## Phase 8 — Front door & guest browsing — Built, awaiting review
+## Phase 8 — Front door & guest browsing — Complete (approved)
 
 From the club-platform blueprint (Phases 8–13). Decisions agreed before building: keep the current
 stack; guests see **one combined feed from every college**; professor verification will show the code
@@ -524,6 +524,53 @@ browser-checked: landing, guest board, interceptor dialog → sign-in with reaso
 
 ---
 
+## Phase 9 — Richer events: poster, tags, Instagram & WhatsApp — Built, awaiting review
+
+Decisions agreed before building: a **fixed list of tags, at most 3 per event**; the **WhatsApp link
+is shown only to ticket holders** (and the organisers who set it); **Instagram is public**; posters are
+**pasted links** (no uploads).
+
+- **Database** — migration `20261020112048_phase9_event_details`: enum `EventTag` (Technical, Cultural,
+  Workshop, Competition, Talk, Sports, Music, Arts, Social, Career); `events.poster_url`, `tags
+  EventTag[]` (default `{}`), `instagram_url`, `whatsapp_url`; a GIN index for "events with tag X"; and a
+  `CHECK (cardinality(tags) <= 3)` so the limit holds even if a future code path forgets it.
+- **One set of rules** — `src/lib/domain/event-details.ts`, used by the Zod schemas (server authority,
+  instant form feedback) and the UI:
+  - *Poster:* https only (http is upgraded, a missing `https://` is added). A **Google Drive share link
+    is rewritten** to Drive's image address, so people can paste what Drive gives them. Instagram /
+    Facebook / Google Photos / Drive-folder links are refused with a sentence explaining what to paste
+    instead. The demo posters in `public/posters/` are the only same-site paths accepted. The server
+    **never downloads** a pasted link (no way to make it fetch arbitrary addresses).
+  - *Instagram:* `@handle` → profile link; share-tracking (`?igsh=…`) stripped.
+  - *WhatsApp:* `chat.whatsapp.com/<code>`, `whatsapp.com/channel/…` or `wa.me/…` only.
+  - All normalisers are idempotent, so the form and the server can both run them.
+- **Who sees the WhatsApp link** — `whatsappLinkFor()` returns `{exists, url}`; `url` is filled only
+  for organisers and people holding a **seat** (not the waitlist, not cancelled). List queries never
+  select it unless the caller is an organiser (`includeWhatsapp`), and the public service converts it
+  to `hasWhatsapp: true/false` before anything leaves the file. Everyone else sees "Get a ticket to join
+  the WhatsApp group".
+- **Screens** — poster on board cards, the events page and event pages (plain `<img>` with
+  `referrerPolicy="no-referrer"`; a dead link becomes a quiet placeholder, never a broken icon); tag
+  chips everywhere events appear; **tag filter chips** on the board (`/dashboard?tag=workshop` — plain
+  links, shareable, unknown values ignored); Instagram/WhatsApp buttons on event pages; the event form
+  gains tag toggles (a fourth is disabled), a poster field with a live preview and Drive instructions,
+  and the two link fields. The `/demo` event page shows the same per-viewer WhatsApp decision.
+- **Seed** — tags on every event, three posters in `public/posters/`, Instagram links, and a dummy
+  WhatsApp invite on RoboWars and Debug Night.
+- **Bug fixed on the way** — editing an event counted *waitlisted* people as seats, so a full event with
+  a queue (Debug Night: capacity 3, three seated, one waiting) could not be saved at all. Only seats
+  count now; a test covers it.
+
+**Gate:** typecheck ✅ lint ✅ build ✅ vitest 375/375 ✅ (24 new) · smoke 211/211 ✅ (21 new: WhatsApp link
+absent from guest/waitlist HTML and API, tag filter, poster, 422 for bad links / a fourth tag) ·
+browser-checked: board + tag filter, guest event page, edit form (live preview, tag limit, Drive link
+rewritten on save, broken poster fallback), demo page as Kabir (waitlisted) vs Aarav, 390 px dark mode.
+
+**Deploying:** this phase adds a migration. Vercel's build runs `prisma migrate deploy` automatically;
+on your own computer run `npm run db:deploy` once after pulling (your `.env` points at the DEV branch).
+
+---
+
 ## Progress log
 
 | Date | Phase | Result |
@@ -536,7 +583,8 @@ browser-checked: landing, guest board, interceptor dialog → sign-in with reaso
 | 2026-10-17 | 6 — Scanner & Edge Cases | Complete. Mobile-first scanner with typed door-code fallback, offline queue with idempotent `scanUuid`, browser-side fingerprint verification against a cached manifest, single `decideCheckIn` verdict used by API and UI, attendance report. Gate: lint ✅ typecheck ✅ build ✅ 272 tests ✅ smoke 162/162 ✅ |
 | 2026-10-17 | 7 — Polish & Observability | Complete. One client bridge so every failure is a sentence, optimistic updates with rollback, empty states + skeletons + error boundaries, 100 browser-verified layout checks at 360–1440 px, structured request logs with user/tenant context on all 23 routes, readiness-aware `/api/health`. Gate: lint ✅ typecheck ✅ build ✅ 299 tests ✅ smoke 178/178 ✅ layout 100/100 ✅ |
 | 2026-10-17 | Deploy readiness | Complete. Multi-stage Dockerfile + Compose (db → migrate → app), `npm run deploy:check` (14 checks), `docs/DEPLOY.md` for Compose/Vercel/systemd. Fixed a silent rate-limit driver lie and a `.env`-in-image leak. Gate: lint ✅ typecheck ✅ build ✅ 305 tests ✅ smoke 178/178 ✅ |
-| 2026-10-20 | 8 — Front door & guest browsing | Built, awaiting review. Guest `/dashboard` with public events from every college, public event pages, "Start a new club" sign-in interceptor, `safeCallbackUrl` open-redirect fix. Gate: lint ✅ typecheck ✅ build ✅ 351 tests ✅ smoke 190/190 ✅ |
+| 2026-10-20 | 8 — Front door & guest browsing | Complete (approved). Guest `/dashboard` with public events from every college, public event pages, "Start a new club" sign-in interceptor, `safeCallbackUrl` open-redirect fix. Gate: lint ✅ typecheck ✅ build ✅ 351 tests ✅ smoke 190/190 ✅ |
+| 2026-10-20 | 9 — Richer events | Built, awaiting review. Poster links (Drive links rewritten), up to 3 tags + board filter, public Instagram, WhatsApp link for seat holders only; waitlist-counted-as-seats edit bug fixed. Gate: lint ✅ typecheck ✅ build ✅ 375 tests ✅ smoke 211/211 ✅ |
 
 ---
 

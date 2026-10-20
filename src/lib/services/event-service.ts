@@ -42,8 +42,18 @@ const EVENT_LIST_SELECT = {
   waitlistEnabled: true,
   status: true,
   isPublic: true,
+  posterUrl: true,
+  tags: true,
+  instagramUrl: true,
   createdAt: true,
 } as const;
+
+/**
+ * The WhatsApp group link is deliberately absent from every general-purpose
+ * select. Only organisers and ticket holders receive it — see
+ * `whatsappLinkFor` — so no list, API response or page prop can leak it by
+ * accident.
+ */
 
 /**
  * How many seats are actually held, and how many people are queuing.
@@ -103,6 +113,8 @@ export interface EventListOptions {
   readonly includeDrafts: boolean;
   /** Cancelled events stay visible (greyed out) so nobody turns up to a dead event. */
   readonly includeCancelled?: boolean;
+  /** Organisers editing events need the WhatsApp link in the form; nobody else gets it. */
+  readonly includeWhatsapp?: boolean;
 }
 
 /** Events belonging to one club, newest first by start time. */
@@ -129,7 +141,7 @@ export async function listClubEvents(
           }),
     },
     orderBy: { startTime: "asc" },
-    select: EVENT_LIST_SELECT,
+    select: { ...EVENT_LIST_SELECT, whatsappUrl: options.includeWhatsapp === true },
   });
 
   const counts = await ticketCountsByEvent(events.map((event) => event.id));
@@ -164,6 +176,9 @@ export async function getVisibleEvent(eventId: string, tenantId: string, canView
       waitlistEnabled: true,
       status: true,
       isPublic: true,
+      posterUrl: true,
+      tags: true,
+      instagramUrl: true,
       createdById: true,
       createdAt: true,
       updatedAt: true,
@@ -232,6 +247,10 @@ export async function createEvent({
       capacity: input.capacity ?? null,
       waitlistEnabled: input.waitlistEnabled,
       isPublic: input.isPublic,
+      posterUrl: input.posterUrl ?? null,
+      tags: input.tags ?? [],
+      instagramUrl: input.instagramUrl ?? null,
+      whatsappUrl: input.whatsappUrl ?? null,
       status: "DRAFT",
       createdById,
     },
@@ -292,14 +311,17 @@ export async function updateEvent(
   }
 
   if (input.capacity !== undefined && input.capacity !== null) {
+    // Only seats count. People on the waitlist don't occupy the room, so a full
+    // event with a queue (capacity 3, three seated, one waiting) must still be
+    // editable at capacity 3 — counting the queue here made it un-saveable.
     const registered = await db.ticket.count({
-      where: { eventId, status: { in: ["REGISTERED", "WAITLISTED"] } },
+      where: { eventId, status: "REGISTERED" },
     });
 
     if (input.capacity < registered) {
       throw new ApiError(
         "CONFLICT",
-        `${registered} people already hold a place. Capacity cannot be set below that — cancel their tickets first.`,
+        `${registered} people already hold a seat. Capacity cannot be set below that — cancel their tickets first.`,
       );
     }
   }
@@ -316,6 +338,10 @@ export async function updateEvent(
       ...(input.capacity === undefined ? {} : { capacity: input.capacity }),
       ...(input.waitlistEnabled === undefined ? {} : { waitlistEnabled: input.waitlistEnabled }),
       ...(input.isPublic === undefined ? {} : { isPublic: input.isPublic }),
+      ...(input.posterUrl === undefined ? {} : { posterUrl: input.posterUrl }),
+      ...(input.tags === undefined ? {} : { tags: input.tags }),
+      ...(input.instagramUrl === undefined ? {} : { instagramUrl: input.instagramUrl }),
+      ...(input.whatsappUrl === undefined ? {} : { whatsappUrl: input.whatsappUrl }),
       ...(startTime ? { startTime } : {}),
       ...(endTime ? { endTime } : {}),
     },
@@ -484,6 +510,8 @@ export async function listUpcomingEventsForUser(userId: string) {
         capacity: true,
         waitlistEnabled: true,
         isPublic: true,
+        posterUrl: true,
+        tags: true,
         club: {
           select: {
             id: true,
@@ -501,4 +529,31 @@ export async function listUpcomingEventsForUser(userId: string) {
     registeredCount: counts.get(event.id)?.registered ?? 0,
     waitlistedCount: counts.get(event.id)?.waitlisted ?? 0,
   }));
+}
+
+/**
+ * The WhatsApp group link for one viewer, or `null`.
+ *
+ * Given to organisers (they set it) and to people holding a confirmed seat.
+ * Everyone else — guests, members without a ticket, people in the queue — only
+ * learns that a group exists ("Get a ticket to join the WhatsApp group").
+ */
+export async function whatsappLinkFor(
+  eventId: string,
+  tenantId: string,
+  viewer: { readonly userId: string; readonly isOrganizer: boolean },
+): Promise<{ readonly exists: boolean; readonly url: string | null }> {
+  const event = await db.event.findFirst({
+    where: { id: eventId, tenantId, deletedAt: null },
+    select: {
+      whatsappUrl: true,
+      tickets: viewer.isOrganizer
+        ? false
+        : { where: { userId: viewer.userId, status: "REGISTERED" }, select: { id: true }, take: 1 },
+    },
+  });
+
+  if (!event?.whatsappUrl) return { exists: false, url: null };
+  const holdsSeat = viewer.isOrganizer || (event.tickets?.length ?? 0) > 0;
+  return { exists: true, url: holdsSeat ? event.whatsappUrl : null };
 }

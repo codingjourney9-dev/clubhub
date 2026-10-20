@@ -2,7 +2,7 @@ import { ApiError, handleRouteError, ok } from "@/lib/api/response";
 import { parseJsonBody } from "@/lib/api/request";
 import { requireClubAccess } from "@/lib/auth/guards";
 import { canClub, type Actor } from "@/lib/auth/rbac";
-import { getVisibleEvent, softDeleteEvent, updateEvent } from "@/lib/services/event-service";
+import { getVisibleEvent, softDeleteEvent, updateEvent, whatsappLinkFor } from "@/lib/services/event-service";
 import { updateEventSchema } from "@/lib/validation/event";
 import { withApiRoute } from "@/lib/api/handler";
 
@@ -33,7 +33,16 @@ async function handleGET(
     // A draft is a private work-in-progress — members should not see it early.
     if (event.status === "DRAFT" && !canEdit) throw ApiError.notFound("That event was not found.");
 
-    return ok({ event, permissions: { canEdit, canDelete: canClub(actor, "event:delete") } });
+    // The group link travels only to organisers and seat holders (see whatsappLinkFor).
+    const whatsapp = await whatsappLinkFor(eventId, context.club.tenantId, {
+      userId: context.user.id,
+      isOrganizer: canEdit,
+    });
+
+    return ok({
+      event: { ...event, whatsappUrl: whatsapp.url, hasWhatsapp: whatsapp.exists },
+      permissions: { canEdit, canDelete: canClub(actor, "event:delete") },
+    });
   } catch (error) {
     return handleRouteError(error);
   }

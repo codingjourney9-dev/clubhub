@@ -10,7 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { EventPoster } from "@/components/features/event/event-extras";
+import type { EventTag } from "@/generated/prisma/enums";
+import {
+  EVENT_TAG_LABELS,
+  EVENT_TAGS,
+  MAX_EVENT_TAGS,
+  normalizePosterUrl,
+} from "@/lib/domain/event-details";
 import { utcToWallClock, zoneAbbreviation } from "@/lib/format/date";
+import { cn } from "@/lib/utils";
 import { createEventSchema } from "@/lib/validation/event";
 import { callApi, fieldErrorsOf, notifyFailure } from "@/lib/api/client";
 
@@ -37,6 +46,10 @@ export interface EventFormValues {
   capacity: string;
   isPublic: boolean;
   waitlistEnabled: boolean;
+  posterUrl: string;
+  tags: EventTag[];
+  instagramUrl: string;
+  whatsappUrl: string;
 }
 
 export interface EditableEvent {
@@ -50,6 +63,11 @@ export interface EditableEvent {
   capacity: number | null;
   isPublic: boolean;
   waitlistEnabled: boolean;
+  posterUrl: string | null;
+  tags: readonly EventTag[];
+  instagramUrl: string | null;
+  /** Only ever filled in for organisers — the people allowed to edit it. */
+  whatsappUrl: string | null;
 }
 
 interface EventFormProps {
@@ -95,12 +113,34 @@ export function EventForm({ clubId, timeZone, event, onDone }: EventFormProps) {
       capacity: event?.capacity ? String(event.capacity) : "",
       isPublic: event?.isPublic ?? true,
       waitlistEnabled: event?.waitlistEnabled ?? false,
+      posterUrl: event?.posterUrl ?? "",
+      tags: event ? [...event.tags] : [],
+      instagramUrl: event?.instagramUrl ?? "",
+      whatsappUrl: event?.whatsappUrl ?? "",
     },
   });
 
   const isPublic = watch("isPublic");
   const waitlistEnabled = watch("waitlistEnabled");
   const capacityValue = watch("capacity");
+  const tags = watch("tags");
+  const posterInput = watch("posterUrl");
+
+  // Live preview of what the poster link will look like — using the same
+  // tidy-up the server applies (a Drive "share" link becomes an image link).
+  const posterPreview = useMemo(() => {
+    const raw = posterInput.trim();
+    if (raw === "") return null;
+    return normalizePosterUrl(raw);
+  }, [posterInput]);
+
+  function toggleTag(tag: EventTag) {
+    const next = tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag];
+    if (next.length > MAX_EVENT_TAGS) return;
+    setValue("tags", next, { shouldDirty: true });
+  }
+
+  const blank = (value: string) => (value.trim() === "" ? null : value.trim());
 
   async function onSubmit(values: EventFormValues) {
     setFormError(null);
@@ -116,6 +156,10 @@ export function EventForm({ clubId, timeZone, event, onDone }: EventFormProps) {
       capacity: values.capacity.trim() === "" ? null : Number(values.capacity),
       isPublic: values.isPublic,
       waitlistEnabled: values.waitlistEnabled,
+      posterUrl: blank(values.posterUrl),
+      tags: values.tags,
+      instagramUrl: blank(values.instagramUrl),
+      whatsappUrl: blank(values.whatsappUrl),
     };
 
     const parsed = schema.safeParse(payload);
@@ -163,6 +207,10 @@ export function EventForm({ clubId, timeZone, event, onDone }: EventFormProps) {
       setValue("location", "");
       setValue("capacity", "");
       setValue("waitlistEnabled", false);
+      setValue("posterUrl", "");
+      setValue("tags", []);
+      setValue("instagramUrl", "");
+      setValue("whatsappUrl", "");
       const fresh = defaultWallClocks(timeZone);
       setValue("start", fresh.start);
       setValue("end", fresh.end);
@@ -251,6 +299,116 @@ export function EventForm({ clubId, timeZone, event, onDone }: EventFormProps) {
           {errors.capacity ? (
             <p role="alert" className="text-xs text-destructive">
               {errors.capacity.message}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="mb-2 text-sm font-medium">
+          Tags <span className="font-normal text-muted-foreground">— up to {MAX_EVENT_TAGS}, helps people find it</span>
+        </legend>
+        <div className="flex flex-wrap gap-2">
+          {EVENT_TAGS.map((tag) => {
+            const on = tags.includes(tag);
+            const full = !on && tags.length >= MAX_EVENT_TAGS;
+            return (
+              <button
+                key={tag}
+                type="button"
+                aria-pressed={on}
+                disabled={full}
+                onClick={() => toggleTag(tag)}
+                className={cn(
+                  "inline-flex h-8 items-center rounded-full border px-3 text-sm font-medium transition-colors",
+                  on
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-foreground/20 bg-card text-foreground/80 hover:border-foreground/50",
+                  full && "cursor-not-allowed opacity-40 hover:border-foreground/20",
+                )}
+              >
+                {EVENT_TAG_LABELS[tag]}
+              </button>
+            );
+          })}
+        </div>
+        {errors.tags ? (
+          <p role="alert" className="text-xs text-destructive">
+            {errors.tags.message}
+          </p>
+        ) : null}
+      </fieldset>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="event-poster">Poster link</Label>
+        <Input
+          id="event-poster"
+          inputMode="url"
+          autoComplete="off"
+          placeholder="https://drive.google.com/file/d/…/view"
+          {...register("posterUrl")}
+        />
+        <p className="text-xs text-muted-foreground">
+          Paste a link to an image. From Google Drive: right-click the file → <b>Share</b> → General
+          access → <b>Anyone with the link</b> → <b>Copy link</b>. Optional.
+        </p>
+        {errors.posterUrl ? (
+          <p role="alert" className="text-xs text-destructive">
+            {errors.posterUrl.message}
+          </p>
+        ) : posterPreview && !posterPreview.ok ? (
+          <p className="text-xs text-destructive">{posterPreview.message}</p>
+        ) : null}
+        {posterPreview?.ok ? (
+          <div className="flex items-start gap-3">
+            <EventPoster
+              key={posterPreview.url}
+              src={posterPreview.url}
+              title={watch("title") || "this event"}
+              variant="thumb"
+              className="size-20"
+            />
+            <p className="text-xs text-muted-foreground">
+              Preview. If it stays blank, the file probably isn&apos;t shared with &ldquo;Anyone with the
+              link&rdquo; yet.
+            </p>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="event-instagram">Instagram</Label>
+          <Input
+            id="event-instagram"
+            inputMode="url"
+            autoComplete="off"
+            placeholder="@roboticsclub or a post link"
+            {...register("instagramUrl")}
+          />
+          <p className="text-xs text-muted-foreground">Everyone can see this. Optional.</p>
+          {errors.instagramUrl ? (
+            <p role="alert" className="text-xs text-destructive">
+              {errors.instagramUrl.message}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="event-whatsapp">WhatsApp group</Label>
+          <Input
+            id="event-whatsapp"
+            inputMode="url"
+            autoComplete="off"
+            placeholder="https://chat.whatsapp.com/…"
+            {...register("whatsappUrl")}
+          />
+          <p className="text-xs text-muted-foreground">
+            Only people with a ticket will see this. Optional.
+          </p>
+          {errors.whatsappUrl ? (
+            <p role="alert" className="text-xs text-destructive">
+              {errors.whatsappUrl.message}
             </p>
           ) : null}
         </div>

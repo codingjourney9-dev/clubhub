@@ -24,8 +24,11 @@ async function handleGET(_request: Request, { params }: { params: Promise<{ club
     const actor: Actor = { tenantRole: context.tenantRole, clubRole: context.clubRole };
     const isMember = context.clubRole !== null;
 
+    const canEdit = canClub(actor, "event:update");
     const events = await listClubEvents(clubId, context.club.tenantId, {
-      includeDrafts: canClub(actor, "event:update"),
+      includeDrafts: canEdit,
+      // Organisers need the group link to edit it; for everyone else it is never selected.
+      includeWhatsapp: canEdit,
     });
 
     return ok({ events: events.filter((event) => event.isPublic || isMember) });

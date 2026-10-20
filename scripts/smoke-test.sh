@@ -736,6 +736,56 @@ if [ -f "$TMP/aarav.jar" ] && [ -n "$PRESIDENT_CLUB" ]; then
   fi
 fi
 
+echo "[16] phase 9 — posters, tags, Instagram and the ticket-holders-only WhatsApp link"
+WA_LINK="chat.whatsapp.com/DemoInviteCodeClubHub0001"
+ROBOWARS="0f1d2c3b-4a59-4e6d-8b7c-300000000001"     # Aarav holds a seat; has a WhatsApp group
+DEBUG_NIGHT="0f1d2c3b-4a59-4e6d-8b7c-300000000004"  # Kabir is only on the waitlist
+ROBOTICS_CLUB="0f1d2c3b-4a59-4e6d-8b7c-200000000001"
+
+expect_contains "the guest board shows a poster" "$TMP/guest-dash.html" "/posters/robowars-2026.jpg"
+expect_contains "…and tag filter chips" "$TMP/guest-dash.html" "/dashboard?tag=workshop"
+expect_not_contains "…and never the WhatsApp link" "$TMP/guest-dash.html" "$WA_LINK"
+
+curl -s -o "$TMP/tag.html" "$BASE/dashboard?tag=talk"
+expect_contains "?tag=talk keeps the debate (tagged Talk)" "$TMP/tag.html" "Parliamentary Debate"
+expect_not_contains "…and drops RoboWars (not tagged Talk)" "$TMP/tag.html" "RoboWars 2026 — Qualifiers"
+STATUS=$(curl -s -o "$TMP/tag-bad.html" -w '%{http_code}' "$BASE/dashboard?tag=%3Cscript%3E")
+expect_status "an unknown ?tag= is ignored, not an error" 200 "$STATUS"
+expect_contains "…and shows everything" "$TMP/tag-bad.html" "RoboWars 2026"
+
+expect_contains "a guest's event page shows the Instagram link" "$TMP/guest-event.html" "instagram.com/vit_robotics_club"
+expect_contains "…says a WhatsApp group exists" "$TMP/guest-event.html" "Get a ticket to join the WhatsApp group"
+expect_not_contains "…but does not include its link" "$TMP/guest-event.html" "$WA_LINK"
+
+if [ -f "$TMP/aarav.jar" ] && [ -f "$TMP/kabir.jar" ]; then
+  curl -s -b "$TMP/aarav.jar" -o "$TMP/p9-holder.html" "$BASE/events/$ROBOWARS"
+  expect_contains "a seat holder gets the WhatsApp link" "$TMP/p9-holder.html" "$WA_LINK"
+  curl -s -b "$TMP/kabir.jar" -o "$TMP/p9-waitlist.html" "$BASE/events/$DEBUG_NIGHT"
+  expect_not_contains "someone on the waitlist does not" "$TMP/p9-waitlist.html" "$WA_LINK"
+  expect_contains "…and is told how to get it" "$TMP/p9-waitlist.html" "Get a ticket to join the WhatsApp group"
+
+  STATUS=$(curl -s -b "$TMP/kabir.jar" -o "$TMP/p9-api.json" -w '%{http_code}' "$BASE/api/clubs/$ROBOTICS_CLUB/events/$DEBUG_NIGHT")
+  expect_status "the event API answers a waitlisted member" 200 "$STATUS"
+  expect_contains "…saying a group exists" "$TMP/p9-api.json" '"hasWhatsapp":true'
+  expect_not_contains "…without the link" "$TMP/p9-api.json" "$WA_LINK"
+  curl -s -b "$TMP/kabir.jar" -o "$TMP/p9-list.json" "$BASE/api/clubs/$ROBOTICS_CLUB/events"
+  expect_not_contains "the club's event list never carries the link to members" "$TMP/p9-list.json" "$WA_LINK"
+  curl -s -b "$TMP/aarav.jar" -o "$TMP/p9-list-org.json" "$BASE/api/clubs/$ROBOTICS_CLUB/events"
+  expect_contains "…but does for the organiser who edits it" "$TMP/p9-list-org.json" "$WA_LINK"
+
+  # The server is the authority: a bad link or a fourth tag is refused even
+  # when the browser's checks are skipped.
+  STATUS=$(json_status POST "/api/clubs/$ROBOTICS_CLUB/events" \
+    '{"title":"Bad link","start":"2031-01-01T10:00","end":"2031-01-01T12:00","isPublic":true,"waitlistEnabled":false,"whatsappUrl":"https://evil.example/join"}' "$TMP/aarav.jar")
+  expect_status "a non-WhatsApp 'WhatsApp link' is refused" 422 "$STATUS"
+  STATUS=$(json_status POST "/api/clubs/$ROBOTICS_CLUB/events" \
+    '{"title":"Too many tags","start":"2031-01-01T10:00","end":"2031-01-01T12:00","isPublic":true,"waitlistEnabled":false,"tags":["TECHNICAL","MUSIC","ARTS","TALK"]}' "$TMP/aarav.jar")
+  expect_status "a fourth tag is refused" 422 "$STATUS"
+  STATUS=$(json_status POST "/api/clubs/$ROBOTICS_CLUB/events" \
+    '{"title":"Poster from Instagram","start":"2031-01-01T10:00","end":"2031-01-01T12:00","isPublic":true,"waitlistEnabled":false,"posterUrl":"https://www.instagram.com/p/Cx123/"}' "$TMP/aarav.jar")
+  expect_status "an Instagram post as a poster is refused (it is a page, not a picture)" 422 "$STATUS"
+fi
+
 echo "──────────────────────────────────────────────"
 if [ "$FAILURES" -eq 0 ]; then
   printf '\033[32mAll %d checks passed.\033[0m\n\n' "$PASSES"

@@ -7,6 +7,9 @@ import { PageHeading } from "@/components/common/page-heading";
 import { MemberOverviewView } from "@/components/features/dashboard/member-overview";
 import { PublicEventGrid } from "@/components/features/explore/public-event-card";
 import { StartClubButton } from "@/components/features/explore/start-club-button";
+import { TagFilter } from "@/components/features/explore/tag-filter";
+import type { EventTag } from "@/generated/prisma/enums";
+import { EVENT_TAG_LABELS, tagFromParam } from "@/lib/domain/event-details";
 import { buttonVariants } from "@/components/ui/button";
 import { getCurrentUser, getSessionUserId } from "@/lib/auth/session";
 import { isDemoModeEnabled } from "@/lib/demo/mode";
@@ -53,8 +56,8 @@ function FeedHeading({ events, title }: { events: readonly PublicEvent[]; title:
  * What someone without an account sees: upcoming public events from every
  * college, and a way to start a club that asks them to sign in first.
  */
-async function GuestDashboard() {
-  const events = await listPublicUpcomingEvents();
+async function GuestDashboard({ tag }: { tag: EventTag | null }) {
+  const events = await listPublicUpcomingEvents(undefined, { tag });
   const demo = isDemoModeEnabled();
 
   return (
@@ -73,9 +76,10 @@ async function GuestDashboard() {
         }
       />
 
-      <section aria-labelledby="feed-heading" className="flex flex-col gap-4">
-        <FeedHeading events={events} title="Upcoming events" />
-        <PublicEventGrid events={events} />
+      <section id="feed" aria-labelledby="feed-heading" className="flex scroll-mt-24 flex-col gap-4">
+        <FeedHeading events={events} title={tag ? `Upcoming · ${EVENT_TAG_LABELS[tag]}` : "Upcoming events"} />
+        <TagFilter active={tag} />
+        <PublicEventGrid events={events} filteredBy={tag ? EVENT_TAG_LABELS[tag] : null} />
       </section>
 
       <section className="flex flex-col items-start gap-4 rounded-xl border border-foreground/80 bg-secondary/60 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8 dark:border-foreground/20">
@@ -98,16 +102,23 @@ async function GuestDashboard() {
  * overview (from `loadMemberOverview`, the same service the cookie-free /demo
  * preview uses, so the two cannot drift apart) with the public feed below it.
  */
-export default async function DashboardPage() {
-  const sessionUserId = await getSessionUserId();
-  if (!sessionUserId) return <GuestDashboard />;
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tag?: string | string[] }>;
+}) {
+  // `?tag=` comes from the address bar: anything that isn't a known tag is
+  // simply ignored (shows everything), never an error.
+  const [sessionUserId, params] = await Promise.all([getSessionUserId(), searchParams]);
+  const tag = tagFromParam(params.tag);
+  if (!sessionUserId) return <GuestDashboard tag={tag} />;
 
   // The overview, the user row and the public feed are independent, so they
   // share one round trip instead of taking three.
   const [user, overview, publicEvents] = await Promise.all([
     getCurrentUser(),
     loadMemberOverview(sessionUserId),
-    listPublicUpcomingEvents(6),
+    listPublicUpcomingEvents(6, { tag }),
   ]);
   // A session for an account that no longer exists: send them to sign in again.
   if (!user) redirect("/sign-in");
@@ -226,15 +237,19 @@ export default async function DashboardPage() {
 
       <MemberOverviewView overview={overview} />
 
-      <section aria-labelledby="feed-heading" className="flex flex-col gap-4">
+      <section id="feed" aria-labelledby="feed-heading" className="flex scroll-mt-24 flex-col gap-4">
         <div className="flex items-end justify-between gap-4">
-          <FeedHeading events={publicEvents} title="Happening across campuses" />
+          <FeedHeading
+            events={publicEvents}
+            title={tag ? `Happening across campuses · ${EVENT_TAG_LABELS[tag]}` : "Happening across campuses"}
+          />
           <Link href="/events" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
             Your colleges&apos; events
             <ArrowUpRight data-icon="inline-end" />
           </Link>
         </div>
-        <PublicEventGrid events={publicEvents} />
+        <TagFilter active={tag} />
+        <PublicEventGrid events={publicEvents} filteredBy={tag ? EVENT_TAG_LABELS[tag] : null} />
       </section>
 
       <StartClubButton signedIn placement="floating" />
