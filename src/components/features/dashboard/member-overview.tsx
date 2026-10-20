@@ -4,17 +4,13 @@ import { DateBlock } from "@/components/common/date-block";
 import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
 import type { MemberOverview } from "@/lib/services/dashboard-service";
 import { cn } from "@/lib/utils";
+import { CLUB_ROLE_LABELS } from "@/lib/domain/club-roles";
 
 /**
  * Presentational only — no data fetching, no auth. Rendered by both the real
  * dashboard and the cookie-free `/demo` preview so they stay identical.
  */
 
-const CLUB_ROLE_LABELS = {
-  PRESIDENT: "President",
-  EVENT_MANAGER: "Event Manager",
-  MEMBER: "Member",
-} as const;
 
 const TENANT_ROLE_LABELS = {
   OWNER: "Owner",

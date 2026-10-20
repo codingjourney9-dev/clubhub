@@ -26,9 +26,31 @@ export const clubRoleSchema = z.enum(ClubRole, {
   message: "Choose one of PRESIDENT, EVENT_MANAGER or MEMBER.",
 });
 
+/**
+ * Changing someone's role moves them between Member and Lead only. Making a
+ * President is a separate, deliberate act (`transferPresidencySchema`).
+ */
 export const updateClubMemberRoleSchema = z.strictObject({
-  role: clubRoleSchema,
+  role: z.enum(["MEMBER", "EVENT_MANAGER"], {
+    message: "Choose Member or Lead. To make someone President, use \"Hand over presidency\".",
+  }),
 });
+
+export const transferPresidencySchema = z.strictObject({
+  newPresidentUserId: z.uuid("Choose who becomes President."),
+  /** What the outgoing President becomes. */
+  formerPresidentBecomes: z.enum(["EVENT_MANAGER", "MEMBER"], {
+    message: "Choose whether you stay on as a Lead or become a Member.",
+  }),
+  /** The club's name, typed out — a deliberate step for something hard to undo. */
+  confirmClubName: z
+    .string({ message: "Type the club's name to confirm." })
+    .trim()
+    .min(1, "Type the club's name to confirm.")
+    .max(200),
+});
+
+export type TransferPresidencyInput = z.infer<typeof transferPresidencySchema>;
 
 export type CreateClubInput = z.infer<typeof createClubSchema>;
 export type UpdateClubInput = z.infer<typeof updateClubSchema>;

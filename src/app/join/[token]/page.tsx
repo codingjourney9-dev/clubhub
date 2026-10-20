@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getCurrentUser } from "@/lib/auth/session";
 import { previewInvite } from "@/lib/services/invite-service";
 import { cn } from "@/lib/utils";
+import { CLUB_ROLE_LABELS, clubRoleLabel } from "@/lib/domain/club-roles";
 
 export const metadata: Metadata = { title: "Join" };
 export const dynamic = "force-dynamic";
@@ -50,8 +51,8 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
 
   const user = await getCurrentUser();
   const roleLabel =
-    preview.role === "EVENT_MANAGER"
-      ? "Event Manager"
+    preview.kind === "club"
+      ? clubRoleLabel(preview.role as keyof typeof CLUB_ROLE_LABELS)
       : preview.role.charAt(0) + preview.role.slice(1).toLowerCase();
 
   return (

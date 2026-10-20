@@ -16,14 +16,12 @@ import { isDemoModeEnabled } from "@/lib/demo/mode";
 import { loadMemberOverview } from "@/lib/services/dashboard-service";
 import { listPublicUpcomingEvents, PUBLIC_FEED_LIMIT, type PublicEvent } from "@/lib/services/public-event-service";
 import { cn } from "@/lib/utils";
+import { CLUB_ROLE_LABELS } from "@/lib/domain/club-roles";
+import { DashboardAnnouncements } from "@/components/features/announcement/dashboard-announcements";
+import { listAnnouncementsForMember } from "@/lib/services/announcement-service";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
-const CLUB_ROLE_LABELS = {
-  PRESIDENT: "President",
-  EVENT_MANAGER: "Event Manager",
-  MEMBER: "Member",
-} as const;
 
 function greeting(): string {
   const hour = Number(
@@ -115,10 +113,11 @@ export default async function DashboardPage({
 
   // The overview, the user row and the public feed are independent, so they
   // share one round trip instead of taking three.
-  const [user, overview, publicEvents] = await Promise.all([
+  const [user, overview, publicEvents, announcements] = await Promise.all([
     getCurrentUser(),
     loadMemberOverview(sessionUserId),
     listPublicUpcomingEvents(6, { tag }),
+    listAnnouncementsForMember(sessionUserId, 4),
   ]);
   // A session for an account that no longer exists: send them to sign in again.
   if (!user) redirect("/sign-in");
@@ -234,6 +233,11 @@ export default async function DashboardPage({
           </ul>
         )}
       </section>
+
+      <DashboardAnnouncements
+        announcements={announcements}
+        inAnyClub={overview.clubRoles.length > 0}
+      />
 
       <MemberOverviewView overview={overview} />
 

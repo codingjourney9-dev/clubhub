@@ -63,7 +63,7 @@ export default async function AttendancePage({
           <CardHeader>
             <CardTitle>Attendance is for the club</CardTitle>
             <CardDescription>
-              Only this club&apos;s President and Event Manager can see who turned up.
+              Only this club&apos;s President and Leads can see who turned up.
             </CardDescription>
           </CardHeader>
           <CardContent>

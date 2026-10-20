@@ -41,6 +41,7 @@ import {
 import { formatDateTimeInZone } from "@/lib/format/date";
 import { getAttendanceReport } from "@/lib/services/check-in-service";
 import { cn } from "@/lib/utils";
+import { clubRoleLabel } from "@/lib/domain/club-roles";
 
 export const metadata: Metadata = { title: "Door preview" };
 export const dynamic = "force-dynamic";
@@ -179,8 +180,8 @@ export default async function DemoDoorPage({
               The door is not yours to work
             </CardTitle>
             <CardDescription>
-              {account.displayName} is a {clubMembership ? clubMembership.role.toLowerCase() : "non-member"}{" "}
-              of {event.club.name}. Checking people in belongs to the President and the Event Manager —
+              {account.displayName} is a {clubMembership ? clubRoleLabel(clubMembership.role) : "non-member"}{" "}
+              of {event.club.name}. Checking people in belongs to the President and the Leads —
               the real page answers 403, and the scanner never loads.
             </CardDescription>
           </CardHeader>

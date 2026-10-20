@@ -8,6 +8,7 @@ import {
   DoorOpen,
   Info,
   Link2,
+  Megaphone,
   ShieldCheck,
   Users,
   X,
@@ -34,6 +35,9 @@ import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
 import { listClubInvites } from "@/lib/services/invite-service";
 import { cn } from "@/lib/utils";
 import { TagChips } from "@/components/features/event/event-extras";
+import { AnnouncementBody } from "@/components/features/announcement/announcement-body";
+import { CLUB_ROLE_LABELS } from "@/lib/domain/club-roles";
+import { listClubAnnouncements } from "@/lib/services/announcement-service";
 
 export const metadata: Metadata = { title: "Club preview" };
 export const dynamic = "force-dynamic";
@@ -51,12 +55,6 @@ export const dynamic = "force-dynamic";
  * does show is the *shape* of the feature — which links exist, what role they
  * grant, and whether they are still usable.
  */
-
-const CLUB_ROLE_LABELS = {
-  PRESIDENT: "President",
-  EVENT_MANAGER: "Event Manager",
-  MEMBER: "Member",
-} as const;
 
 const TENANT_ROLE_LABELS = {
   OWNER: "Owner",
@@ -86,9 +84,34 @@ const CAPABILITIES: readonly Capability[] = [
     deniedBecause: "only the club's President (or a college admin) can edit it",
   },
   {
-    action: "club:manage_members",
-    label: "Change someone's role, or remove them",
-    deniedBecause: "only the club's President (or a college admin) can manage members",
+    action: "announcement:read",
+    label: "Read members-only announcements",
+    deniedBecause: "announcements are for club members",
+  },
+  {
+    action: "announcement:post",
+    label: "Post, pin and edit announcements",
+    deniedBecause: "Leads and the President post announcements",
+  },
+  {
+    action: "club:remove_member",
+    label: "Remove a Member from the club",
+    deniedBecause: "Leads and the President can remove Members",
+  },
+  {
+    action: "club:remove_lead",
+    label: "Remove a Lead from the club",
+    deniedBecause: "only the President (or a college admin) can remove a Lead",
+  },
+  {
+    action: "club:change_roles",
+    label: "Promote a Member to Lead, or back",
+    deniedBecause: "only the President (or a college admin) changes roles",
+  },
+  {
+    action: "club:transfer_presidency",
+    label: "Hand over the presidency",
+    deniedBecause: "only the President (or a college admin) can hand the club over",
   },
   {
     action: "club:invite",
@@ -98,12 +121,12 @@ const CAPABILITIES: readonly Capability[] = [
   {
     action: "event:publish",
     label: "Create and publish events",
-    deniedBecause: "Presidents and Event Managers look after events",
+    deniedBecause: "the President and Leads look after events",
   },
   {
     action: "attendance:scan",
     label: "Scan people in at the door",
-    deniedBecause: "Presidents and Event Managers run the door",
+    deniedBecause: "the President and Leads run the door",
   },
   {
     action: "club:delete",
@@ -270,7 +293,12 @@ export default async function DemoClubPage({
   // Only a President or college admin would see this section when signed in, so
   // only show it here for those viewers — the point is fidelity to the real page.
   const seesInvites = canClub(actor, "club:invite");
-  const invites = seesInvites ? await listClubInvites(club.id, club.tenantId) : [];
+  const seesAnnouncements = canClub(actor, "announcement:read");
+  const [invites, announcements] = await Promise.all([
+    seesInvites ? listClubInvites(club.id, club.tenantId) : Promise.resolve([]),
+    seesAnnouncements ? listClubAnnouncements(club.id, club.tenantId) : Promise.resolve([]),
+  ]);
+  const president = members.find((member) => member.role === "PRESIDENT");
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 lg:py-12">
@@ -380,6 +408,53 @@ export default async function DemoClubPage({
         </CardContent>
       </Card>
 
+      {seesAnnouncements ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Megaphone className="size-4 text-muted-foreground" />
+              Announcements ({announcements.length})
+            </CardTitle>
+            <CardDescription>
+              Members-only news from the club&apos;s Leads and President. The pinned one stays on top.
+              {canClub(actor, "announcement:post")
+                ? " Signed in, you would also get a box to post one, plus Pin, Edit and Delete buttons."
+                : ""}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {announcements.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing posted yet.</p>
+            ) : (
+              <ul className="flex flex-col divide-y" aria-label="Announcements">
+                {announcements.map((item) => (
+                  <li key={item.id} className="py-4 first:pt-0 last:pb-0">
+                    <AnnouncementBody
+                      title={item.title}
+                      body={item.body}
+                      pinned={item.pinned}
+                      createdAt={item.createdAt}
+                      editedAt={item.editedAt}
+                      authorName={item.author.displayName}
+                      authorRole={item.author.role}
+                      timeZone={club.tenant.timezone}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Alert>
+          <Megaphone />
+          <AlertDescription>
+            {account.displayName} isn&apos;t a member of this club, so its announcements stay hidden —
+            they are for members only.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -484,8 +559,8 @@ export default async function DemoClubPage({
 
           <p className="mt-3 text-xs text-muted-foreground">
             {canClub(actor, "event:create")
-              ? "As President or Event Manager you would also get a \u201cNew event\u201d button here, plus Publish, Edit and Cancel on each row."
-              : "Creating and publishing events is reserved for the club\u2019s President and Event Manager."}
+              ? "As President or Lead you would also get a \u201cNew event\u201d button here, plus Publish, Edit and Cancel on each row."
+              : "Creating and publishing events is reserved for the club\u2019s President and Leads."}
           </p>
         </CardContent>
       </Card>
@@ -497,8 +572,13 @@ export default async function DemoClubPage({
             Members ({club._count.members})
           </CardTitle>
           <CardDescription>
-            In the signed-in version a President can change a role from a dropdown here. The club&apos;s
-            only President can never be demoted or removed — the server refuses it with an explanation.
+            Every club has exactly one President
+            {president
+              ? ` — here, ${[president.user.firstName, president.user.lastName].filter(Boolean).join(" ") || president.user.email}`
+              : " (this one has none yet; a college admin can appoint one)"}
+            . Signed in, Leads get a Remove button next to Members; the President can also remove
+            Leads, switch anyone between Member and Lead, and hand the presidency over (the database
+            refuses a second President).
           </CardDescription>
         </CardHeader>
         <CardContent>

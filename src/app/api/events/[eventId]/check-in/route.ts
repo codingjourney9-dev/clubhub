@@ -28,7 +28,7 @@ async function handlePOST(
     const { eventId: rawEventId } = await params;
     const eventId = requireUuidParam(rawEventId, "event");
 
-    // Only Presidents and Event Managers may work the door.
+    // Only the President and Leads (EVENT_MANAGER) may work the door.
     const context = await requireEventAccess(eventId, "attendance:scan");
 
     const input = await parseJsonBody(request, checkInSchema);

@@ -14,6 +14,8 @@ import { isDemoModeEnabled } from "@/lib/demo/mode";
 import { loadMemberOverview } from "@/lib/services/dashboard-service";
 import { cn } from "@/lib/utils";
 import { DEMO_ACCOUNTS, findDemoAccount } from "@/config/demo";
+import { DashboardAnnouncements } from "@/components/features/announcement/dashboard-announcements";
+import { listAnnouncementsForMember } from "@/lib/services/announcement-service";
 
 export const metadata: Metadata = { title: "Demo preview" };
 export const dynamic = "force-dynamic";
@@ -63,7 +65,7 @@ export default async function DemoPage({
   // The overview, the college's clubs and today's door event do not depend on
   // each other, so they are fetched together (one round trip, not three).
   const now = new Date();
-  const [overview, clubs, doorEvent] = await Promise.all([
+  const [overview, clubs, doorEvent, announcements] = await Promise.all([
     loadMemberOverview(user.id),
     // Every club in the colleges this viewer belongs to — including clubs they
     // have not joined, which is exactly how a college admin sees the place.
@@ -101,6 +103,7 @@ export default async function DemoPage({
         club: { select: { name: true, tenant: { select: { timezone: true } } } },
       },
     }),
+    listAnnouncementsForMember(user.id, 4),
   ]);
 
   const doorIsOpen =
@@ -180,6 +183,12 @@ export default async function DemoPage({
           </CardContent>
         </Card>
       ) : null}
+
+      <DashboardAnnouncements
+        announcements={announcements}
+        inAnyClub={overview.clubRoles.length > 0}
+        clubHref={(clubId) => `/demo/clubs/${clubId}?as=${account.key}`}
+      />
 
       <MemberOverviewView overview={overview} />
 

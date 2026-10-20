@@ -12,8 +12,8 @@
 //     cannot forge a check-in.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
   // Load `include`d relations with one LATERAL JOIN query instead of one query
   // per relation. Against a remote database every query is a network round
   // trip (~80–250 ms from India), so this alone cuts most pages by a third.
@@ -76,27 +76,28 @@ enum AttendanceSource {
 // ────────────────────────── Identity ──────────────────────────
 
 model User {
-  id            String    @id @default(uuid()) @db.Uuid
-  email         String    @unique
-  passwordHash  String?   @map("password_hash")
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String?   @map("password_hash")
   // Optional at the storage layer because non-password sign-in paths (OAuth,
   // emailed invites) may not carry a name; the registration flow requires both.
-  firstName     String?   @map("first_name")
-  lastName      String?   @map("last_name")
-  avatarUrl     String?   @map("avatar_url")
+  firstName    String?   @map("first_name")
+  lastName     String?   @map("last_name")
+  avatarUrl    String?   @map("avatar_url")
   // Display timezone override; falls back to the active tenant's timezone.
-  timezone      String?
-  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(3)
+  timezone     String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   tenantMemberships TenantMember[]
   clubMemberships   ClubMember[]
   tickets           Ticket[]
-  createdEvents     Event[]       @relation("EventCreatedBy")
-  checkIns          Attendance[]  @relation("AttendanceCheckedInBy")
+  createdEvents     Event[]        @relation("EventCreatedBy")
+  checkIns          Attendance[]   @relation("AttendanceCheckedInBy")
   tenantInvites     TenantInvite[] @relation("TenantInviteCreatedBy")
   clubInvites       ClubInvite[]   @relation("ClubInviteCreatedBy")
+  announcements     Announcement[] @relation("AnnouncementAuthor")
 
   @@index([deletedAt])
   @@map("users")
@@ -105,19 +106,19 @@ model User {
 // ────────────────────────── Tenancy ──────────────────────────
 
 model Tenant {
-  id       String @id @default(uuid()) @db.Uuid
+  id       String  @id @default(uuid()) @db.Uuid
   name     String
-  slug     String @unique
+  slug     String  @unique
   /// Verified email domain for auto-joining, e.g. "college.edu".
   domain   String? @unique
   /// IANA timezone used to interpret naive scheduling input.
-  timezone String @default("Asia/Kolkata")
+  timezone String  @default("Asia/Kolkata")
 
   /// { primaryColor, logoUrl, faviconUrl, ... } as JSON so tenants can be
   /// themed without a schema migration.
-  brandingSettings Json    @default("{}") @map("branding_settings")
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  brandingSettings Json      @default("{}") @map("branding_settings")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt        DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   members TenantMember[]
@@ -149,8 +150,8 @@ model TenantMember {
 // ────────────────────────── Clubs ──────────────────────────
 
 model Club {
-  id          String @id @default(uuid()) @db.Uuid
-  tenantId    String @map("tenant_id") @db.Uuid
+  id          String  @id @default(uuid()) @db.Uuid
+  tenantId    String  @map("tenant_id") @db.Uuid
   name        String
   slug        String
   description String?
@@ -161,10 +162,11 @@ model Club {
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  members ClubMember[]
-  events  Event[]
-  invites ClubInvite[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  members       ClubMember[]
+  events        Event[]
+  invites       ClubInvite[]
+  announcements Announcement[]
 
   /// Composite target for child rows: guarantees an event's tenantId matches
   /// the tenant of its club.
@@ -175,14 +177,14 @@ model Club {
 }
 
 model ClubMember {
-  id        String   @id @default(uuid()) @db.Uuid
-  clubId    String   @map("club_id") @db.Uuid
-  userId    String   @map("user_id") @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  clubId    String    @map("club_id") @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
   /// Role is per club: the same user can be PRESIDENT here and MEMBER elsewhere.
-  role      ClubRole @default(MEMBER)
-  joinedAt  DateTime @default(now()) @map("joined_at") @db.Timestamptz(3)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  role      ClubRole  @default(MEMBER)
+  joinedAt  DateTime  @default(now()) @map("joined_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
 
   club Club @relation(fields: [clubId], references: [id], onDelete: Cascade)
@@ -206,7 +208,7 @@ model TenantInvite {
   id       String @id @default(uuid()) @db.Uuid
   tenantId String @map("tenant_id") @db.Uuid
 
-  token String @unique
+  token String     @unique
   role  TenantRole
 
   /// Optional: restricts the link to one address. Null means "anyone with the link".
@@ -217,7 +219,7 @@ model TenantInvite {
   uses      Int       @default(0)
   revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
 
-  createdById String @map("created_by_id") @db.Uuid
+  createdById String   @map("created_by_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
   tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -235,7 +237,7 @@ model ClubInvite {
   tenantId String @map("tenant_id") @db.Uuid
   clubId   String @map("club_id") @db.Uuid
 
-  token String @unique
+  token String   @unique
   role  ClubRole
 
   email String?
@@ -245,11 +247,11 @@ model ClubInvite {
   uses      Int       @default(0)
   revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
 
-  createdById String @map("created_by_id") @db.Uuid
+  createdById String   @map("created_by_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  club      Club   @relation(fields: [clubId, tenantId], references: [id, tenantId], onDelete: Cascade)
-  createdBy User   @relation("ClubInviteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  club      Club @relation(fields: [clubId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  createdBy User @relation("ClubInviteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
 
   @@index([clubId, createdAt])
   @@map("club_invites")
@@ -271,12 +273,12 @@ model Event {
 
   /// NULL means unlimited. Non-null values are enforced under a row lock in
   /// Phase 5 (SELECT … FOR UPDATE) so concurrent RSVPs cannot overbook.
-  capacity         Int?
-  waitlistEnabled  Boolean @default(false) @map("waitlist_enabled")
-  status           EventStatus @default(DRAFT)
+  capacity        Int?
+  waitlistEnabled Boolean     @default(false) @map("waitlist_enabled")
+  status          EventStatus @default(DRAFT)
   /// true  → visible to everyone in the tenant
   /// false → visible only to club members
-  isPublic         Boolean @default(false) @map("is_public")
+  isPublic        Boolean     @default(false) @map("is_public")
 
   /// Poster image — a pasted https link (or a site-relative path for seeded
   /// demo posters). Never fetched by the server, only rendered by browsers.
@@ -297,9 +299,9 @@ model Event {
 
   /// onDelete: Restrict — a club with events cannot be hard-deleted; both are
   /// soft-deleted in the product, so history (tickets, attendance) survives.
-  club      Club         @relation(fields: [clubId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  createdBy User?        @relation("EventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  tickets   Ticket[]
+  club       Club         @relation(fields: [clubId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  createdBy  User?        @relation("EventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  tickets    Ticket[]
   attendance Attendance[]
 
   @@unique([id, tenantId])
@@ -321,17 +323,17 @@ model Ticket {
   /// Opaque secret embedded in the QR image. Unique and separate from `id`.
   qrCodeUuid String @unique @map("qr_code_uuid") @db.Uuid
 
-  status TicketStatus @default(REGISTERED)
+  status           TicketStatus @default(REGISTERED)
   /// FIFO position when WAITLISTED; cleared on promotion.
-  waitlistPosition Int? @map("waitlist_position")
+  waitlistPosition Int?         @map("waitlist_position")
 
   createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   cancelledAt DateTime? @map("cancelled_at") @db.Timestamptz(3)
   deletedAt   DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  event     Event              @relation(fields: [eventId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  user      User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  event      Event       @relation(fields: [eventId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Restrict)
   attendance Attendance?
 
   /// One ticket per person per event — the database, not the UI, is what makes
@@ -350,24 +352,56 @@ model Attendance {
   /// One check-in per ticket.
   ticketId String @unique @map("ticket_id") @db.Uuid
 
-  checkInTime DateTime @default(now()) @map("check_in_time") @db.Timestamptz(3)
-  source      AttendanceSource @default(SCANNER)
+  checkInTime   DateTime         @default(now()) @map("check_in_time") @db.Timestamptz(3)
+  source        AttendanceSource @default(SCANNER)
   /// Staff member who performed the check-in; nulled if that account is purged.
-  checkedInById String? @map("checked_in_by") @db.Uuid
+  checkedInById String?          @map("checked_in_by") @db.Uuid
   /// Client-generated idempotency key from the offline scanner queue (Phase 6):
   /// replays of the same scan collapse into one row.
-  scanUuid    String? @unique @map("scan_uuid") @db.Uuid
-  deviceLabel String? @map("device_label")
+  scanUuid      String?          @unique @map("scan_uuid") @db.Uuid
+  deviceLabel   String?          @map("device_label")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  event     Event  @relation(fields: [eventId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  ticket    Ticket @relation(fields: [ticketId, tenantId], references: [id, tenantId], onDelete: Restrict)
-  checkedInBy User? @relation("AttendanceCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+  event       Event  @relation(fields: [eventId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  ticket      Ticket @relation(fields: [ticketId, tenantId], references: [id, tenantId], onDelete: Restrict)
+  checkedInBy User?  @relation("AttendanceCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
 
   /// One check-in per ticket (and the composite target for the ticket relation).
   @@unique([ticketId, tenantId])
   @@index([eventId, checkInTime])
   @@index([checkedInById])
   @@map("attendance")
+}
+
+/// A message from a club's Leads/President to its members — never public.
+///
+/// Rules the database holds on its own (hand-written in the migration, because
+/// Prisma's schema language can't say them without a preview feature):
+///   • at most ONE pinned announcement per club (partial unique index);
+///   • title and body length limits (CHECK), matching the Zod schema.
+model Announcement {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  clubId   String @map("club_id") @db.Uuid
+  authorId String @map("author_id") @db.Uuid
+
+  title String @db.VarChar(120)
+  /// Plain text. Rendered as text (never HTML), line breaks preserved.
+  body  String
+
+  pinnedAt DateTime? @map("pinned_at") @db.Timestamptz(3)
+  /// Set when the author changes the text — shown as "edited".
+  editedAt DateTime? @map("edited_at") @db.Timestamptz(3)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  club   Club @relation(fields: [clubId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  author User @relation("AnnouncementAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([clubId, deletedAt, createdAt])
+  @@index([tenantId])
+  @@map("announcements")
 }

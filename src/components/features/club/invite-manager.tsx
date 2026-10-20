@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { callApi, notifyFailure } from "@/lib/api/client";
+import { CLUB_ROLE_LABELS, clubRoleLabel } from "@/lib/domain/club-roles";
 
 /**
  * Invite-link creation and management.
@@ -19,7 +20,7 @@ import { callApi, notifyFailure } from "@/lib/api/client";
  * a class group chat.
  *
  * Roles offered here are limited to what the VIEWER may hand out (computed on the
- * server), so an Event Manager never sees a "President" option — and the API
+ * server): Member or Lead only — presidency is handed over, never invited — and the API
  * rejects it anyway if someone tries to forge the request.
  */
 
@@ -130,7 +131,7 @@ export function InviteManager({
             >
               {assignableRoles.map((option) => (
                 <option key={option} value={option}>
-                  {option === "EVENT_MANAGER" ? "Event Manager" : option.charAt(0) + option.slice(1).toLowerCase()}
+                  {clubRoleLabel(option as keyof typeof CLUB_ROLE_LABELS)}
                 </option>
               ))}
             </select>

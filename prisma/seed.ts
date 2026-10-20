@@ -27,7 +27,7 @@ const db = new PrismaClient({ adapter: new PrismaPg({ connectionString: normaliz
 const TENANT_ID = "0f1d2c3b-4a59-4e6d-8b7c-100000000001";
 const USER = {
   aarav: "0f1d2c3b-4a59-4e6d-8b7c-000000000001", // President, Robotics Club
-  meera: "0f1d2c3b-4a59-4e6d-8b7c-000000000002", // Event Manager, Robotics Club
+  meera: "0f1d2c3b-4a59-4e6d-8b7c-000000000002", // Lead (EVENT_MANAGER), Robotics Club
   kabir: "0f1d2c3b-4a59-4e6d-8b7c-000000000003", // plain member of both clubs
   nisha: "0f1d2c3b-4a59-4e6d-8b7c-000000000004", // tenant admin (Dean of Student Affairs)
 } as const;
@@ -57,6 +57,13 @@ const TICKET = {
   openMeera: { id: "0f1d2c3b-4a59-4e6d-8b7c-40000000000a", qr: "0f1d2c3b-4a59-4e6d-8b7c-50000000000a" },
   openKabir: { id: "0f1d2c3b-4a59-4e6d-8b7c-40000000000b", qr: "0f1d2c3b-4a59-4e6d-8b7c-50000000000b" },
   openNisha: { id: "0f1d2c3b-4a59-4e6d-8b7c-40000000000c", qr: "0f1d2c3b-4a59-4e6d-8b7c-50000000000c" },
+} as const;
+
+/** Fixed announcement ids (Phase 10), for the same reason. */
+const ANNOUNCEMENT = {
+  buildNights: "0f1d2c3b-4a59-4e6d-8b7c-600000000001",
+  doorVolunteers: "0f1d2c3b-4a59-4e6d-8b7c-600000000002",
+  debateNeedsPresident: "0f1d2c3b-4a59-4e6d-8b7c-600000000003",
 } as const;
 
 /**
@@ -181,6 +188,15 @@ async function main() {
     { clubId: debate.id, userId: USER.kabir, role: "MEMBER" as const },
   ];
 
+  // A club has exactly one President (database rule since Phase 10). If you
+  // handed Robotics to someone else while trying the app, re-seeding hands it
+  // back to Aarav: the other person steps down to Lead first, so the two never
+  // overlap. Debate is seeded with no President on purpose.
+  await db.clubMember.updateMany({
+    where: { clubId: robotics.id, role: "PRESIDENT", userId: { not: USER.aarav } },
+    data: { role: "EVENT_MANAGER" },
+  });
+
   for (const membership of clubRoles) {
     await db.clubMember.upsert({
       where: { clubId_userId: { clubId: membership.clubId, userId: membership.userId } },
@@ -209,6 +225,58 @@ async function main() {
       createdById: USER.aarav,
     },
   });
+
+  // ── Announcements (Phase 10): members-only news, one pinned per club ──
+  // Fixed ids, so re-seeding restores these exact posts (undeleting them if you
+  // deleted one while trying the app) instead of piling up copies.
+  const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+  await db.announcement.updateMany({
+    where: { clubId: { in: [robotics.id, debate.id] }, pinnedAt: { not: null }, id: { notIn: [ANNOUNCEMENT.buildNights] } },
+    data: { pinnedAt: null },
+  });
+  const announcements = [
+    {
+      id: ANNOUNCEMENT.buildNights,
+      clubId: robotics.id,
+      authorId: USER.aarav,
+      title: "RoboWars build nights: Tue & Thu, 6–9 pm",
+      body:
+        "Lab 2 is booked for us every Tuesday and Thursday until RoboWars.\n" +
+        "Bring your own laptop; the soldering kit stays in the cupboard by the door.\n" +
+        "Sign the sheet when you take a battery pack.",
+      pinnedAt: hoursAgo(70),
+      createdAt: hoursAgo(72),
+    },
+    {
+      id: ANNOUNCEMENT.doorVolunteers,
+      clubId: robotics.id,
+      authorId: USER.meera,
+      title: "Volunteers needed at the RoboWars door",
+      body:
+        "We need 4 people to scan tickets at the entrance on the day. Each shift is 30 minutes " +
+        "and I'll show you the scanner beforehand. Tell me after class or reply in the WhatsApp group.",
+      pinnedAt: null,
+      createdAt: hoursAgo(20),
+    },
+    {
+      id: ANNOUNCEMENT.debateNeedsPresident,
+      clubId: debate.id,
+      authorId: USER.nisha,
+      title: "Debate Club needs a President",
+      body:
+        "The Debate Club has no President this term. If you would like to run it, drop by the " +
+        "Student Affairs office — we can hand the club over to you from its page.",
+      pinnedAt: null,
+      createdAt: hoursAgo(30),
+    },
+  ];
+  for (const { id, ...announcement } of announcements) {
+    await db.announcement.upsert({
+      where: { id },
+      update: { ...announcement, editedAt: null, deletedAt: null },
+      create: { id, tenantId: tenant.id, ...announcement },
+    });
+  }
 
   // ── Events: public + members-only, past + upcoming ────────────────────────
   const WA_DEMO = "https://chat.whatsapp.com/DemoInviteCodeClubHub0001";
@@ -434,7 +502,7 @@ async function main() {
   Demo accounts — password for all: ${DEMO_PASSWORD}
 
     aarav.president@vit.ac.in   Tenant Owner   · President, Robotics Club · Member, Debate Society
-    meera.manager@vit.ac.in     Tenant Member  · Event Manager, Robotics Club
+    meera.manager@vit.ac.in     Tenant Member  · Lead, Robotics Club · Member, Debate Society
     kabir.member@vit.ac.in      Tenant Member  · Member in both clubs
     dean.admin@vit.ac.in        Tenant Admin   · no club role (cross-club visibility)
 
@@ -442,6 +510,7 @@ async function main() {
   Tickets  12 (11 seats held · 1 person queuing for a full room)
   Door     5 checked in — Open House (today) 1 of 4 · Debug Night 2 of 3 · RoboWars 2 of 4
   Invites  1   public demo link: join/${DEMO_INVITE_TOKEN}
+  Announcements 3 (1 pinned in Robotics · Debate has no President yet)
   ──────────────────────────────────────────────────────────────
 `);
 }

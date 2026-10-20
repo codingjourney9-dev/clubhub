@@ -56,7 +56,7 @@ export default async function DoorIndexPage() {
           <CardHeader>
             <CardTitle>No doors to run</CardTitle>
             <CardDescription>
-              Checking people in is a President or Event Manager job. You are neither, in any club —
+              Checking people in is a President or Lead job. You are neither, in any club —
               so there is nothing here for you, and that is on purpose.
             </CardDescription>
           </CardHeader>

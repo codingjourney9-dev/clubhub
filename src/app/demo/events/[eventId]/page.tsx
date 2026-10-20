@@ -414,7 +414,7 @@ export default async function DemoEventPage({
               Guest list ({registered.length})
             </CardTitle>
             <CardDescription>
-              Only Presidents and Event Managers see this. Roster rows carry no ticket secrets — a
+              Only the President and Leads see this. Roster rows carry no ticket secrets — a
               door list is not a wallet of keys.
             </CardDescription>
           </CardHeader>
@@ -482,7 +482,7 @@ export default async function DemoEventPage({
           <Info />
           <AlertDescription>
             {account.displayName} does not see the guest list — only the club&apos;s President and
-            Event Manager do. Switch to <strong>Aarav Shah</strong> or <strong>Meera Patel</strong>{" "}
+            Leads do. Switch to <strong>Aarav Shah</strong> or <strong>Meera Patel</strong>{" "}
             above to reveal it.
           </AlertDescription>
         </Alert>

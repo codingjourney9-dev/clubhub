@@ -4,7 +4,9 @@ import {
   assignableClubRoles,
   canAssignClubRole,
   canAssignTenantRole,
+  canChangeClubRole,
   canClub,
+  canRemoveClubMember,
   canTenant,
   CLUB_MATRIX,
   TENANT_MATRIX,
@@ -55,13 +57,18 @@ describe("club matrix", () => {
     }
   });
 
-  it("restricts an Event Manager to event work", () => {
+  it("lets a Lead (EVENT_MANAGER) run events, remove Members and post — nothing more", () => {
     const eventManager = actor("MEMBER", "EVENT_MANAGER");
     expect(canClub(eventManager, "event:create")).toBe(true);
     expect(canClub(eventManager, "event:publish")).toBe(true);
     expect(canClub(eventManager, "attendance:scan")).toBe(true);
     expect(canClub(eventManager, "club:update")).toBe(false);
-    expect(canClub(eventManager, "club:manage_members")).toBe(false);
+    expect(canClub(eventManager, "club:remove_member")).toBe(true);
+    expect(canClub(eventManager, "announcement:post")).toBe(true);
+    expect(canClub(eventManager, "club:remove_lead")).toBe(false);
+    expect(canClub(eventManager, "club:change_roles")).toBe(false);
+    expect(canClub(eventManager, "club:transfer_presidency")).toBe(false);
+    expect(canClub(eventManager, "announcement:moderate")).toBe(false);
     expect(canClub(eventManager, "club:invite")).toBe(false);
     expect(canClub(eventManager, "event:delete")).toBe(false);
   });
@@ -83,7 +90,10 @@ describe("club matrix", () => {
   it("lets a college Owner/Admin administer every club in that college", () => {
     for (const tenantRole of ["OWNER", "ADMIN"] as const) {
       expect(canClub(actor(tenantRole, null), "club:read")).toBe(true);
-      expect(canClub(actor(tenantRole, null), "club:manage_members")).toBe(true);
+      expect(canClub(actor(tenantRole, null), "club:remove_lead")).toBe(true);
+      expect(canClub(actor(tenantRole, null), "club:change_roles")).toBe(true);
+      expect(canClub(actor(tenantRole, null), "club:transfer_presidency")).toBe(true);
+      expect(canClub(actor(tenantRole, null), "announcement:moderate")).toBe(true);
       expect(canClub(actor(tenantRole, null), "club:invite")).toBe(true);
       expect(canClub(actor(tenantRole, null), "event:publish")).toBe(true);
       expect(canClub(actor(tenantRole, null), "club:delete")).toBe(true);
@@ -91,11 +101,10 @@ describe("club matrix", () => {
   });
 
   it("does not let college authority add club roles on top", () => {
-    // A college admin with no club membership still cannot be treated as a
-    // President for role-assignment purposes — the override is explicit, not a
-    // silent promotion to PRESIDENT.
+    // The override lets a college admin manage the club, but even they cannot
+    // hand out PRESIDENT directly — presidency only moves by handing over.
     expect(canClub(actor("ADMIN", null), "club:update")).toBe(true);
-    expect(assignableClubRoles(actor("ADMIN", null))).toContain("PRESIDENT");
+    expect(assignableClubRoles(actor("ADMIN", null))).not.toContain("PRESIDENT");
   });
 
   it("only a college Owner/Admin or a President may delete a club", () => {
@@ -109,23 +118,21 @@ describe("club matrix", () => {
 });
 
 describe("role assignment (privilege escalation)", () => {
-  it("lets only a President or college admin hand out club roles", () => {
-    expect(assignableClubRoles(actor("MEMBER", "PRESIDENT"))).toEqual([
-      "MEMBER",
-      "EVENT_MANAGER",
-      "PRESIDENT",
-    ]);
-    expect(assignableClubRoles(actor("OWNER", null))).toContain("PRESIDENT");
+  it("lets only a President or college admin hand out club roles — and never PRESIDENT", () => {
+    expect(assignableClubRoles(actor("MEMBER", "PRESIDENT"))).toEqual(["MEMBER", "EVENT_MANAGER"]);
+    expect(assignableClubRoles(actor("OWNER", null))).toEqual(["MEMBER", "EVENT_MANAGER"]);
     expect(assignableClubRoles(actor("MEMBER", "EVENT_MANAGER"))).toEqual([]);
     expect(assignableClubRoles(actor("MEMBER", "MEMBER"))).toEqual([]);
     expect(assignableClubRoles(actor(null, null))).toEqual([]);
   });
 
-  it("refuses an Event Manager trying to mint a President invite", () => {
+  it("refuses a President invite to everybody, President included", () => {
     const eventManager = actor("MEMBER", "EVENT_MANAGER");
     expect(canAssignClubRole(eventManager, "PRESIDENT")).toBe(false);
     expect(canAssignClubRole(eventManager, "MEMBER")).toBe(false);
-    expect(canAssignClubRole(actor("MEMBER", "PRESIDENT"), "PRESIDENT")).toBe(true);
+    expect(canAssignClubRole(actor("MEMBER", "PRESIDENT"), "PRESIDENT")).toBe(false);
+    expect(canAssignClubRole(actor("OWNER", null), "PRESIDENT")).toBe(false);
+    expect(canAssignClubRole(actor("MEMBER", "PRESIDENT"), "EVENT_MANAGER")).toBe(true);
   });
 
   it("lets only an Owner create Owners or Admins", () => {
@@ -150,5 +157,65 @@ describe("role assignment (privilege escalation)", () => {
         }
       }
     }
+  });
+});
+
+describe("tiered member management (Phase 10)", () => {
+  const me = "00000000-0000-4000-8000-000000000001";
+  const them = "00000000-0000-4000-8000-000000000002";
+  const as = (tenantRole: TenantRole | null, clubRole: ClubRole | null) => ({
+    ...actor(tenantRole, clubRole),
+    userId: me,
+  });
+  const target = (role: ClubRole) => ({ userId: them, role });
+
+  it("Leads remove Members but not other Leads", () => {
+    const lead = as("MEMBER", "EVENT_MANAGER");
+    expect(canRemoveClubMember(lead, target("MEMBER"))).toBe(true);
+    expect(canRemoveClubMember(lead, target("EVENT_MANAGER"))).toBe(false);
+  });
+
+  it("the President removes Members and Leads", () => {
+    const president = as("MEMBER", "PRESIDENT");
+    expect(canRemoveClubMember(president, target("MEMBER"))).toBe(true);
+    expect(canRemoveClubMember(president, target("EVENT_MANAGER"))).toBe(true);
+  });
+
+  it("nobody removes the President — not even a college admin", () => {
+    for (const viewer of [as("MEMBER", "PRESIDENT"), as("OWNER", null), as("ADMIN", "MEMBER")]) {
+      expect(canRemoveClubMember(viewer, target("PRESIDENT"))).toBe(false);
+    }
+  });
+
+  it("a plain Member removes nobody", () => {
+    const member = as("MEMBER", "MEMBER");
+    for (const role of CLUB_ROLES) expect(canRemoveClubMember(member, target(role))).toBe(false);
+  });
+
+  it("nobody removes themselves through this rule", () => {
+    expect(canRemoveClubMember(as("MEMBER", "PRESIDENT"), { userId: me, role: "MEMBER" })).toBe(false);
+  });
+
+  it("only the President (or a college admin) moves people between Member and Lead", () => {
+    expect(canChangeClubRole(as("MEMBER", "PRESIDENT"), target("MEMBER"), "EVENT_MANAGER")).toBe(true);
+    expect(canChangeClubRole(as("MEMBER", "PRESIDENT"), target("EVENT_MANAGER"), "MEMBER")).toBe(true);
+    expect(canChangeClubRole(as("ADMIN", null), target("MEMBER"), "EVENT_MANAGER")).toBe(true);
+    expect(canChangeClubRole(as("MEMBER", "EVENT_MANAGER"), target("MEMBER"), "EVENT_MANAGER")).toBe(false);
+  });
+
+  it("role changes never touch presidency, in either direction", () => {
+    const president = as("MEMBER", "PRESIDENT");
+    expect(canChangeClubRole(president, target("MEMBER"), "PRESIDENT")).toBe(false);
+    expect(canChangeClubRole(president, target("PRESIDENT"), "MEMBER")).toBe(false);
+    expect(canChangeClubRole(as("OWNER", null), target("PRESIDENT"), "EVENT_MANAGER")).toBe(false);
+  });
+
+  it("announcements: everyone in the club reads, Leads and the President post, only the President moderates", () => {
+    expect(CLUB_MATRIX["announcement:read"]).toEqual(["PRESIDENT", "EVENT_MANAGER", "MEMBER"]);
+    expect(canClub(actor("MEMBER", "MEMBER"), "announcement:post")).toBe(false);
+    expect(canClub(actor("MEMBER", "EVENT_MANAGER"), "announcement:post")).toBe(true);
+    expect(canClub(actor("MEMBER", "PRESIDENT"), "announcement:moderate")).toBe(true);
+    // Someone in the college but not the club reads nothing.
+    expect(canClub(actor("MEMBER", null), "announcement:read")).toBe(false);
   });
 });

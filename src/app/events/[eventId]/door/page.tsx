@@ -50,7 +50,7 @@ export default async function DoorPage({ params }: { params: Promise<{ eventId: 
           <CardHeader>
             <CardTitle>Only the club can run this door</CardTitle>
             <CardDescription>
-              Checking people in belongs to the club&apos;s President and Event Manager.
+              Checking people in belongs to the club&apos;s President and Leads.
             </CardDescription>
           </CardHeader>
           <CardContent>

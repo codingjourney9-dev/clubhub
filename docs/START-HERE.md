@@ -361,6 +361,39 @@ it, and it shows them only public events.)
 > The WhatsApp link on the demo events is a dummy (`DemoInviteCodeClubHub0001`) — it won't open a real
 > group.
 
+### Step 12⅞ — Leads, one President, announcements (new in Phase 10)
+
+What changed in plain words: the old "Event Manager" is now called a **Lead**. Leads can remove ordinary
+members; only the **President** can remove Leads, promote people, or **hand the club over**. A club has
+exactly one President — the database itself refuses a second. Leads and the President can post
+**announcements** that only club members see.
+
+**In the preview (no sign-in):**
+
+1. Open `/demo` and click **Robotics Club** in the club list.
+2. Near the top, the **Announcements** card shows two posts. The first has a small **PINNED** label —
+   it stays on top. One was written by Meera, marked **Lead**.
+3. Scroll to **What this person can do here**. Click **View as → Meera Patel** at the top. Ticks:
+   *Remove a Member*, *Post announcements*. Crosses: *Remove a Lead*, *Hand over the presidency*. Now
+   click **Aarav Shah** — everything is ticked.
+4. Click **View as → Kabir Rao**: he can *read* announcements but not post them.
+5. Click **Back to … dashboard**. As Kabir there is a new **From your clubs → Announcements** section.
+
+**On your own computer (signed in — this is where the buttons are):**
+
+6. Sign in as `meera.manager@vit.ac.in` / `password123` → **Dashboard** → **Robotics Club**.
+   - Type a **Title** and a **Message**, click **Post to members**. It appears in the list below.
+   - In **Members**, a red **Remove** button sits next to ordinary members only — none next to Aarav
+     (President) or yourself.
+7. Sign out (the arrow at the top right), sign in as `aarav.president@vit.ac.in`.
+   - Next to each member is a dropdown: **Member** / **Lead**. Change one and a message confirms it.
+   - Click **Hand over presidency** (top right of the Members card): pick a person, choose whether you
+     become a **Lead** or a **Member**, type `Robotics Club` in the box, and the button lights up.
+     *Tip: if you try it, sign in as the new President to hand it back — or just run
+     `npm run db:seed`, which puts Aarav back.*
+8. Try removing someone who holds a ticket for a **members-only** event: the green message says how many
+   seats were given back, and the next person on that event's waiting list gets in.
+
 ### Step 13 — (Optional) the real sign-in experience
 
 Sign-in needs cookies, so run the app on your own machine (§4) and use
@@ -415,13 +448,13 @@ Two commands do the checking for you. This is the habit that separates "it works
 real software.
 
 ```bash
-npm run test          # 299 automated checks — the "robot inspectors"
-npm run test:smoke    # 178 checks against the running website
+npm run test          # 416 automated checks — the "robot inspectors"
+npm run test:smoke    # 246 checks against the running website
 npm run test:layout   # 100 checks in a real browser, at phone and desktop widths
 npm run deploy:check  # 14 checks that a real deployment is configured safely
 ```
 
-The 299 tests answer questions like:
+The 416 tests answer questions like:
 
 - *"If someone tries to sneak an event from College B into College A's data, does the filing cabinet
   slam the drawer shut?"* → Yes, it refuses. (That's not politeness; the database physically can't
@@ -433,12 +466,13 @@ The 299 tests answer questions like:
 - *"If 20 students tap Register in the same second for a 5-seat room, does anybody get a 6th seat?"*
   → No. Exactly 5 get in and 15 join the queue. We proved this test has teeth by deleting the safety
   mechanism and watching it fail — 10 people got into that 5-seat room.
-- *"Can a club's last President remove themselves and leave the club with nobody in charge?"* → No,
-  it's refused with a message telling you what to do instead.
+- *"Can a club end up with two Presidents — or a President be removed?"* → No. The President can only
+  change by handing over, and the database itself refuses a second President even if the app's code
+  had a bug. Two hand-overs at the same instant still end with exactly one.
 - *"If someone from another college guesses a club's web address, what do they see?"* → A plain
   "not found" page. Nothing confirms whether that club exists.
 
-And the 178 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
+And the 246 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
 limit, read the dashboard as two different people, mint an invite link and redeem it as a brand-new
 account, take the last seat in a one-seat event to watch the queue move, and scan that ticket twice
 at the door to see the second scan come back as a receipt instead of an error.
@@ -458,7 +492,7 @@ It needs a browser. If `npm run test:layout` says it cannot find Chromium, insta
 npm run verify
 ```
 
-…which does *checking for typos* → *checking for type mistakes* → *running all 299 tests* → *building
+…which does *checking for typos* → *checking for type mistakes* → *running all 416 tests* → *building
 the final version*. If any step fails, the phase isn't done. One tip: stop the preview server first
 (`Ctrl-C`), because the build and the server share the same temporary folder.
 
@@ -479,20 +513,19 @@ with a review, and nothing starts until the previous one passes.
 | 6 | The phone scanner + works without internet | ✅ Done |
 | 7 | Make it pretty and bulletproof | ✅ Done |
 | 8 | Front door: guests can browse events, "Start a new club" asks them to sign in | ✅ Done |
-| 9 | Richer events: poster link, tags, Instagram / WhatsApp links | ✅ Built — waiting for your review |
-| 10 | Roles: "Lead" instead of Event Manager, removing people, handing over the presidency, members-only announcements | ⬜ Next |
-| 11 | Recruitment board: clubs post openings, students apply | ⬜ |
+| 9 | Richer events: poster link, tags, Instagram / WhatsApp links | ✅ Done |
+| 10 | Roles: "Lead" instead of Event Manager, removing people, handing over the presidency, members-only announcements | ✅ Built — waiting for your review |
+| 11 | Recruitment board: clubs post openings, students apply | ⬜ Next |
 | 12 | Any student can start a club; it stays Pending until a professor's code is entered | ⬜ |
 | 13 | The remaining screens in the new look + final checks | ⬜ |
 
-**In plain words, right now:** you can log in, create a college, create clubs inside it, invite
-people with a link, create and publish events — and, new in Phase 5, **claim a seat, join a waitlist,
-and get a QR ticket**. A room can no longer be oversold, not even when 20 people tap at the same
-instant, and cancelling a seat hands it to the next person in line automatically.
+**In plain words, right now:** guests can browse every college's public events; signed-in students
+get seats, QR tickets and waitlists; the door scanner works even without internet; events have posters,
+tags and links; and — new in Phase 10 — clubs have **Leads**, exactly **one President** who can hand the
+club over, and **members-only announcements**.
 
-What you *cannot* do yet is **use** that QR code: there is nothing to scan it with, and no way to tick
-somebody off at the door. That's Phase 6 — the phone camera, the door list, and the case where the
-basement has no internet.
+What you *cannot* do yet: clubs can't advertise openings ("we need a treasurer") and students can't apply.
+That's Phase 11, the recruitment board.
 
 ---
 
@@ -545,28 +578,19 @@ Rule of thumb while learning: **a screen lives in `src/app`, reusable pieces liv
 
 ## 9. What's next, and how you can steer it
 
-**Phase 5 is built.** A student can claim one of a fixed number of seats, join a queue when the room
-is full, cancel and hand their seat to whoever is next in line, and hold a QR ticket that is theirs
-alone. The room cannot be oversold — and that is a test that fires 20 simultaneous requests at a
-5-seat event, not a promise.
+**Phase 10 is built.** "Event Manager" is now **Lead**; Leads remove Members; the President removes
+Leads, promotes people and hands the club over; and clubs can post members-only announcements.
 
-**Phase 6 — the door, and the basement with no internet.** The QR codes exist but nothing reads them
-yet:
+**Phase 11 — the recruitment board.** Clubs post openings (title, description, requirements,
+Open/Closed); signed-in students apply; Leads accept Member applicants, only the President accepts Lead
+applicants, and accepting grants the role.
 
-- A **scanner page** for Event Managers: the phone camera points at a QR code, the person is checked
-  in, and a duplicate scan says "already inside" instead of checking them in twice.
-- **Offline resilience:** the basement has no signal, so accepted scans are held on the phone and
-  synced when it comes back. Each queued scan carries its own idempotency key, so a retry cannot
-  create a second check-in.
-- A **manual fallback**: type the short code when a screen is cracked or the camera refuses to focus.
-- An **attendance report** for the club, so "40 signed up, 12 turned up" becomes a number somebody
-  can look at.
-
-**How to approve Phase 5:**
+**How to approve Phase 10:**
 
 ```bash
 npm run app:up        # start the app
-npm run test:smoke    # watch it check all 130 behaviours
+npm run test:smoke    # watch it check all 246 behaviours
 ```
 
-Then tell me *"Phase 5 looks good"* (or what you would like changed) and I'll start Phase 6.
+Then try Step 12⅞ above and tell me *"Phase 10 looks good"* (or what you'd like changed) and I'll start
+Phase 11.

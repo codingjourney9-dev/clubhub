@@ -3,7 +3,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, Info, Lock, Users } from "lucide-react";
 
+import { ClubAnnouncements } from "@/components/features/announcement/club-announcements";
 import { ClubMembersManager, type ClubMemberRow } from "@/components/features/club/club-members-manager";
+import {
+  TransferPresidencyDialog,
+  type PresidencyCandidate,
+} from "@/components/features/club/transfer-presidency-dialog";
 import { InviteManager, type ClubInviteRow } from "@/components/features/club/invite-manager";
 import { EventList, type EventRow } from "@/components/features/event/event-list";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -12,7 +17,15 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError } from "@/lib/api/response";
 import { requireClubAccess, type ClubContext } from "@/lib/auth/guards";
-import { assignableClubRoles, canClub, type Actor } from "@/lib/auth/rbac";
+import {
+  assignableClubRoles,
+  canChangeClubRole,
+  canClub,
+  canRemoveClubMember,
+  type Actor,
+} from "@/lib/auth/rbac";
+import { clubRoleLabel } from "@/lib/domain/club-roles";
+import { listClubAnnouncements } from "@/lib/services/announcement-service";
 import { listClubMembers } from "@/lib/services/club-service";
 import { listClubEvents } from "@/lib/services/event-service";
 import { listClubInvites } from "@/lib/services/invite-service";
@@ -85,13 +98,17 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
   const context = result.context;
   const actor: Actor = { tenantRole: context.tenantRole, clubRole: context.clubRole };
 
-  const canManageMembers = canClub(actor, "club:manage_members");
+  const viewer = { ...actor, userId: context.user.id };
+  const canRemoveSomeone = canClub(actor, "club:remove_member");
+  const canChangeRoles = canClub(actor, "club:change_roles");
+  const canTransfer = canClub(actor, "club:transfer_presidency");
+  const canReadAnnouncements = canClub(actor, "announcement:read");
   const canInvite = canClub(actor, "club:invite");
   const canCreateEvent = canClub(actor, "event:create");
   const canEditEvent = canClub(actor, "event:update");
   const canDeleteEvent = canClub(actor, "event:delete");
 
-  const [members, invites, events] = await Promise.all([
+  const [members, invites, events, announcements] = await Promise.all([
     listClubMembers(clubId, context.club.tenantId),
     canInvite ? listClubInvites(clubId, context.club.tenantId) : Promise.resolve([]),
     // Drafts are included only for people who can edit events; the service applies
@@ -100,6 +117,9 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
       includeDrafts: canCreateEvent,
       includeWhatsapp: canEditEvent,
     }),
+    canReadAnnouncements
+      ? listClubAnnouncements(clubId, context.club.tenantId)
+      : Promise.resolve([]),
   ]);
 
   const eventRows: EventRow[] = events
@@ -123,16 +143,30 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
       whatsappUrl: "whatsappUrl" in event ? (event.whatsappUrl ?? null) : null,
     }));
 
-  const memberRows: ClubMemberRow[] = members.map((member) => ({
-    membershipId: member.membershipId,
-    role: member.role,
-    joinedAt: member.joinedAt.toISOString(),
-    user: {
-      id: member.user.id,
-      email: member.user.email,
-      displayName: member.user.displayName,
-    },
-  }));
+  // Each row's powers are decided here, on the server, from the target's role.
+  const memberRows: ClubMemberRow[] = members.map((member) => {
+    const target = { userId: member.user.id, role: member.role };
+    return {
+      membershipId: member.membershipId,
+      role: member.role,
+      joinedAt: member.joinedAt.toISOString(),
+      user: {
+        id: member.user.id,
+        email: member.user.email,
+        displayName: member.user.displayName,
+      },
+      canRemove: canRemoveClubMember(viewer, target),
+      canChangeRole: canChangeClubRole(viewer, target, "EVENT_MANAGER"),
+      isViewer: member.user.id === context.user.id,
+    };
+  });
+
+  const president = members.find((member) => member.role === "PRESIDENT") ?? null;
+  const presidencyCandidates: PresidencyCandidate[] = members.flatMap((member) =>
+    member.role === "PRESIDENT"
+      ? []
+      : [{ userId: member.user.id, displayName: member.user.displayName, role: member.role }],
+  );
 
   const inviteRows: ClubInviteRow[] = invites.map((invite) => ({
     id: invite.id,
@@ -167,11 +201,7 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl leading-[1.08] font-bold sm:text-4xl">{context.club.name}</h1>
           {context.clubRole ? (
-            <Badge>
-              {context.clubRole === "EVENT_MANAGER"
-                ? "Event Manager"
-                : context.clubRole.charAt(0) + context.clubRole.slice(1).toLowerCase()}
-            </Badge>
+            <Badge>{clubRoleLabel(context.clubRole)}</Badge>
           ) : context.tenantRole ? (
             <Badge variant="secondary">College {context.tenantRole.toLowerCase()}</Badge>
           ) : null}
@@ -194,25 +224,44 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
         </Alert>
       ) : null}
 
+      {canReadAnnouncements ? (
+        <ClubAnnouncements
+          clubId={clubId}
+          timeZone={context.club.timezone}
+          announcements={announcements}
+          viewerId={context.user.id}
+          canPost={canClub(actor, "announcement:post")}
+          canModerate={canClub(actor, "announcement:moderate")}
+        />
+      ) : null}
+
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="size-4 text-muted-foreground" />
-            Members
-          </CardTitle>
-          <CardDescription>
-            {canManageMembers
-              ? "Change a role from the dropdown. The club's only President cannot be demoted or removed."
-              : "Only the club President can change roles."}
-          </CardDescription>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col gap-1.5">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="size-4 text-muted-foreground" />
+              Members
+            </CardTitle>
+            <CardDescription>
+              {canChangeRoles
+                ? "Promote a Member to Lead (or back) from the dropdown. Remove anyone except the President — to step down, hand over the presidency."
+                : canRemoveSomeone
+                  ? "As a Lead you can remove Members. Only the President can remove Leads or change roles."
+                  : `President: ${president?.user.displayName ?? "none yet"}. Leads run events and post announcements.`}
+            </CardDescription>
+          </div>
+          {canTransfer ? (
+            <TransferPresidencyDialog
+              clubId={clubId}
+              clubName={context.club.name}
+              candidates={presidencyCandidates}
+              viewerIsPresident={context.clubRole === "PRESIDENT"}
+              currentPresidentName={president?.user.displayName ?? null}
+            />
+          ) : null}
         </CardHeader>
         <CardContent>
-          <ClubMembersManager
-            clubId={clubId}
-            members={memberRows}
-            canManage={canManageMembers}
-            assignableRoles={assignableClubRoles(actor)}
-          />
+          <ClubMembersManager clubId={clubId} members={memberRows} />
         </CardContent>
       </Card>
 

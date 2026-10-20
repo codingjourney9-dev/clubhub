@@ -25,7 +25,7 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
     key: "meera",
     email: "meera.manager@vit.ac.in",
     displayName: "Meera Patel",
-    highlight: "Event Manager of Robotics — can run events, cannot manage members",
+    highlight: "Lead of Robotics — runs events, removes Members, posts announcements; cannot remove Leads",
   },
   {
     key: "kabir",

@@ -29,7 +29,7 @@ async function handleGET(_request: Request, { params }: { params: Promise<{ club
  * POST /api/clubs/:clubId/invites — mint an invite link.
  *
  * The role is chosen by the creator and validated against what they may hand out
- * (`canAssignClubRole`), so an Event Manager can never produce a President link.
+ * (`canAssignClubRole`), so only a President/admin hands out roles, and no link ever makes a President.
  * Rate limited because a leaked session should not be able to spray links.
  */
 async function handlePOST(request: Request, { params }: { params: Promise<{ clubId: string }> }) {

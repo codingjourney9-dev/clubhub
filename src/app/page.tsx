@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 /** Kept in sync with prisma/seed.ts — the roles exist to show RBAC working. */
 const demoAccounts = [
   { email: "aarav.president@vit.ac.in", name: "Aarav", roles: "Tenant Owner · President, Robotics · Member, Debate" },
-  { email: "meera.manager@vit.ac.in", name: "Meera", roles: "Event Manager, Robotics · Member, Debate" },
+  { email: "meera.manager@vit.ac.in", name: "Meera", roles: "Lead, Robotics · Member, Debate" },
   { email: "kabir.member@vit.ac.in", name: "Kabir", roles: "Member of both clubs — the restricted view" },
   { email: "dean.admin@vit.ac.in", name: "Nisha", roles: "Tenant Admin · no club role, sees across clubs" },
 ] as const;
@@ -47,8 +47,8 @@ const guarantees = [
     body: "Each college is its own space. Every query is scoped to it, so one campus can never see another's members or events.",
   },
   {
-    title: "Presidents, managers, members.",
-    body: "Roles are per club: the same student can run Robotics and just attend Debate. Each sees exactly what they should.",
+    title: "Presidents, Leads, members.",
+    body: "Roles are per club: the same student can lead Robotics and just attend Debate. One President per club, Leads run events and post members-only news, and each person sees exactly what they should.",
   },
 ] as const;
 

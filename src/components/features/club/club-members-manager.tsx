@@ -4,6 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,13 +24,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { callApi, notifyFailure } from "@/lib/api/client";
+import { CLUB_ROLE_LABELS, PROMOTABLE_CLUB_ROLES } from "@/lib/domain/club-roles";
 
 /**
- * Members table with role controls.
+ * Members table with tiered controls (Phase 10).
  *
- * `canManage` is computed on the SERVER from the RBAC matrix and passed in — the
- * client never decides what it is allowed to do. The API re-checks regardless, so
- * hiding a button is convenience, not security.
+ * What each row allows — `canRemove`, `canChangeRole` — is worked out on the
+ * SERVER from the RBAC rules and the target's role, then passed in. The client
+ * never decides; the API re-checks every write regardless.
  */
 
 export interface ClubMemberRow {
@@ -33,57 +43,73 @@ export interface ClubMemberRow {
     readonly email: string;
     readonly displayName: string;
   };
+  /** Viewer may remove this person (Leads: Members only; President: Leads too). */
+  readonly canRemove: boolean;
+  /** Viewer may move this person between Member and Lead (President only). */
+  readonly canChangeRole: boolean;
+  readonly isViewer: boolean;
 }
 
-const ROLE_LABELS = {
-  PRESIDENT: "President",
-  EVENT_MANAGER: "Event Manager",
-  MEMBER: "Member",
-} as const;
+interface RemoveResult {
+  readonly cancelledTickets: number;
+  readonly promotedFromWaitlist: number;
+}
 
 export function ClubMembersManager({
   clubId,
   members,
-  canManage,
-  assignableRoles,
 }: {
   clubId: string;
   members: readonly ClubMemberRow[];
-  canManage: boolean;
-  assignableRoles: readonly string[];
 }) {
   const router = useRouter();
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<ClubMemberRow | null>(null);
 
-  async function changeRole(userId: string, role: string) {
-    setBusyUserId(userId);
+  const showActions = members.some((member) => member.canRemove);
+
+  async function changeRole(member: ClubMemberRow, role: string) {
+    setBusyUserId(member.user.id);
     try {
-      const result = await callApi(`/api/clubs/${clubId}/members/${userId}`, {
+      const result = await callApi(`/api/clubs/${clubId}/members/${member.user.id}`, {
         method: "PATCH",
         json: { role },
       });
-
       if (!result.ok) {
         notifyFailure(result, "Could not change the role");
         return;
       }
-      toast.success("Role updated");
+      toast.success(
+        `${member.user.displayName} is now a ${CLUB_ROLE_LABELS[role as keyof typeof CLUB_ROLE_LABELS]}`,
+      );
       router.refresh();
     } finally {
       setBusyUserId(null);
     }
   }
 
-  async function removeMember(userId: string, displayName: string) {
-    setBusyUserId(userId);
+  async function removeMember(member: ClubMemberRow) {
+    setBusyUserId(member.user.id);
     try {
-      const result = await callApi(`/api/clubs/${clubId}/members/${userId}`, { method: "DELETE" });
-
+      const result = await callApi<RemoveResult>(
+        `/api/clubs/${clubId}/members/${member.user.id}`,
+        { method: "DELETE" },
+      );
       if (!result.ok) {
-        notifyFailure(result, "Could not remove that member");
+        notifyFailure(result, "Could not remove them");
         return;
       }
-      toast.success(`${displayName} removed from the club`);
+      const { cancelledTickets, promotedFromWaitlist } = result.data;
+      toast.success(`${member.user.displayName} removed from the club`, {
+        description:
+          cancelledTickets > 0
+            ? `${cancelledTickets} members-only seat${cancelledTickets === 1 ? "" : "s"} given back` +
+              (promotedFromWaitlist > 0
+                ? `; ${promotedFromWaitlist} ${promotedFromWaitlist === 1 ? "person" : "people"} moved off the waitlist.`
+                : ".")
+            : undefined,
+      });
+      setConfirming(null);
       router.refresh();
     } finally {
       setBusyUserId(null);
@@ -91,67 +117,96 @@ export function ClubMembersManager({
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Member</TableHead>
-          <TableHead>Role</TableHead>
-          <TableHead>Joined</TableHead>
-          {canManage ? <TableHead className="text-right">Actions</TableHead> : null}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {members.map((member) => (
-          <TableRow key={member.membershipId}>
-            <TableCell>
-              <div className="flex flex-col">
-                <span className="font-medium">{member.user.displayName}</span>
-                <span className="text-xs text-muted-foreground">{member.user.email}</span>
-              </div>
-            </TableCell>
-            <TableCell>
-              {canManage ? (
-                <select
-                  aria-label={`Role for ${member.user.displayName}`}
-                  className="h-8 rounded-md border bg-transparent px-2 text-sm"
-                  value={member.role}
-                  disabled={busyUserId === member.user.id}
-                  onChange={(event) => changeRole(member.user.id, event.target.value)}
-                >
-                  {/* The member's current role is always listed so the select shows
-                      the truth even when the viewer cannot grant that role. */}
-                  {[member.role, ...assignableRoles.filter((role) => role !== member.role)]
-                    .filter((role, index, all) => all.indexOf(role) === index)
-                    .map((role) => (
+    <>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Member</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead className="hidden sm:table-cell">Joined</TableHead>
+            {showActions ? <TableHead className="text-right">Actions</TableHead> : null}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {members.map((member) => (
+            <TableRow key={member.membershipId}>
+              <TableCell>
+                <div className="flex flex-col">
+                  <span className="font-medium">
+                    {member.user.displayName}
+                    {member.isViewer ? <span className="text-muted-foreground"> (you)</span> : null}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{member.user.email}</span>
+                </div>
+              </TableCell>
+              <TableCell>
+                {member.canChangeRole ? (
+                  <select
+                    aria-label={`Role for ${member.user.displayName}`}
+                    className="h-8 rounded-md border bg-transparent px-2 text-sm"
+                    value={member.role}
+                    disabled={busyUserId === member.user.id}
+                    onChange={(event) => changeRole(member, event.target.value)}
+                  >
+                    {PROMOTABLE_CLUB_ROLES.map((role) => (
                       <option key={role} value={role}>
-                        {ROLE_LABELS[role as keyof typeof ROLE_LABELS] ?? role}
+                        {CLUB_ROLE_LABELS[role]}
                       </option>
                     ))}
-                </select>
-              ) : (
-                <Badge variant={member.role === "MEMBER" ? "outline" : "default"}>
-                  {ROLE_LABELS[member.role]}
-                </Badge>
-              )}
-            </TableCell>
-            <TableCell className="text-muted-foreground">
-              {new Date(member.joinedAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}
-            </TableCell>
-            {canManage ? (
-              <TableCell className="text-right">
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  disabled={busyUserId === member.user.id}
-                  onClick={() => removeMember(member.user.id, member.user.displayName)}
-                >
-                  Remove
-                </Button>
+                  </select>
+                ) : (
+                  <Badge variant={member.role === "MEMBER" ? "outline" : "default"}>
+                    {CLUB_ROLE_LABELS[member.role]}
+                  </Badge>
+                )}
               </TableCell>
-            ) : null}
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+              <TableCell className="hidden text-muted-foreground sm:table-cell">
+                {new Date(member.joinedAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}
+              </TableCell>
+              {showActions ? (
+                <TableCell className="text-right">
+                  {member.canRemove ? (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={busyUserId === member.user.id}
+                      onClick={() => setConfirming(member)}
+                      aria-label={`Remove ${member.user.displayName}`}
+                    >
+                      Remove
+                    </Button>
+                  ) : null}
+                </TableCell>
+              ) : null}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      {/* A real dialog, not window.confirm(): browsers silently skip confirm()
+          inside embedded previews, which would make Remove do nothing. */}
+      <AlertDialog open={confirming !== null} onOpenChange={(open) => !open && setConfirming(null)}>
+        <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove {confirming?.user.displayName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              They lose access to this club&apos;s members-only events and announcements. Any seats they
+              hold at upcoming <strong>members-only</strong> events are given back, and the next person
+              waiting gets in. Seats at public events are kept. They can rejoin later with an invite link.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep them</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={confirming === null || busyUserId === confirming.user.id}
+              onClick={() => confirming && removeMember(confirming)}
+            >
+              {confirming && busyUserId === confirming.user.id ? "Removing…" : "Remove from club"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

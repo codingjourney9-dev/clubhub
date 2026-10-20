@@ -22,7 +22,7 @@ export async function disconnectTestDb(): Promise<void> {
 export async function truncateAll(): Promise<void> {
   const db = testDb();
   await db.$executeRawUnsafe(
-    `TRUNCATE TABLE attendance, tickets, events, club_invites, club_members, clubs, ` +
+    `TRUNCATE TABLE announcements, attendance, tickets, events, club_invites, club_members, clubs, ` +
       `tenant_invites, tenant_members, tenants, users RESTART IDENTITY CASCADE;`,
   );
 }

@@ -20,6 +20,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { listClubs } from "@/lib/services/club-service";
 import { listTenantsForUser } from "@/lib/services/tenant-service";
 import { cn } from "@/lib/utils";
+import { clubRoleLabel } from "@/lib/domain/club-roles";
 
 export const metadata: Metadata = { title: "Get started" };
 
@@ -114,11 +115,7 @@ export default async function OnboardingPage() {
                           {club.name}
                         </Link>
                         <Badge variant={club.viewerRole ? "default" : "outline"}>
-                          {club.viewerRole
-                            ? club.viewerRole === "EVENT_MANAGER"
-                              ? "Event Manager"
-                              : club.viewerRole.charAt(0) + club.viewerRole.slice(1).toLowerCase()
-                            : "Not a member"}
+                          {club.viewerRole ? clubRoleLabel(club.viewerRole) : "Not a member"}
                         </Badge>
                       </div>
                       {club.description ? (

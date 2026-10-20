@@ -3,7 +3,14 @@ import "server-only";
 import { ApiError } from "@/lib/api/response";
 import { db } from "@/lib/db/client";
 import { findAvailableSlug } from "@/lib/slug";
-import type { CreateClubInput, UpdateClubInput } from "@/lib/validation/club";
+import type {
+  CreateClubInput,
+  TransferPresidencyInput,
+  UpdateClubInput,
+} from "@/lib/validation/club";
+import { canChangeClubRole, canRemoveClubMember, type Actor } from "@/lib/auth/rbac";
+import type { PromotableClubRole } from "@/lib/domain/club-roles";
+import { cancelTicket } from "@/lib/services/ticket-service";
 import { Prisma } from "@/generated/prisma/client";
 import type { ClubRole } from "@/generated/prisma/enums";
 
@@ -181,70 +188,217 @@ export async function listClubMembers(clubId: string, tenantId: string) {
   }));
 }
 
-/** How many active Presidents a club has — used to protect the last one. */
-async function countPresidents(clubId: string): Promise<number> {
-  return db.clubMember.count({ where: { clubId, role: "PRESIDENT", deletedAt: null } });
+type ClubActor = Actor & { readonly userId: string };
+type Tx = Prisma.TransactionClient;
+
+/**
+ * Serialises every change to who-holds-which-role in one club. Role changes,
+ * removals and hand-overs all take this lock first, so two of them can never
+ * interleave (e.g. a President demoting a Lead while handing the club to them).
+ */
+async function lockClub(tx: Tx, clubId: string, tenantId: string): Promise<void> {
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM "clubs"
+    WHERE id = ${clubId}::uuid AND tenant_id = ${tenantId}::uuid AND deleted_at IS NULL
+    FOR UPDATE
+  `;
+  if (rows.length === 0) throw ApiError.notFound("That club was not found.");
+}
+
+async function findActiveMembership(tx: Tx, clubId: string, userId: string) {
+  return tx.clubMember.findFirst({
+    where: { clubId, userId, deletedAt: null },
+    select: { id: true, role: true },
+  });
 }
 
 /**
- * Changes a member's role.
+ * Moves someone between Member and Lead. President only (or a college admin).
  *
- * Guards the "last President" hole: demoting or removing the only President
- * would leave a club nobody can administer, so it is refused with a clear reason.
+ * The President's own role never changes here — that's what handing over is
+ * for — so a club can't end up without one by accident.
  */
 export async function updateClubMemberRole(
   clubId: string,
   tenantId: string,
+  actor: ClubActor,
   targetUserId: string,
-  role: ClubRole,
+  role: PromotableClubRole,
 ) {
-  await getClubById(clubId, tenantId);
+  return db.$transaction(async (tx) => {
+    await lockClub(tx, clubId, tenantId);
+    const membership = await findActiveMembership(tx, clubId, targetUserId);
+    if (!membership) throw ApiError.notFound("That person is not a member of this club.");
 
-  const membership = await db.clubMember.findFirst({
-    where: { clubId, userId: targetUserId, deletedAt: null },
-    select: { id: true, role: true },
-  });
-
-  if (!membership) throw ApiError.notFound("That person is not a member of this club.");
-
-  if (membership.role === "PRESIDENT" && role !== "PRESIDENT") {
-    const presidents = await countPresidents(clubId);
-    if (presidents <= 1) {
+    if (membership.role === "PRESIDENT") {
       throw new ApiError(
         "CONFLICT",
-        "This is the club's only President. Promote someone else to President first, then change this role.",
+        "The President's role can't be changed directly. Use \"Hand over presidency\" to pass the club to someone else.",
       );
     }
-  }
+    if (targetUserId === actor.userId) {
+      throw ApiError.forbidden("You can't change your own role.");
+    }
+    if (!canChangeClubRole(actor, { userId: targetUserId, role: membership.role }, role)) {
+      throw ApiError.forbidden("Only the club's President can promote or demote Leads.");
+    }
 
-  return db.clubMember.update({
-    where: { id: membership.id },
-    data: { role },
-    select: { id: true, role: true },
+    return tx.clubMember.update({
+      where: { id: membership.id },
+      data: { role },
+      select: { id: true, role: true },
+    });
   });
 }
 
-/** Soft-removes a member, preserving the historical row (docs/architecture.md §5.5). */
-export async function removeClubMember(clubId: string, tenantId: string, targetUserId: string) {
-  await getClubById(clubId, tenantId);
+export interface RemoveMemberResult {
+  readonly userId: string;
+  readonly removed: true;
+  /** Upcoming members-only tickets that were given back (public ones are kept). */
+  readonly cancelledTickets: number;
+  /** People who moved off a waitlist because of those freed seats. */
+  readonly promotedFromWaitlist: number;
+}
 
-  const membership = await db.clubMember.findFirst({
-    where: { clubId, userId: targetUserId, deletedAt: null },
-    select: { id: true, role: true },
-  });
+/**
+ * Removes someone from the club (soft delete — the history row stays).
+ *
+ * Tiered: Leads remove Members; only the President removes Leads; nobody
+ * removes the President (hand over first).
+ *
+ * Their seats at the club's upcoming MEMBERS-ONLY events go back — they're no
+ * longer eligible — and anyone waiting moves up. Seats at public events stay:
+ * anyone may attend those.
+ */
+export async function removeClubMember(
+  clubId: string,
+  tenantId: string,
+  actor: ClubActor,
+  targetUserId: string,
+): Promise<RemoveMemberResult> {
+  await db.$transaction(async (tx) => {
+    await lockClub(tx, clubId, tenantId);
+    const membership = await findActiveMembership(tx, clubId, targetUserId);
+    if (!membership) throw ApiError.notFound("That person is not a member of this club.");
 
-  if (!membership) throw ApiError.notFound("That person is not a member of this club.");
-
-  if (membership.role === "PRESIDENT") {
-    const presidents = await countPresidents(clubId);
-    if (presidents <= 1) {
+    if (membership.role === "PRESIDENT") {
       throw new ApiError(
         "CONFLICT",
-        "This is the club's only President. Promote someone else to President before removing them.",
+        "The President can't be removed. They need to hand over the presidency first.",
       );
     }
+    if (targetUserId === actor.userId) {
+      throw ApiError.forbidden("You can't remove yourself here.");
+    }
+    if (!canRemoveClubMember(actor, { userId: targetUserId, role: membership.role })) {
+      throw ApiError.forbidden(
+        membership.role === "EVENT_MANAGER"
+          ? "Only the club's President can remove a Lead."
+          : "Your role can't remove members.",
+      );
+    }
+
+    await tx.clubMember.update({ where: { id: membership.id }, data: { deletedAt: new Date() } });
+  });
+
+  // The membership is gone first, so they can't grab a members-only seat again
+  // in between. Each ticket then goes through the normal cancel path, which
+  // locks its event and promotes the waitlist exactly like a self-cancel.
+  const tickets = await db.ticket.findMany({
+    where: {
+      tenantId,
+      userId: targetUserId,
+      deletedAt: null,
+      status: { in: ["REGISTERED", "WAITLISTED"] },
+      event: { clubId, isPublic: false, deletedAt: null, endTime: { gt: new Date() } },
+    },
+    select: { id: true },
+  });
+
+  let cancelledTickets = 0;
+  let promotedFromWaitlist = 0;
+  for (const ticket of tickets) {
+    const result = await cancelTicket({
+      ticketId: ticket.id,
+      tenantId,
+      actorId: actor.userId,
+      canManageOthers: true,
+    });
+    if (result.changed) cancelledTickets += 1;
+    promotedFromWaitlist += result.promoted.length;
   }
 
-  await db.clubMember.update({ where: { id: membership.id }, data: { deletedAt: new Date() } });
-  return { userId: targetUserId, removed: true };
+  return { userId: targetUserId, removed: true, cancelledTickets, promotedFromWaitlist };
+}
+
+export interface TransferPresidencyResult {
+  readonly newPresidentUserId: string;
+  readonly formerPresidentUserId: string | null;
+  readonly formerPresidentRole: PromotableClubRole | null;
+}
+
+/**
+ * Hands the club to another member. The only way the President changes.
+ *
+ * Under the club lock: the current President steps down to the role they
+ * chose (Lead or Member) and THEN the new one steps up — in that order, because
+ * the database allows only one President per club at any instant.
+ *
+ * A college admin may run this too (e.g. the President graduated and vanished);
+ * the outgoing President is then moved to the role the admin picked.
+ *
+ * Authorisation (`club:transfer_presidency`) is the caller's job.
+ */
+export async function transferPresidency(
+  clubId: string,
+  tenantId: string,
+  input: TransferPresidencyInput,
+): Promise<TransferPresidencyResult> {
+  try {
+    return await db.$transaction(async (tx) => {
+      await lockClub(tx, clubId, tenantId);
+
+      const club = await tx.club.findUniqueOrThrow({ where: { id: clubId }, select: { name: true } });
+      if (normaliseName(input.confirmClubName) !== normaliseName(club.name)) {
+        throw new ApiError("VALIDATION_ERROR", "The club name you typed doesn't match.", {
+          details: { confirmClubName: ["Type the club's name exactly as shown."] },
+        });
+      }
+
+      const target = await findActiveMembership(tx, clubId, input.newPresidentUserId);
+      if (!target) throw ApiError.notFound("That person is not a member of this club.");
+      if (target.role === "PRESIDENT") {
+        throw new ApiError("CONFLICT", "That person is already the President.");
+      }
+
+      const current = await tx.clubMember.findFirst({
+        where: { clubId, role: "PRESIDENT", deletedAt: null },
+        select: { id: true, userId: true },
+      });
+
+      if (current) {
+        await tx.clubMember.update({
+          where: { id: current.id },
+          data: { role: input.formerPresidentBecomes },
+        });
+      }
+      await tx.clubMember.update({ where: { id: target.id }, data: { role: "PRESIDENT" } });
+
+      return {
+        newPresidentUserId: input.newPresidentUserId,
+        formerPresidentUserId: current?.userId ?? null,
+        formerPresidentRole: current ? input.formerPresidentBecomes : null,
+      };
+    });
+  } catch (error) {
+    // Only reachable if something bypassed the lock; the unique index still holds.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      throw new ApiError("CONFLICT", "The presidency just changed. Reload the page and try again.");
+    }
+    throw error;
+  }
+}
+
+function normaliseName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
 }

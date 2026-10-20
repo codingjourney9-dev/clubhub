@@ -524,7 +524,7 @@ browser-checked: landing, guest board, interceptor dialog → sign-in with reaso
 
 ---
 
-## Phase 9 — Richer events: poster, tags, Instagram & WhatsApp — Built, awaiting review
+## Phase 9 — Richer events: poster, tags, Instagram & WhatsApp — Complete (approved)
 
 Decisions agreed before building: a **fixed list of tags, at most 3 per event**; the **WhatsApp link
 is shown only to ticket holders** (and the organisers who set it); **Instagram is public**; posters are
@@ -569,6 +569,65 @@ rewritten on save, broken poster fallback), demo page as Kabir (waitlisted) vs A
 **Deploying:** this phase adds a migration. Vercel's build runs `prisma migrate deploy` automatically;
 on your own computer run `npm run db:deploy` once after pulling (your `.env` points at the DEV branch).
 
+## Phase 10 — Leads, tiered removal, one President, announcements — Built, awaiting review
+
+Decisions agreed before building: **exactly one President per club, guaranteed by the database** (invite
+links can no longer make Presidents; handing over is the only way it changes); on hand-over **the
+outgoing President chooses** Lead or Member; **Leads and the President post announcements** (pin one,
+edit, delete), shown on the club page and each member's dashboard; **removing someone cancels their
+upcoming members-only tickets** for that club and keeps public ones.
+
+- **"Lead"** — `EVENT_MANAGER` stays in the database (renaming an enum touches every deployed database
+  for no behavioural gain); every screen goes through `src/lib/domain/club-roles.ts`
+  (`CLUB_ROLE_LABELS`). No user-facing "Event Manager" remains (a smoke check enforces it).
+- **Permissions** (`src/lib/auth/rbac.ts`) — `club:manage_members` is replaced by tiers:
+  `club:remove_member` (President, Lead), `club:remove_lead`, `club:change_roles`,
+  `club:transfer_presidency` (President), plus `announcement:read` (everyone in the club),
+  `announcement:post` (President, Lead) and `announcement:moderate` (President). College Owners/Admins
+  keep their override. Two per-person helpers decide using the **target's** role:
+  `canRemoveClubMember` (never the President, never yourself; Lead targets need `remove_lead`) and
+  `canChangeClubRole` (Member ↔ Lead only). `assignableClubRoles` never includes PRESIDENT.
+- **Database** — migration `20261020122309_phase10_roles_announcements`:
+  - existing clubs with several Presidents keep the longest-serving one, the others become Leads;
+    unused President invite links become Lead links;
+  - partial unique index `club_members_one_president ON club_members(club_id) WHERE role='PRESIDENT'
+    AND deleted_at IS NULL`;
+  - new `announcements` table (composite FK to `clubs(id, tenant_id)` like events), partial unique
+    index `announcements_one_pinned`, and CHECKs on title (1–120) / body (1–4000) lengths.
+  - The partial indexes are hand-written SQL rather than Prisma's `partialIndexes` preview: Prisma 7.5+
+    leaves them alone (`migrate diff` reports no drift), and the preview has a known bug where
+    `upsert` picks a partial index for `ON CONFLICT`, which the seed would hit.
+- **Services** (`club-service.ts`) — role changes, removals and hand-overs all take a `FOR UPDATE` lock
+  on the club row first, so they can't interleave. A removal soft-deletes the membership **first** (so
+  the person can't grab a seat in between), then runs each affected ticket through the normal
+  `cancelTicket` path — the waitlist moves up exactly as if they'd cancelled themselves. The hand-over
+  demotes the current President before promoting the new one (the index allows only one at any
+  instant) and requires the club name typed out (case/spacing-insensitive).
+- **Invite safety net** — redeeming a stray old President link grants Lead, never a second President.
+- **API** — `PATCH/DELETE /api/clubs/:id/members/:userId` (tiered), new `POST
+  /api/clubs/:id/presidency`, `GET/POST /api/clubs/:id/announcements`, `PATCH/DELETE
+  …/announcements/:aid`, `POST …/announcements/:aid/pin`. All Zod-validated (strict objects, so nobody
+  can set an author or date); posting has its own rate-limit budget (burst 10, then one per 30 s).
+- **Screens** — club page: Announcements card (composer for Leads/President, pinned first, Pin / Edit
+  for the author / Delete for author or President, confirmation dialogs instead of `confirm()`, which
+  embedded previews silently skip); Members card with per-row Remove only where allowed, Member/Lead
+  dropdown for the President, and a **Hand over presidency** dialog (who → you become Lead/Member →
+  type the club name). Dashboard: "From your clubs" with the latest announcements. `/demo`: the same
+  announcements read-only, an updated powers table, and the dashboard section. Messages are rendered as
+  text (React escapes them) with line breaks kept by CSS.
+- **Seed** — two Robotics announcements (one pinned, one by Meera), one on Debate from the Dean (Debate
+  has no President on purpose — it shows a college admin appointing one). Re-seeding hands Robotics back
+  to Aarav if you moved it while trying things.
+
+**Gate:** typecheck ✅ lint ✅ build ✅ vitest 416/416 ✅ (41 new: tier rules, removal ticket clean-up with
+waitlist promotion, hand-over incl. two racing hand-overs, DB-level one-President and one-pin, author-only
+edit, dashboard feed stops on removal, legacy President link) · smoke 246/246 ✅ (35 new over HTTP) ·
+browser-checked as President (hand-over dialog) and as Lead (Remove only beside Members, Unpin only on
+others' posts).
+
+**Deploying:** this phase adds a migration. Vercel runs `prisma migrate deploy` itself; on your own
+computer run `npm run db:deploy` then `npm run db:seed` after pulling.
+
 ---
 
 ## Progress log
@@ -584,7 +643,8 @@ on your own computer run `npm run db:deploy` once after pulling (your `.env` poi
 | 2026-10-17 | 7 — Polish & Observability | Complete. One client bridge so every failure is a sentence, optimistic updates with rollback, empty states + skeletons + error boundaries, 100 browser-verified layout checks at 360–1440 px, structured request logs with user/tenant context on all 23 routes, readiness-aware `/api/health`. Gate: lint ✅ typecheck ✅ build ✅ 299 tests ✅ smoke 178/178 ✅ layout 100/100 ✅ |
 | 2026-10-17 | Deploy readiness | Complete. Multi-stage Dockerfile + Compose (db → migrate → app), `npm run deploy:check` (14 checks), `docs/DEPLOY.md` for Compose/Vercel/systemd. Fixed a silent rate-limit driver lie and a `.env`-in-image leak. Gate: lint ✅ typecheck ✅ build ✅ 305 tests ✅ smoke 178/178 ✅ |
 | 2026-10-20 | 8 — Front door & guest browsing | Complete (approved). Guest `/dashboard` with public events from every college, public event pages, "Start a new club" sign-in interceptor, `safeCallbackUrl` open-redirect fix. Gate: lint ✅ typecheck ✅ build ✅ 351 tests ✅ smoke 190/190 ✅ |
-| 2026-10-20 | 9 — Richer events | Built, awaiting review. Poster links (Drive links rewritten), up to 3 tags + board filter, public Instagram, WhatsApp link for seat holders only; waitlist-counted-as-seats edit bug fixed. Gate: lint ✅ typecheck ✅ build ✅ 375 tests ✅ smoke 211/211 ✅ |
+| 2026-10-20 | 9 — Richer events | Complete (approved). Poster links (Drive links rewritten), up to 3 tags + board filter, public Instagram, WhatsApp link for seat holders only; waitlist-counted-as-seats edit bug fixed. Gate: lint ✅ typecheck ✅ build ✅ 375 tests ✅ smoke 211/211 ✅ |
+| 2026-10-20 | 10 — Leads, removal, presidency, announcements | Built, awaiting review. "Lead" label, tiered removal (members-only seats given back, waitlist promoted), DB-enforced single President with hand-over, members-only announcements with one pin. Gate: lint ✅ typecheck ✅ build ✅ 416 tests ✅ smoke 246/246 ✅ |
 
 ---
 

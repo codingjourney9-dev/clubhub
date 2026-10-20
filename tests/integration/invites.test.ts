@@ -83,6 +83,17 @@ describe("creating invites", () => {
     expect(error.code).toBe("FORBIDDEN");
   });
 
+  it("refuses a President link even to the President (Phase 10: presidency is handed over, never invited)", async () => {
+    const error = await expectApiError(
+      createClubInvite(p3.club, p3.tenant, president, p3.president, {
+        role: "PRESIDENT",
+        expiresInHours: 168,
+        maxUses: 1,
+      }),
+    );
+    expect(error.status).toBe(403);
+  });
+
   it("refuses an invite for a club in another college", async () => {
     const error = await expectApiError(
       createClubInvite(p3.club, p3.otherTenant, president, p3.president, {
@@ -192,6 +203,31 @@ describe("redeeming an invite", () => {
       select: { role: true },
     });
     expect(membership?.role).toBe("EVENT_MANAGER");
+  });
+
+  it("turns a stray old President link into a Lead seat — never a second President", async () => {
+    // Only possible for links created before Phase 10 (the migration rewrites
+    // them); planted directly here to prove the redemption-side safety net.
+    const legacy = await testDb().clubInvite.create({
+      data: {
+        tenantId: p3.tenant,
+        clubId: p3.club,
+        token: "legacy-president-link-000000000000000000001",
+        role: "PRESIDENT",
+        expiresAt: new Date(Date.now() + 3_600_000),
+        maxUses: 1,
+        createdById: p3.president,
+      },
+    });
+    const newcomer = await createOutsider("legacy@test.dev");
+
+    const result = await acceptInvite(legacy.token, newcomer.id, newcomer.email);
+    expect(result.role).toBe("EVENT_MANAGER");
+
+    const presidents = await testDb().clubMember.count({
+      where: { clubId: p3.club, role: "PRESIDENT", deletedAt: null },
+    });
+    expect(presidents).toBe(1);
   });
 
   it("honours a one-use link for exactly one of two people clicking at once", async () => {

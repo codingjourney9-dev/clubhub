@@ -366,7 +366,7 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
           <AlertTitle>Only the organisers see the guest list</AlertTitle>
           <AlertDescription>
             You can see how many seats are taken, but not who took them. Switch to a President or
-            Event Manager account to see the roster.
+            Lead account to see the roster.
           </AlertDescription>
         </Alert>
       )}

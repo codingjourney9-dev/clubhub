@@ -252,6 +252,10 @@ export async function acceptInvite(token: string, userId: string, userEmail: str
 
       assertRedeemable(invite, userEmail);
 
+      // Links can't make Presidents any more (the Phase 10 migration rewrote old
+      // ones). Belt and braces: a stray one grants Lead, never a second President.
+      const grantedRole = invite.role === "PRESIDENT" ? "EVENT_MANAGER" : invite.role;
+
       // Every read is tenant-scoped, so a club member without a college
       // membership could not see the club they just joined. Joining a club means
       // joining the college community as a plain member — never as an admin.
@@ -261,11 +265,11 @@ export async function acceptInvite(token: string, userId: string, userEmail: str
         // Rejoining after leaving: revive the historical row, keeping joined_at history.
         await tx.clubMember.update({
           where: { id: existing.id },
-          data: { deletedAt: null, role: invite.role, joinedAt: new Date() },
+          data: { deletedAt: null, role: grantedRole, joinedAt: new Date() },
         });
       } else {
         await tx.clubMember.create({
-          data: { clubId: invite.clubId, userId, role: invite.role },
+          data: { clubId: invite.clubId, userId, role: grantedRole },
         });
       }
 
@@ -277,7 +281,7 @@ export async function acceptInvite(token: string, userId: string, userEmail: str
       return {
         kind: "club" as const,
         targetName: invite.club.name,
-        role: invite.role,
+        role: grantedRole,
         alreadyMember: false,
       };
     }

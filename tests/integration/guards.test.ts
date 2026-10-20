@@ -105,7 +105,7 @@ describe("requireTenantAccess", () => {
 describe("requireClubAccess", () => {
   it("resolves the caller's own club roles", async () => {
     signInAs("president");
-    const context = await requireClubAccess(p3.club, "club:manage_members");
+    const context = await requireClubAccess(p3.club, "club:change_roles");
     expect(context.clubRole).toBe("PRESIDENT");
     expect(context.tenantRole).toBe("MEMBER");
     expect(context.club.name).toBe("Robotics Club");
@@ -121,14 +121,14 @@ describe("requireClubAccess", () => {
 
   it("returns 403 for a club member who is not allowed to manage the club", async () => {
     signInAs("member");
-    const error = await expectApiError(requireClubAccess(p3.club, "club:manage_members"));
+    const error = await expectApiError(requireClubAccess(p3.club, "club:change_roles"));
     expect(error.status).toBe(403);
     expect(error.message).toContain("Robotics Club");
   });
 
   it("gives a college admin authority over a club they never joined", async () => {
     signInAs("owner");
-    const context = await requireClubAccess(p3.club, "club:manage_members");
+    const context = await requireClubAccess(p3.club, "club:change_roles");
     expect(context.clubRole).toBeNull();
     expect(context.tenantRole).toBe("OWNER");
   });
@@ -156,7 +156,7 @@ describe("requireClubAccess", () => {
     });
 
     signInAs("president");
-    const error = await expectApiError(requireClubAccess(p3.club, "club:manage_members"));
+    const error = await expectApiError(requireClubAccess(p3.club, "club:change_roles"));
     expect(error.status).toBe(403);
   });
 

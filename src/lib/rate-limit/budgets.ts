@@ -27,6 +27,11 @@ export const RATE_LIMITS = {
    * sustained — generous for a volunteer, still finite for a script.
    */
   scan: { limit: 600, refillPerSecond: 10, label: "scan tickets" },
+  /**
+   * Posting club announcements. A burst of 10 covers a busy evening; after that
+   * one every 30 seconds — plenty for people, useless for a spam loop.
+   */
+  announce: { limit: 10, refillPerSecond: 1 / 30, label: "post announcements" },
 } as const;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;

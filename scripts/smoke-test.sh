@@ -165,7 +165,9 @@ echo "[8] same-email-different-role isolation"
 STATUS=$(sign_in "kabir.member@vit.ac.in" "$PASSWORD" "$TMP/kabir.jar")
 STATUS=$(curl -s -b "$TMP/kabir.jar" -o "$TMP/dash-kabir.html" -w '%{http_code}' "$BASE/dashboard")
 expect_status "member dashboard" 200 "$STATUS"
-if grep -qF "President" "$TMP/dash-kabir.html"; then
+# Looks for the role BADGE (">President<"), not the word: since Phase 10 a
+# member can legitimately read an announcement that mentions a President.
+if grep -qF ">President<" "$TMP/dash-kabir.html"; then
   fail "member account shows a President role"
 else
   pass "member account holds no President role"
@@ -180,7 +182,9 @@ expect_contains "president's club role is visible" "$TMP/demo-aarav.html" "Presi
 STATUS=$(curl -s -o "$TMP/demo-kabir.html" -w '%{http_code}' "$BASE/demo?as=kabir")
 expect_status "GET /demo?as=kabir" 200 "$STATUS"
 expect_contains "switching viewer changes the data" "$TMP/demo-kabir.html" "Kabir Rao"
-if grep -qF "President" "$TMP/demo-kabir.html"; then
+# Looks for the role BADGE (">President<"), not the word: since Phase 10 a
+# member can legitimately read an announcement that mentions a President.
+if grep -qF ">President<" "$TMP/demo-kabir.html"; then
   fail "the member demo view leaked a President role"
 else
   pass "member demo view holds no President role"
@@ -784,6 +788,96 @@ if [ -f "$TMP/aarav.jar" ] && [ -f "$TMP/kabir.jar" ]; then
   STATUS=$(json_status POST "/api/clubs/$ROBOTICS_CLUB/events" \
     '{"title":"Poster from Instagram","start":"2031-01-01T10:00","end":"2031-01-01T12:00","isPublic":true,"waitlistEnabled":false,"posterUrl":"https://www.instagram.com/p/Cx123/"}' "$TMP/aarav.jar")
   expect_status "an Instagram post as a poster is refused (it is a page, not a picture)" 422 "$STATUS"
+fi
+
+echo "[17] phase 10 — Leads, tiered removal, one President, announcements"
+if [ -n "$PRESIDENT_CLUB" ]; then
+  AARAV_ID="0f1d2c3b-4a59-4e6d-8b7c-000000000001"
+  MEERA_ID="0f1d2c3b-4a59-4e6d-8b7c-000000000002"
+  KABIR_ID="0f1d2c3b-4a59-4e6d-8b7c-000000000003"
+  BUILD_NIGHTS="0f1d2c3b-4a59-4e6d-8b7c-600000000001"
+  CLUB_API="/api/clubs/$ROBOTICS_CLUB"
+
+  # "Event Manager" is shown to people as "Lead" everywhere.
+  curl -s -b "$TMP/meera.jar" -o "$TMP/p10-club-meera.html" "$BASE/clubs/$ROBOTICS_CLUB"
+  expect_contains "Meera's club page calls her a Lead" "$TMP/p10-club-meera.html" "As a Lead you can remove Members"
+  expect_not_contains "…and never 'Event Manager'" "$TMP/p10-club-meera.html" "Event Manager"
+  expect_contains "the club page shows the announcements card" "$TMP/p10-club-meera.html" "Announcements"
+  expect_contains "…with the seeded pinned post" "$TMP/p10-club-meera.html" "RoboWars build nights"
+  curl -s -o "$TMP/p10-demo-club.html" "$BASE/demo/clubs/$ROBOTICS_CLUB?as=meera"
+  expect_not_contains "the demo club page never says 'Event Manager' either" "$TMP/p10-demo-club.html" "Event Manager"
+  expect_contains "the demo powers table lists 'Remove a Lead'" "$TMP/p10-demo-club.html" "Remove a Lead from the club"
+
+  # Roles: Member ↔ Lead only, President only, never the President's own role.
+  STATUS=$(json_status PATCH "$CLUB_API/members/$KABIR_ID" '{"role":"PRESIDENT"}' "$TMP/aarav.jar")
+  expect_status "making a President through the role dropdown is refused" 422 "$STATUS"
+  expect_contains "…pointing at 'Hand over presidency'" "$TMP/body.json" "Hand over presidency"
+  STATUS=$(json_status PATCH "$CLUB_API/members/$KABIR_ID" '{"role":"EVENT_MANAGER"}' "$TMP/meera.jar")
+  expect_status "a Lead cannot promote anyone" 403 "$STATUS"
+  STATUS=$(json_status DELETE "$CLUB_API/members/$AARAV_ID" '' "$TMP/meera.jar")
+  expect_status "nobody removes the President" 409 "$STATUS"
+  STATUS=$(json_status DELETE "$CLUB_API/members/$MEERA_ID" '' "$TMP/kabir.jar")
+  expect_status "a plain Member removes nobody" 403 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/invites" '{"role":"PRESIDENT","expiresInHours":24,"maxUses":1}' "$TMP/aarav.jar")
+  expect_status "even the President cannot create a President invite" 403 "$STATUS"
+
+  # A Lead removes a Member: the newcomer who joined through the invite in [11].
+  if [ -n "${INVITEE:-}" ]; then
+    json_status GET "$CLUB_API/members" "" "$TMP/aarav.jar" >/dev/null
+    INVITEE_ID=$(node -e 'const b=require(process.argv[1]);const m=(b.data.members||[]).find(x=>x.user.email===process.argv[2]);process.stdout.write(m?m.user.id:"")' "$TMP/body.json" "$INVITEE")
+    STATUS=$(json_status DELETE "$CLUB_API/members/$INVITEE_ID" '' "$TMP/meera.jar")
+    expect_status "a Lead removes a Member" 200 "$STATUS"
+    expect_contains "…and the answer reports the seats given back" "$TMP/body.json" '"cancelledTickets":0'
+    STATUS=$(json_status GET "$CLUB_API/announcements" "" "$TMP/invitee.jar")
+    expect_status "once removed, they can't read announcements" 403 "$STATUS"
+  fi
+
+  # Handing over: President only, typed name, and back again so the seed is unchanged.
+  STATUS=$(json_status POST "$CLUB_API/presidency" "{\"newPresidentUserId\":\"$KABIR_ID\",\"formerPresidentBecomes\":\"MEMBER\",\"confirmClubName\":\"Robotics Club\"}" "$TMP/kabir.jar")
+  expect_status "a Member cannot take the presidency" 403 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/presidency" "{\"newPresidentUserId\":\"$MEERA_ID\",\"formerPresidentBecomes\":\"EVENT_MANAGER\",\"confirmClubName\":\"Robotics\"}" "$TMP/aarav.jar")
+  expect_status "the wrong club name stops a hand-over" 422 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/presidency" "{\"newPresidentUserId\":\"$MEERA_ID\",\"formerPresidentBecomes\":\"EVENT_MANAGER\",\"confirmClubName\":\"robotics club\"}" "$TMP/aarav.jar")
+  expect_status "Aarav hands Robotics to Meera" 200 "$STATUS"
+  expect_contains "…and chose to stay on as a Lead" "$TMP/body.json" '"formerPresidentRole":"EVENT_MANAGER"'
+  curl -s -b "$TMP/meera.jar" -o "$TMP/p10-club-meera-pres.html" "$BASE/clubs/$ROBOTICS_CLUB"
+  expect_contains "Meera, now President, gets the hand-over button" "$TMP/p10-club-meera-pres.html" "Hand over presidency"
+  # (Aarav could still hand it over here: he is also the college Owner, and
+  # college admins keep their override. The Member-can't check above covers
+  # the refusal path.)
+  STATUS=$(json_status POST "$CLUB_API/presidency" "{\"newPresidentUserId\":\"$AARAV_ID\",\"formerPresidentBecomes\":\"EVENT_MANAGER\",\"confirmClubName\":\"Robotics Club\"}" "$TMP/meera.jar")
+  expect_status "Meera hands it back (seed restored)" 200 "$STATUS"
+
+  # Announcements: members read, Leads and the President post.
+  STATUS=$(json_status POST "$CLUB_API/announcements" '{"title":"Hi","body":"From a member"}' "$TMP/kabir.jar")
+  expect_status "a Member cannot post an announcement" 403 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/announcements" '{"title":"   ","body":"x"}' "$TMP/meera.jar")
+  expect_status "a blank title is refused by the server" 422 "$STATUS"
+  ANN_TITLE="Smoke check $(date +%s)"
+  STATUS=$(json_status POST "$CLUB_API/announcements" "{\"title\":\"$ANN_TITLE\",\"body\":\"Line one\\nLine <b>two</b>\"}" "$TMP/meera.jar")
+  expect_status "a Lead posts an announcement" 201 "$STATUS"
+  ANN_ID=$(node -e 'const b=require(process.argv[1]);process.stdout.write(b.data?.announcement?.id??"")' "$TMP/body.json")
+  STATUS=$(json_status GET "$CLUB_API/announcements" "" "$TMP/kabir.jar")
+  expect_status "a Member reads announcements" 200 "$STATUS"
+  expect_contains "…including the new one" "$TMP/body.json" "$ANN_TITLE"
+  curl -s -b "$TMP/kabir.jar" -o "$TMP/p10-dash-kabir.html" "$BASE/dashboard"
+  expect_contains "it appears on the member's dashboard" "$TMP/p10-dash-kabir.html" "$ANN_TITLE"
+  curl -s -b "$TMP/kabir.jar" -o "$TMP/p10-club-kabir.html" "$BASE/clubs/$ROBOTICS_CLUB"
+  expect_not_contains "HTML in a message is shown as text, never run" "$TMP/p10-club-kabir.html" "Line <b>two</b>"
+  expect_not_contains "a Member gets no post box" "$TMP/p10-club-kabir.html" "Post to members"
+  curl -s -o "$TMP/p10-guest-dash.html" "$BASE/dashboard"
+  expect_not_contains "guests never see announcements" "$TMP/p10-guest-dash.html" "$ANN_TITLE"
+  STATUS=$(json_status PATCH "$CLUB_API/announcements/$ANN_ID" '{"title":"Hijacked"}' "$TMP/aarav.jar")
+  expect_status "only the author edits — not even the President" 403 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/announcements/$ANN_ID/pin" '{"pinned":true}' "$TMP/meera.jar")
+  expect_status "a Lead pins it" 200 "$STATUS"
+  json_status GET "$CLUB_API/announcements" "" "$TMP/kabir.jar" >/dev/null
+  PINNED=$(node -e 'const b=require(process.argv[1]);process.stdout.write(String((b.data.announcements||[]).filter(a=>a.pinned).length))' "$TMP/body.json")
+  expect_status "…which replaces the old pin (exactly one pinned)" 1 "$PINNED"
+  STATUS=$(json_status DELETE "$CLUB_API/announcements/$ANN_ID" '' "$TMP/aarav.jar")
+  expect_status "the President deletes someone else's post" 200 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/announcements/$BUILD_NIGHTS/pin" '{"pinned":true}' "$TMP/aarav.jar")
+  expect_status "the seeded post is pinned again (seed restored)" 200 "$STATUS"
 fi
 
 echo "──────────────────────────────────────────────"

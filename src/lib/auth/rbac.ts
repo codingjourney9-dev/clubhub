@@ -31,8 +31,24 @@ export const CLUB_MATRIX = {
   "club:update": ["PRESIDENT"],
   /** Renaming a club's identity or removing it is reserved to the college. */
   "club:delete": [],
-  "club:manage_members": ["PRESIDENT"],
+  /**
+   * Members are managed in tiers (Phase 10). Which tier applies depends on the
+   * TARGET's role, so use `canRemoveClubMember` / `canChangeClubRole` rather
+   * than these rows directly when a specific person is involved.
+   */
+  "club:remove_member": ["PRESIDENT", "EVENT_MANAGER"],
+  "club:remove_lead": ["PRESIDENT"],
+  /** Promote a Member to Lead, or a Lead back to Member. */
+  "club:change_roles": ["PRESIDENT"],
+  /** Hand the presidency to another member. The only way a club's President changes. */
+  "club:transfer_presidency": ["PRESIDENT"],
   "club:invite": ["PRESIDENT"],
+  /** Members-only announcements: everybody in the club reads… */
+  "announcement:read": ["PRESIDENT", "EVENT_MANAGER", "MEMBER"],
+  /** …Leads and the President post, pin and unpin… */
+  "announcement:post": ["PRESIDENT", "EVENT_MANAGER"],
+  /** …and the President may also delete posts written by others. */
+  "announcement:moderate": ["PRESIDENT"],
   "club:view_members": ["PRESIDENT", "EVENT_MANAGER", "MEMBER"],
   "event:create": ["PRESIDENT", "EVENT_MANAGER"],
   "event:update": ["PRESIDENT", "EVENT_MANAGER"],
@@ -89,22 +105,44 @@ export function canClub(actor: Actor, action: ClubAction): boolean {
 }
 
 /**
- * Roles a given actor is allowed to HAND OUT through an invite.
+ * Roles a given actor is allowed to HAND OUT — through an invite link or the
+ * role dropdown.
  *
- * Prevents privilege escalation: an Event Manager must not be able to mint a
- * President link, and a plain member cannot invite at all (enforced upstream by
- * `club:invite`).
+ * Never PRESIDENT: a club has exactly one, and it only changes hands through
+ * `transferPresidency` (the database enforces this with a unique index too).
+ * A Lead cannot hand out roles at all.
  */
 export function assignableClubRoles(actor: Actor): readonly ClubRole[] {
-  const isPresident = actor.clubRole === "PRESIDENT";
-  const isCollegeAdmin =
-    actor.tenantRole !== null && TENANT_OVERRIDE.includes(actor.tenantRole);
+  return canClub(actor, "club:change_roles") ? ["MEMBER", "EVENT_MANAGER"] : [];
+}
 
-  if (isPresident || isCollegeAdmin) {
-    // Only a President or college admin may create another President.
-    return ["MEMBER", "EVENT_MANAGER", "PRESIDENT"];
-  }
-  return [];
+/**
+ * May `actor` remove this particular person from the club?
+ *
+ *  • the President is never removed — the presidency must be handed over first;
+ *  • removing a Lead is the President's call (or a college admin's);
+ *  • removing a Member is open to Leads too;
+ *  • nobody removes themselves through this rule (that would be "leave").
+ */
+export function canRemoveClubMember(
+  actor: Actor & { readonly userId: string },
+  target: { readonly userId: string; readonly role: ClubRole },
+): boolean {
+  if (target.userId === actor.userId) return false;
+  if (target.role === "PRESIDENT") return false;
+  if (target.role === "EVENT_MANAGER") return canClub(actor, "club:remove_lead");
+  return canClub(actor, "club:remove_member");
+}
+
+/** May `actor` move this person from `target.role` to `newRole`? */
+export function canChangeClubRole(
+  actor: Actor & { readonly userId: string },
+  target: { readonly userId: string; readonly role: ClubRole },
+  newRole: ClubRole,
+): boolean {
+  if (target.userId === actor.userId) return false;
+  if (target.role === "PRESIDENT" || newRole === "PRESIDENT") return false;
+  return canClub(actor, "club:change_roles");
 }
 
 export function canAssignClubRole(actor: Actor, role: ClubRole): boolean {
