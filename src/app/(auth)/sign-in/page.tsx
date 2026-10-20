@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { SignInForm } from "@/components/features/auth/sign-in-form";
 import { getCurrentUser } from "@/lib/auth/session";
+import { isDemoModeEnabled } from "@/lib/demo/mode";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -26,7 +27,7 @@ export default async function SignInPage({
           Use the college email your club registered with.
         </p>
       </div>
-      <SignInForm callbackUrl={callbackUrl ?? "/dashboard"} />
+      <SignInForm callbackUrl={callbackUrl ?? "/dashboard"} demoMode={isDemoModeEnabled()} />
     </div>
   );
 }

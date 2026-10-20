@@ -81,7 +81,18 @@ function useCookiesBlocked(): boolean {
   return blocked;
 }
 
-export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: string }) {
+export function SignInForm({
+  callbackUrl = "/dashboard",
+  demoMode = false,
+}: {
+  callbackUrl?: string;
+  /**
+   * Practice accounts, the `/demo` preview and developer hints exist only in
+   * demo mode. The live site must not advertise a password that does not work
+   * there, or link to a page that answers 404.
+   */
+  demoMode?: boolean;
+}) {
   const router = useRouter();
   const cookiesBlocked = useCookiesBlocked();
   const [failure, setFailure] = useState<SignInFailure | null>(null);
@@ -107,9 +118,10 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
       setFailure({
         kind: "unknown",
         title: "The app server isn't responding",
-        message:
-          "In this sandbox the server stops when the session restarts. Start it with " +
-          "`npm run app:up`, then try again.",
+        message: demoMode
+          ? "In this sandbox the server stops when the session restarts. Start it with " +
+            "`npm run app:up`, then try again."
+          : "ClubHub could not be reached. Check your internet connection and try again in a moment.",
         highlightPassword: false,
       });
       toast.error("Server not reachable", { description: "Nothing was submitted." });
@@ -133,6 +145,7 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
           error: result?.error ?? undefined,
           code: result?.code ?? undefined,
           cookiesBlocked,
+          demoMode,
         });
 
         setFailure(described);
@@ -163,7 +176,9 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
         setFailure({
           kind: "unknown",
           title: "Sign-in could not complete",
-          message: "The network request failed. Check the app is running with `npm run doctor`.",
+          message: demoMode
+            ? "The network request failed. Check the app is running with `npm run doctor`."
+            : "The network request failed. Check your internet connection and try again.",
           highlightPassword: false,
         });
       }
@@ -179,25 +194,36 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
       {cookiesBlocked ? (
         <Alert className="border-dashed border-primary/45 bg-primary/[0.06]">
           <TriangleAlert className="text-primary" />
-          <AlertTitle>This view blocks cookies — use the demo instead</AlertTitle>
+          <AlertTitle>
+            {demoMode ? "This view blocks cookies — use the demo instead" : "This view blocks cookies"}
+          </AlertTitle>
           <AlertDescription className="flex flex-col gap-2">
             <span>
               Cookies are how the app remembers that you are logged in. This embedded preview is not
               allowed to store them, so sign-in cannot complete here no matter what you type — the
               request is refused before your password is checked.
             </span>
-            <span>
-              You do not need to sign in to review the app: the read-only demo renders the same
-              dashboard data from the same database, with no cookies required.
-            </span>
-            <Link href="/demo" className={cn(buttonVariants({ size: "sm" }), "self-start")}>
-              Open the demo dashboard
-              <ArrowRight data-icon="inline-end" />
-            </Link>
-            <span className="text-xs text-muted-foreground">
-              Running the app on your own machine (<code className="font-mono">npm run dev</code>)?
-              Sign-in works normally there.
-            </span>
+            {demoMode ? (
+              <>
+                <span>
+                  You do not need to sign in to review the app: the read-only demo renders the same
+                  dashboard data from the same database, with no cookies required.
+                </span>
+                <Link href="/demo" className={cn(buttonVariants({ size: "sm" }), "self-start")}>
+                  Open the demo dashboard
+                  <ArrowRight data-icon="inline-end" />
+                </Link>
+                <span className="text-xs text-muted-foreground">
+                  Running the app on your own machine (
+                  <code className="font-mono">npm run dev</code>)? Sign-in works normally there.
+                </span>
+              </>
+            ) : (
+              <span>
+                Open ClubHub in its own browser tab (or allow cookies for this site) and sign in
+                there.
+              </span>
+            )}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -259,6 +285,7 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
         {isSubmitting ? "Signing in…" : "Sign in"}
       </Button>
 
+      {demoMode ? (
       <Alert>
         <AlertDescription className="flex flex-col gap-1">
           <span>Demo account — type these by hand if your browser autofills the fields:</span>
@@ -273,6 +300,14 @@ export function SignInForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
           </span>
         </AlertDescription>
       </Alert>
+      ) : (
+        <p className="text-center text-sm text-muted-foreground">
+          New to ClubHub?{" "}
+          <Link href="/sign-up" className="font-medium text-foreground underline underline-offset-4">
+            Create an account
+          </Link>
+        </p>
+      )}
     </form>
   );
 }

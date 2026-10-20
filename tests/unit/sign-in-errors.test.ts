@@ -55,4 +55,25 @@ describe("describeSignInFailure()", () => {
     });
     expect(failure.kind).toBe("bad-credentials");
   });
+
+  it("mentions the practice password and developer commands only in demo mode", () => {
+    const live = describeSignInFailure({ error: "CredentialsSignin", cookiesBlocked: false });
+    expect(live.message).not.toContain("password123");
+
+    const demo = describeSignInFailure({
+      error: "CredentialsSignin",
+      cookiesBlocked: false,
+      demoMode: true,
+    });
+    expect(demo.message).toContain("password123");
+
+    const liveUnknown = describeSignInFailure({ error: "Configuration", cookiesBlocked: false });
+    expect(liveUnknown.message).not.toContain("npm");
+    const demoUnknown = describeSignInFailure({
+      error: "Configuration",
+      cookiesBlocked: false,
+      demoMode: true,
+    });
+    expect(demoUnknown.message).toContain("npm run doctor");
+  });
 });

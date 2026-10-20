@@ -32,6 +32,12 @@ export interface SignInOutcome {
   readonly code?: string | undefined;
   /** Result of the browser-side cookie probe. */
   readonly cookiesBlocked: boolean;
+  /**
+   * Whether this deployment runs in demo mode (practice accounts, `/demo`).
+   * Only then may a message mention the practice password or developer
+   * commands — on the live site those would be wrong and confusing.
+   */
+  readonly demoMode?: boolean;
 }
 
 const COOKIE_BLOCKED: Omit<SignInFailure, "kind"> = {
@@ -43,25 +49,33 @@ const COOKIE_BLOCKED: Omit<SignInFailure, "kind"> = {
   highlightPassword: false,
 };
 
-const BAD_CREDENTIALS: Omit<SignInFailure, "kind"> = {
-  title: "Sign-in did not complete",
-  message:
-    "The server rejected that email and password. If your browser filled the password field " +
-    "automatically, clear it and type it yourself — autofill is the most common cause. " +
-    "The demo password is password123.",
-  highlightPassword: true,
-};
+function badCredentials(demoMode: boolean): Omit<SignInFailure, "kind"> {
+  return {
+    title: "Sign-in did not complete",
+    message:
+      "The server rejected that email and password. If your browser filled the password field " +
+      "automatically, clear it and type it yourself — autofill is the most common cause." +
+      (demoMode ? " The demo password is password123." : ""),
+    highlightPassword: true,
+  };
+}
 
-const UNKNOWN: Omit<SignInFailure, "kind"> = {
-  title: "Sign-in did not complete",
-  message:
-    "The sign-in request failed for an unexpected reason. Please try again, and if it keeps " +
-    "failing run `npm run doctor` for a full diagnosis.",
-  highlightPassword: false,
-};
+function unknownFailure(demoMode: boolean): Omit<SignInFailure, "kind"> {
+  return {
+    title: "Sign-in did not complete",
+    message: demoMode
+      ? "The sign-in request failed for an unexpected reason. Please try again, and if it keeps " +
+        "failing run `npm run doctor` for a full diagnosis."
+      : "The sign-in request failed for an unexpected reason. Please wait a moment and try again.",
+    highlightPassword: false,
+  };
+}
 
 export function describeSignInFailure(outcome: SignInOutcome): SignInFailure {
   const { error, code, cookiesBlocked } = outcome;
+  const demoMode = outcome.demoMode ?? false;
+  const BAD_CREDENTIALS = badCredentials(demoMode);
+  const UNKNOWN = unknownFailure(demoMode);
 
   // Most specific first: the CSRF check failing is a cookie problem, never a
   // password problem.
