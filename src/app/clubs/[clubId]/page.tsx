@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Info, Lock, Users } from "lucide-react";
+import { notFound } from "next/navigation";
+import { ArrowLeft, Eye, Info, Users } from "lucide-react";
+import { z } from "zod";
 
 import { ClubAnnouncements } from "@/components/features/announcement/club-announcements";
 import { ClubMembersManager, type ClubMemberRow } from "@/components/features/club/club-members-manager";
@@ -11,6 +12,9 @@ import {
 } from "@/components/features/club/transfer-presidency-dialog";
 import { InviteManager, type ClubInviteRow } from "@/components/features/club/invite-manager";
 import { EventList, type EventRow } from "@/components/features/event/event-list";
+import { ClubOpeningsManager } from "@/components/features/recruitment/club-openings-manager";
+import { PublicClubProfileView } from "@/components/features/recruitment/public-club-profile";
+import { toManageRows } from "@/components/features/recruitment/review-rows";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -22,12 +26,15 @@ import {
   canChangeClubRole,
   canClub,
   canRemoveClubMember,
+  offerableOpeningRoles,
   type Actor,
 } from "@/lib/auth/rbac";
 import { clubRoleLabel } from "@/lib/domain/club-roles";
 import { listClubAnnouncements } from "@/lib/services/announcement-service";
 import { listClubMembers } from "@/lib/services/club-service";
+import { getPublicClubProfile, type PublicClubProfile } from "@/lib/services/club-profile-service";
 import { listClubEvents } from "@/lib/services/event-service";
+import { listClubOpenings } from "@/lib/services/recruitment-service";
 import { listClubInvites } from "@/lib/services/invite-service";
 import { cn } from "@/lib/utils";
 
@@ -41,58 +48,47 @@ export const metadata: Metadata = { title: "Club" };
  * tampering with the UI achieves nothing.
  */
 /**
- * Runs the guard and turns its two failure modes into page-level outcomes.
+ * Runs the guard and turns its failure modes into page-level outcomes.
  *
  * A guard throws (it is shared with the API routes, which need real status
- * codes), but a thrown error in a page renders as a 500 crash. So: a signed-out
- * visitor is sent to sign in, someone opening a club they cannot see gets a
- * proper 404 page, and a member of the college who has not joined the club yet
- * gets an explanation — never a stack trace.
+ * codes), but a thrown error in a page renders as a 500 crash. Since Phase 11
+ * anyone who may not open the workspace — a guest (401), a student from another
+ * college (404) or a college member who hasn't joined (403) — gets the club's
+ * PUBLIC profile instead. Only a club that doesn't exist is a 404.
  */
 async function loadClubPage(
   clubId: string,
-): Promise<{ kind: "ok"; context: ClubContext } | { kind: "not-found" } | { kind: "forbidden" }> {
+): Promise<{ kind: "ok"; context: ClubContext } | { kind: "public"; profile: PublicClubProfile } | { kind: "not-found" }> {
+  if (!z.uuid().safeParse(clubId).success) return { kind: "not-found" };
   try {
     return { kind: "ok", context: await requireClubAccess(clubId, "club:read") };
   } catch (error) {
-    // Signed out: send them to sign in and bring them back to this club.
-    if (error instanceof ApiError && error.status === 401) {
-      redirect(`/sign-in?callbackUrl=${encodeURIComponent(`/clubs/${clubId}`)}`);
+    if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
+      const profile = await getPublicClubProfile(clubId);
+      return profile ? { kind: "public", profile } : { kind: "not-found" };
     }
-    if (error instanceof ApiError && error.status === 404) return { kind: "not-found" };
-    if (error instanceof ApiError && error.status === 403) return { kind: "forbidden" };
     throw error;
   }
 }
 
-export default async function ClubPage({ params }: { params: Promise<{ clubId: string }> }) {
-  const { clubId } = await params;
+export default async function ClubPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ clubId: string }>;
+  searchParams: Promise<{ view?: string | string[] }>;
+}) {
+  const [{ clubId }, query] = await Promise.all([params, searchParams]);
 
   const result = await loadClubPage(clubId);
   if (result.kind === "not-found") notFound();
+  if (result.kind === "public") return <PublicClubProfileView profile={result.profile} />;
 
-  if (result.kind === "forbidden") {
-    return (
-      <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-16">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Lock className="size-4 text-muted-foreground" />
-              You are not in this club yet
-            </CardTitle>
-            <CardDescription>
-              You belong to this college, but club pages are for members. Ask the club for an invite
-              link and it will open right up.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/onboarding" className={cn(buttonVariants({ variant: "outline" }))}>
-              Back to your colleges and clubs
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  // Members can preview what outsiders see.
+  if (query.view === "public") {
+    const profile = await getPublicClubProfile(clubId);
+    if (!profile) notFound();
+    return <PublicClubProfileView profile={profile} workspaceHref={`/clubs/${clubId}`} />;
   }
 
   const context = result.context;
@@ -108,7 +104,7 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
   const canEditEvent = canClub(actor, "event:update");
   const canDeleteEvent = canClub(actor, "event:delete");
 
-  const [members, invites, events, announcements] = await Promise.all([
+  const [members, invites, events, announcements, openings] = await Promise.all([
     listClubMembers(clubId, context.club.tenantId),
     canInvite ? listClubInvites(clubId, context.club.tenantId) : Promise.resolve([]),
     // Drafts are included only for people who can edit events; the service applies
@@ -120,6 +116,7 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
     canReadAnnouncements
       ? listClubAnnouncements(clubId, context.club.tenantId)
       : Promise.resolve([]),
+    listClubOpenings(clubId, context.club.tenantId, actor),
   ]);
 
   const eventRows: EventRow[] = events
@@ -210,6 +207,13 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
           Club address: <code className="font-mono">/{context.club.slug}</code> · scheduling timezone{" "}
           {context.club.timezone}
         </p>
+        <Link
+          href={`/clubs/${clubId}?view=public`}
+          className="inline-flex items-center gap-1.5 self-start text-sm font-medium underline-offset-4 hover:underline"
+        >
+          <Eye className="size-4" />
+          See the public profile
+        </Link>
         </div>
       </div>
 
@@ -283,6 +287,13 @@ export default async function ClubPage({ params }: { params: Promise<{ clubId: s
           </CardContent>
         </Card>
       ) : null}
+
+      <ClubOpeningsManager
+        clubId={clubId}
+        timeZone={context.club.timezone}
+        openings={toManageRows(openings, context.club.timezone)}
+        offerableRoles={offerableOpeningRoles(actor)}
+      />
 
       <EventList
         clubId={clubId}

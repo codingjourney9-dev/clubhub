@@ -11,7 +11,9 @@ import { cn } from "@/lib/utils";
 const memberNav = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/events", label: "Events" },
+  { href: "/openings", label: "Openings" },
   { href: "/tickets", label: "My tickets" },
+  { href: "/applications", label: "My applications" },
 ] as const;
 
 function initials(name: string): string {
@@ -30,7 +32,7 @@ export async function SiteHeader() {
         </Link>
 
         {user ? (
-          <nav aria-label="Primary" className="ml-4 hidden items-center gap-1 md:flex">
+          <nav aria-label="Primary" className="ml-4 hidden items-center gap-1 lg:flex">
             {memberNav.map((item) => (
               <Link
                 key={item.href}
@@ -49,6 +51,12 @@ export async function SiteHeader() {
             >
               Explore events
             </Link>
+            <Link
+              href="/openings"
+              className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              Openings
+            </Link>
           </nav>
         )}
 
@@ -59,12 +67,12 @@ export async function SiteHeader() {
             <>
               <Link
                 href="/dashboard"
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "md:hidden")}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "lg:hidden")}
               >
                 Dashboard
               </Link>
               <span
-                className="hidden items-center gap-2 rounded-md border border-foreground/15 bg-card py-1 pr-3 pl-1 lg:inline-flex"
+                className="hidden items-center gap-2 rounded-md border border-foreground/15 bg-card py-1 pr-3 pl-1 xl:inline-flex"
                 title={user.displayName}
               >
                 <span className="flex size-7 items-center justify-center rounded-sm bg-foreground font-mono text-[0.6875rem] font-semibold text-background">

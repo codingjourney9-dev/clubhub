@@ -394,6 +394,43 @@ exactly one President — the database itself refuses a second. Leads and the Pr
 8. Try removing someone who holds a ticket for a **members-only** event: the green message says how many
    seats were given back, and the next person on that event's waiting list gets in.
 
+### Step 12 15/16 — The recruitment board (new in Phase 11)
+
+What changed in plain words: clubs can now **advertise roles** ("we need an Electronics team member"),
+and **any signed-in student — even from another college — can apply**. The club's Leads accept or reject
+Member applicants; Lead applicants are the President's call. Accepting gives the person the role
+straight away. Every club also has a **public profile** that anyone can open.
+
+**In the preview (no sign-in):**
+
+1. Click **Openings** in the top bar (or scroll down on `/dashboard` to **Club recruitment board**). You
+   see three open roles. The closed one (*Photography & social media*) is not listed.
+2. Click **Workshop Lead**. You see what the role involves, the requirements, the club's three questions,
+   and — because you're a guest — a **Sign in to apply** button instead of the form.
+3. Click **About Robotics Club** (under that button). This is the club's **public profile**: President,
+   Leads, member count, open roles and upcoming public events. No emails, no members-only posts.
+4. Open `/demo`, click **Robotics Club**, and find the new **Openings** card. As **Aarav** (President) you
+   also see **Kabir's application** with his three answers. Click **View as → Meera Patel**: the
+   application disappears — Workshop Lead is a *Lead* role, so only the President decides it.
+
+**On your own computer (signed in — this is where the buttons are):**
+
+5. Sign in as `kabir.member@vit.ac.in` / `password123` and click **My applications** in the top bar. His
+   Workshop Lead application says **WAITING FOR A DECISION**. Click **Withdraw application** → **Yes,
+   withdraw**. Click the opening's title: the form is back. Fill in the three boxes and click **Send
+   application** — withdrawing doesn't stop you applying again (being rejected does).
+6. Sign out, sign in as `aarav.president@vit.ac.in` → **Dashboard** → **Robotics Club** → scroll to
+   **Openings**.
+   - Click **Review applications (1 pending)** on Workshop Lead → **Accept** → **Accept as Lead**.
+     Kabir is now a Lead (check the Members card).
+   - Click **New opening**: give it a title and description, choose **Member** or **Lead**, edit or add
+     questions (up to three), optionally a closing date, then **Post opening**. It appears on the board.
+   - **Close** stops new applications; **Reopen** brings it back.
+7. Create a brand-new account (any email) and apply to **Electronics team member** — that's the
+   "another college" case. Sign in as Meera (a Lead) and accept it: the new person is now a Member of
+   Robotics and can see its announcements.
+8. Done experimenting? `npm run db:seed` puts every opening and Kabir's application back.
+
 ### Step 13 — (Optional) the real sign-in experience
 
 Sign-in needs cookies, so run the app on your own machine (§4) and use
@@ -448,13 +485,13 @@ Two commands do the checking for you. This is the habit that separates "it works
 real software.
 
 ```bash
-npm run test          # 416 automated checks — the "robot inspectors"
-npm run test:smoke    # 246 checks against the running website
+npm run test          # 453 automated checks — the "robot inspectors"
+npm run test:smoke    # 311 checks against the running website
 npm run test:layout   # 100 checks in a real browser, at phone and desktop widths
 npm run deploy:check  # 14 checks that a real deployment is configured safely
 ```
 
-The 416 tests answer questions like:
+The 453 tests answer questions like:
 
 - *"If someone tries to sneak an event from College B into College A's data, does the filing cabinet
   slam the drawer shut?"* → Yes, it refuses. (That's not politeness; the database physically can't
@@ -469,10 +506,13 @@ The 416 tests answer questions like:
 - *"Can a club end up with two Presidents — or a President be removed?"* → No. The President can only
   change by handing over, and the database itself refuses a second President even if the app's code
   had a bug. Two hand-overs at the same instant still end with exactly one.
-- *"If someone from another college guesses a club's web address, what do they see?"* → A plain
-  "not found" page. Nothing confirms whether that club exists.
+- *"If someone double-clicks Send application, or two Leads click Accept at the same instant?"* → One
+  application, one decision. The database refuses the second.
+- *"If someone from another college opens a club's web address, what do they see?"* → Since Phase 11,
+  the club's **public profile** — names of the President and Leads, open roles, public events. Never the
+  member list, emails, announcements or invite links.
 
-And the 246 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
+And the 311 smoke checks drive the real website: log in, submit a bad form, try to exceed a rate
 limit, read the dashboard as two different people, mint an invite link and redeem it as a brand-new
 account, take the last seat in a one-seat event to watch the queue move, and scan that ticket twice
 at the door to see the second scan come back as a receipt instead of an error.
@@ -492,7 +532,7 @@ It needs a browser. If `npm run test:layout` says it cannot find Chromium, insta
 npm run verify
 ```
 
-…which does *checking for typos* → *checking for type mistakes* → *running all 416 tests* → *building
+…which does *checking for typos* → *checking for type mistakes* → *running all 453 tests* → *building
 the final version*. If any step fails, the phase isn't done. One tip: stop the preview server first
 (`Ctrl-C`), because the build and the server share the same temporary folder.
 
@@ -514,18 +554,19 @@ with a review, and nothing starts until the previous one passes.
 | 7 | Make it pretty and bulletproof | ✅ Done |
 | 8 | Front door: guests can browse events, "Start a new club" asks them to sign in | ✅ Done |
 | 9 | Richer events: poster link, tags, Instagram / WhatsApp links | ✅ Done |
-| 10 | Roles: "Lead" instead of Event Manager, removing people, handing over the presidency, members-only announcements | ✅ Built — waiting for your review |
-| 11 | Recruitment board: clubs post openings, students apply | ⬜ Next |
-| 12 | Any student can start a club; it stays Pending until a professor's code is entered | ⬜ |
+| 10 | Roles: "Lead" instead of Event Manager, removing people, handing over the presidency, members-only announcements | ✅ Done |
+| 11 | Recruitment board: clubs post openings, students apply; public club profiles | ✅ Built — waiting for your review |
+| 12 | Any student can start a club; it stays Pending until a professor's code is entered | ⬜ Next |
 | 13 | The remaining screens in the new look + final checks | ⬜ |
 
 **In plain words, right now:** guests can browse every college's public events; signed-in students
 get seats, QR tickets and waitlists; the door scanner works even without internet; events have posters,
-tags and links; and — new in Phase 10 — clubs have **Leads**, exactly **one President** who can hand the
-club over, and **members-only announcements**.
+tags and links; clubs have **Leads**, exactly **one President** and **members-only announcements**; and —
+new in Phase 11 — clubs **advertise openings**, any student can **apply**, accepting **grants the role**,
+and every club has a **public profile**.
 
-What you *cannot* do yet: clubs can't advertise openings ("we need a treasurer") and students can't apply.
-That's Phase 11, the recruitment board.
+What you *cannot* do yet: start a club as an ordinary student and have a professor approve it with a
+code. That's Phase 12.
 
 ---
 
@@ -578,19 +619,22 @@ Rule of thumb while learning: **a screen lives in `src/app`, reusable pieces liv
 
 ## 9. What's next, and how you can steer it
 
-**Phase 10 is built.** "Event Manager" is now **Lead**; Leads remove Members; the President removes
-Leads, promotes people and hands the club over; and clubs can post members-only announcements.
+**Phase 11 is built.** Clubs post openings with their own questions; anyone signed in applies; Leads
+decide Member applicants and the President decides Lead applicants; accepting grants the role; students
+track everything under **My applications**; and every club has a public profile.
 
-**Phase 11 — the recruitment board.** Clubs post openings (title, description, requirements,
-Open/Closed); signed-in students apply; Leads accept Member applicants, only the President accepts Lead
-applicants, and accepting grants the role.
+**Phase 12 — start a club, professor approves.** Any signed-in student can request a new club (its
+college is matched from their email domain). It stays **Pending** — they're its President already —
+until a professor enters a 6-digit code (shown on screen / in the terminal for now).
 
-**How to approve Phase 10:**
+**How to approve Phase 11:**
 
 ```bash
+npm run db:deploy     # adds the two new tables (only needed once)
+npm run db:seed       # the sample openings and Kabir's application
 npm run app:up        # start the app
-npm run test:smoke    # watch it check all 246 behaviours
+npm run test:smoke    # watch it check all 311 behaviours
 ```
 
-Then try Step 12⅞ above and tell me *"Phase 10 looks good"* (or what you'd like changed) and I'll start
-Phase 11.
+Then try Step 12 15/16 above and tell me *"Phase 11 looks good"* (or what you'd like changed) and I'll
+start Phase 12.

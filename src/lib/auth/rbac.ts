@@ -49,6 +49,14 @@ export const CLUB_MATRIX = {
   "announcement:post": ["PRESIDENT", "EVENT_MANAGER"],
   /** …and the President may also delete posts written by others. */
   "announcement:moderate": ["PRESIDENT"],
+  /**
+   * Recruitment (Phase 11). Two tiers, matching who may grant the role the
+   * opening offers: Member openings are a Lead's job too; Lead openings belong
+   * to the President. Use `canManageOpening` / `canDecideApplication` when a
+   * specific opening is involved.
+   */
+  "opening:manage_member": ["PRESIDENT", "EVENT_MANAGER"],
+  "opening:manage_lead": ["PRESIDENT"],
   "club:view_members": ["PRESIDENT", "EVENT_MANAGER", "MEMBER"],
   "event:create": ["PRESIDENT", "EVENT_MANAGER"],
   "event:update": ["PRESIDENT", "EVENT_MANAGER"],
@@ -154,4 +162,22 @@ export function canAssignTenantRole(actorRole: TenantRole | null, role: TenantRo
   if (actorRole === "OWNER") return true;
   if (actorRole === "ADMIN") return role === "MEMBER";
   return false;
+}
+
+/**
+ * May `actor` post, edit, close or review applications for an opening that
+ * offers `role`? Member openings: Leads and the President. Lead openings: the
+ * President. College admins can do both (the usual override). Never PRESIDENT.
+ */
+export function canManageOpening(actor: Actor, role: ClubRole): boolean {
+  if (role === "PRESIDENT") return false;
+  return canClub(actor, role === "EVENT_MANAGER" ? "opening:manage_lead" : "opening:manage_member");
+}
+
+/** Accepting grants the opening's role, so the same tier decides. */
+export const canDecideApplication = canManageOpening;
+
+/** Opening roles this actor may offer — for the "New opening" form. */
+export function offerableOpeningRoles(actor: Actor): ("MEMBER" | "EVENT_MANAGER")[] {
+  return (["MEMBER", "EVENT_MANAGER"] as const).filter((role) => canManageOpening(actor, role));
 }

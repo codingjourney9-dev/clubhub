@@ -350,6 +350,8 @@ function describe(action: string): string {
     "announcement:read": "read this club's announcements",
     "announcement:post": "post announcements in this club",
     "announcement:moderate": "delete other people's announcements in this club",
+    "opening:manage_member": "post or review this club's openings",
+    "opening:manage_lead": "post or review this club's Lead openings",
     "club:invite": "invite people to this club",
     "club:view_members": "see this club's members",
     "event:create": "create events for this club",

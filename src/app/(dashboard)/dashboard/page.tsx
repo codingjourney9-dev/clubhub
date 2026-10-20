@@ -19,6 +19,11 @@ import { cn } from "@/lib/utils";
 import { CLUB_ROLE_LABELS } from "@/lib/domain/club-roles";
 import { DashboardAnnouncements } from "@/components/features/announcement/dashboard-announcements";
 import { listAnnouncementsForMember } from "@/lib/services/announcement-service";
+import { RecruitmentBoard } from "@/components/features/recruitment/recruitment-board";
+import { listOpenOpenings } from "@/lib/services/recruitment-service";
+
+/** How many openings the dashboard shows before "All openings". */
+const BOARD_SIZE = 6;
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -55,7 +60,10 @@ function FeedHeading({ events, title }: { events: readonly PublicEvent[]; title:
  * college, and a way to start a club that asks them to sign in first.
  */
 async function GuestDashboard({ tag }: { tag: EventTag | null }) {
-  const events = await listPublicUpcomingEvents(undefined, { tag });
+  const [events, openings] = await Promise.all([
+    listPublicUpcomingEvents(undefined, { tag }),
+    listOpenOpenings({ limit: BOARD_SIZE }),
+  ]);
   const demo = isDemoModeEnabled();
 
   return (
@@ -79,6 +87,8 @@ async function GuestDashboard({ tag }: { tag: EventTag | null }) {
         <TagFilter active={tag} />
         <PublicEventGrid events={events} filteredBy={tag ? EVENT_TAG_LABELS[tag] : null} />
       </section>
+
+      <RecruitmentBoard openings={openings} />
 
       <section className="flex flex-col items-start gap-4 rounded-xl border border-foreground/80 bg-secondary/60 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8 dark:border-foreground/20">
         <div className="flex max-w-xl flex-col gap-1">
@@ -113,11 +123,12 @@ export default async function DashboardPage({
 
   // The overview, the user row and the public feed are independent, so they
   // share one round trip instead of taking three.
-  const [user, overview, publicEvents, announcements] = await Promise.all([
+  const [user, overview, publicEvents, announcements, openings] = await Promise.all([
     getCurrentUser(),
     loadMemberOverview(sessionUserId),
     listPublicUpcomingEvents(6, { tag }),
     listAnnouncementsForMember(sessionUserId, 4),
+    listOpenOpenings({ limit: BOARD_SIZE }),
   ]);
   // A session for an account that no longer exists: send them to sign in again.
   if (!user) redirect("/sign-in");
@@ -255,6 +266,8 @@ export default async function DashboardPage({
         <TagFilter active={tag} />
         <PublicEventGrid events={publicEvents} filteredBy={tag ? EVENT_TAG_LABELS[tag] : null} />
       </section>
+
+      <RecruitmentBoard openings={openings} />
 
       <StartClubButton signedIn placement="floating" />
     </div>

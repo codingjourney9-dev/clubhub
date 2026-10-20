@@ -71,7 +71,7 @@ export const PUBLIC_FEED_LIMIT = 24;
 /** Upcoming public events from every college, soonest first — optionally only one tag. */
 export async function listPublicUpcomingEvents(
   limit: number = PUBLIC_FEED_LIMIT,
-  options: { readonly tag?: EventTag | null } = {},
+  options: { readonly tag?: EventTag | null; readonly clubId?: string } = {},
 ): Promise<PublicEvent[]> {
   const rows = await db.event.findMany({
     where: {
@@ -79,6 +79,7 @@ export async function listPublicUpcomingEvents(
       status: "PUBLISHED",
       endTime: { gt: new Date() },
       ...(options.tag ? { tags: { has: options.tag } } : {}),
+      ...(options.clubId ? { clubId: options.clubId } : {}),
     },
     orderBy: { startTime: "asc" },
     take: Math.min(Math.max(limit, 1), 100),

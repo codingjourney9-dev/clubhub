@@ -66,6 +66,17 @@ const ANNOUNCEMENT = {
   debateNeedsPresident: "0f1d2c3b-4a59-4e6d-8b7c-600000000003",
 } as const;
 
+/** Fixed recruitment ids (Phase 11). */
+const OPENING = {
+  electronics: "0f1d2c3b-4a59-4e6d-8b7c-700000000001",
+  workshopLead: "0f1d2c3b-4a59-4e6d-8b7c-700000000002",
+  mediaClosed: "0f1d2c3b-4a59-4e6d-8b7c-700000000003",
+  debaters: "0f1d2c3b-4a59-4e6d-8b7c-700000000004",
+} as const;
+const APPLICATION = {
+  kabirWorkshopLead: "0f1d2c3b-4a59-4e6d-8b7c-800000000001",
+} as const;
+
 /**
  * Two people are already through the door before you arrive.
  *
@@ -277,6 +288,99 @@ async function main() {
       create: { id, tenantId: tenant.id, ...announcement },
     });
   }
+
+  // ── Recruitment board (Phase 11) ──────────────────────────────────────────
+  // Re-seeding is a reset: seeded openings get their text and status back, and
+  // applications other than the seeded one are cleared from them.
+  const openings = [
+    {
+      id: OPENING.electronics,
+      clubId: robotics.id,
+      createdById: USER.meera,
+      title: "Electronics team member",
+      description:
+        "Help build the drive and weapon electronics for our RoboWars bots: wiring, motor drivers and battery packs. Build nights are Tuesday and Thursday evenings in the Robotics Lab.",
+      requirements: "No experience needed — we teach soldering. Bring curiosity and two evenings a week.",
+      role: "MEMBER" as const,
+      questions: ["Why do you want this role?", "Have you built or repaired anything electronic? Tell us about it."],
+      status: "OPEN" as const,
+      closesAt: null,
+      createdAt: hoursAgo(26),
+    },
+    {
+      id: OPENING.workshopLead,
+      clubId: robotics.id,
+      createdById: USER.aarav,
+      title: "Workshop Lead",
+      description:
+        "Run our beginner Line-Follower workshops: plan the sessions, book the lab, and teach first-years. As a Lead you'll also create events and post announcements.",
+      requirements: "At least one robot built. Comfortable speaking in front of 30 people.",
+      role: "EVENT_MANAGER" as const,
+      questions: ["Why do you want this role?", "Describe a robot or project you built.", "Which weekday evenings are you free?"],
+      status: "OPEN" as const,
+      closesAt: utcDate(10, 12, 30), // 18:00 IST, ten days out
+      createdAt: hoursAgo(20),
+    },
+    {
+      id: OPENING.mediaClosed,
+      clubId: robotics.id,
+      createdById: USER.aarav,
+      title: "Photography & social media",
+      description: "Shoot our events and run the club Instagram.",
+      requirements: null,
+      role: "MEMBER" as const,
+      questions: ["Why do you want this role?"],
+      status: "CLOSED" as const,
+      closesAt: null,
+      createdAt: hoursAgo(24 * 12),
+    },
+    {
+      id: OPENING.debaters,
+      clubId: debate.id,
+      createdById: USER.nisha,
+      title: "New debaters — all years welcome",
+      description:
+        "Join the Debate Society's practice squad. Weekly motions, mock rounds and a shot at the inter-college team.",
+      requirements: null,
+      role: "MEMBER" as const,
+      questions: ["Why do you want this role?"],
+      status: "OPEN" as const,
+      closesAt: null,
+      createdAt: hoursAgo(8),
+    },
+  ];
+  for (const { id, ...opening } of openings) {
+    await db.roleOpening.upsert({
+      where: { id },
+      update: { ...opening, deletedAt: null },
+      create: { id, tenantId: tenant.id, ...opening },
+    });
+  }
+  // Openings someone added to the two demo clubs (by hand, or the smoke test)
+  // go too — their applications with them (ON DELETE CASCADE).
+  await db.roleOpening.deleteMany({
+    where: { clubId: { in: [robotics.id, debate.id] }, id: { notIn: Object.values(OPENING) } },
+  });
+  await db.openingApplication.deleteMany({
+    where: { openingId: { in: Object.values(OPENING) }, id: { notIn: Object.values(APPLICATION) } },
+  });
+  const kabirAnswers = [
+    { question: "Why do you want this role?", answer: "I've been at every build night this semester and I'd love to teach the first-years what I learned." },
+    { question: "Describe a robot or project you built.", answer: "A two-wheel line follower with a PID loop on an Arduino Nano — it came third at the intra-college race." },
+    { question: "Which weekday evenings are you free?", answer: "Tuesday and Thursday after 5 pm." },
+  ];
+  await db.openingApplication.upsert({
+    where: { id: APPLICATION.kabirWorkshopLead },
+    update: { answers: kabirAnswers, status: "PENDING", decidedById: null, decidedAt: null, createdAt: hoursAgo(5) },
+    create: {
+      id: APPLICATION.kabirWorkshopLead,
+      tenantId: tenant.id,
+      openingId: OPENING.workshopLead,
+      applicantId: USER.kabir,
+      answers: kabirAnswers,
+      createdAt: hoursAgo(5),
+    },
+  });
 
   // ── Events: public + members-only, past + upcoming ────────────────────────
   const WA_DEMO = "https://chat.whatsapp.com/DemoInviteCodeClubHub0001";
@@ -511,6 +615,7 @@ async function main() {
   Door     5 checked in — Open House (today) 1 of 4 · Debug Night 2 of 3 · RoboWars 2 of 4
   Invites  1   public demo link: join/${DEMO_INVITE_TOKEN}
   Announcements 3 (1 pinned in Robotics · Debate has no President yet)
+  Openings 4 (3 open · 1 closed)   Applications 1 (Kabir → Workshop Lead, waiting)
   ──────────────────────────────────────────────────────────────
 `);
 }

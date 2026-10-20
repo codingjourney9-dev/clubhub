@@ -569,7 +569,7 @@ rewritten on save, broken poster fallback), demo page as Kabir (waitlisted) vs A
 **Deploying:** this phase adds a migration. Vercel's build runs `prisma migrate deploy` automatically;
 on your own computer run `npm run db:deploy` once after pulling (your `.env` points at the DEV branch).
 
-## Phase 10 — Leads, tiered removal, one President, announcements — Built, awaiting review
+## Phase 10 — Leads, tiered removal, one President, announcements — Complete (approved)
 
 Decisions agreed before building: **exactly one President per club, guaranteed by the database** (invite
 links can no longer make Presidents; handing over is the only way it changes); on hand-over **the
@@ -630,6 +630,68 @@ computer run `npm run db:deploy` then `npm run db:seed` after pulling.
 
 ---
 
+## Phase 11 — Recruitment board & public club profile — Built, awaiting review
+
+Decisions agreed before building: **anyone signed in can apply** (any college, or none); each opening
+has **1–3 questions of its own**, all required (the default is "Why do you want this role?"); a **public
+club profile** is part of this phase; openings close **by hand or on an optional closing date**.
+Announced defaults: Leads post Member openings, only the President (or a college admin) posts Lead
+openings; one application per person per opening; withdraw only while pending; re-apply after
+withdrawing but not after a rejection; existing Members may apply only for Lead; Leads and the President
+can't apply to their own club; accepting grants the role (and joins the club's college as a plain
+member, exactly like an invite link); closing stops new applications but pending ones can still be
+decided; the role an opening offers is fixed once posted; no emails — a **My applications** page instead.
+
+- **Database** — migration `20261020133356_phase11_recruitment`: `role_openings` (composite FK to
+  `clubs(id, tenant_id)`, `@@unique([id, tenant_id])` so applications can't drift tenants) and
+  `opening_applications` (unique on `(opening_id, applicant_id)` — a double click can't make two).
+  Hand-written CHECKs: an opening never offers PRESIDENT, has 1–3 questions, text lengths, answers are a
+  JSON array, and `decided_at` is set exactly when the status is ACCEPTED/REJECTED.
+- **Rules** — `src/lib/domain/openings.ts` (`openingState`: open / closed / date_passed;
+  `applyBlockedReason`) and `src/lib/auth/rbac.ts` (`opening:manage_member` for President + Lead,
+  `opening:manage_lead` for President; `canManageOpening` / `canDecideApplication` pick the tier from the
+  opening's role; `offerableOpeningRoles` feeds the form). College Owners/Admins keep their override.
+- **Service** (`recruitment-service.ts`) — applying locks the opening row (`FOR UPDATE`) so a close and
+  an application can't interleave, re-checks open/eligibility/answer count, and **copies the questions in**
+  next to the answers (editing an opening later never rewrites what someone answered). A withdrawn row is
+  revived on re-apply; P2002 from a race → 409. Deciding locks the club row (the same lock role changes
+  and hand-overs take), refuses non-pending (409), wrong tier (403) and deciding your own (403); ACCEPT
+  ensures college membership, then creates / revives / promotes Member→Lead — never demotes.
+- **API** (all Zod-validated, strict objects): `GET /api/openings` (public), `POST
+  /api/clubs/:id/openings`, `PATCH /api/clubs/:id/openings/:oid` (edit, close, reopen),
+  `GET …/openings/:oid/applications`, `POST /api/clubs/:id/applications/:aid/decision`,
+  `POST /api/openings/:oid/apply` (own rate budget: burst 20, then one a minute), `POST
+  /api/applications/:aid/withdraw`.
+- **Screens** — `/dashboard` (guests and members) gets a **Club recruitment board** section; `/openings`
+  (the whole board); `/openings/:id` (details, questions, and a panel that is a sign-in prompt for
+  guests, the form for eligible students, your application + Withdraw if you applied, or why not);
+  `/applications` (My applications); the club workspace's **Openings** card (New opening, Edit,
+  Close/Reopen — reopening a date-passed opening clears the old date — and *Review applications (n
+  pending)*); the review page with Accept/Reject behind confirmation dialogs. Top bar: **Openings** for
+  everyone, **My applications** when signed in.
+- **Public club profile** — `/clubs/:id` no longer redirects guests or 404s outsiders: anyone who can't
+  open the workspace sees name, college, category, description, President and Lead **names** (no emails,
+  no roster), member count, open roles and upcoming *open-to-everyone* events. Members preview it with
+  **See the public profile** (`?view=public`). A club that doesn't exist is still a 404.
+- **Demo** — `/demo/clubs/:id` has a read-only Openings card; applications show only for a viewer who
+  could decide them (Aarav sees Kabir's Lead application; Meera and Kabir don't).
+- **Seed** — Robotics: *Electronics team member* (Member, 2 questions), *Workshop Lead* (Lead, closes in
+  10 days, 3 questions), *Photography & social media* (closed). Debate: *New debaters*. Kabir has a
+  pending application for Workshop Lead. Re-seeding resets these and removes other openings from the two
+  demo clubs.
+
+**Gate:** typecheck ✅ lint ✅ build ✅ vitest 453/453 ✅ (37 new: 18 unit — state, eligibility, tiers,
+validation; 19 integration — cross-college apply, answer snapshot, double-click race, closed/date-passed,
+withdraw + re-apply, accept joins college and club, Member→Lead promotion, removed member revived,
+rejection final, two reviewers racing, decide after close, cross-club isolation) · smoke 311/311 ✅
+(65 new in block [18]; one Phase 3 check updated because guests now get the public profile) ·
+browser-checked as guest, President (Openings card, form, review + confirm dialog) and applicant.
+
+**Deploying:** this phase adds a migration. Vercel runs `prisma migrate deploy` itself; on your own
+computer run `npm run db:deploy` then `npm run db:seed` after pulling.
+
+---
+
 ## Progress log
 
 | Date | Phase | Result |
@@ -644,7 +706,8 @@ computer run `npm run db:deploy` then `npm run db:seed` after pulling.
 | 2026-10-17 | Deploy readiness | Complete. Multi-stage Dockerfile + Compose (db → migrate → app), `npm run deploy:check` (14 checks), `docs/DEPLOY.md` for Compose/Vercel/systemd. Fixed a silent rate-limit driver lie and a `.env`-in-image leak. Gate: lint ✅ typecheck ✅ build ✅ 305 tests ✅ smoke 178/178 ✅ |
 | 2026-10-20 | 8 — Front door & guest browsing | Complete (approved). Guest `/dashboard` with public events from every college, public event pages, "Start a new club" sign-in interceptor, `safeCallbackUrl` open-redirect fix. Gate: lint ✅ typecheck ✅ build ✅ 351 tests ✅ smoke 190/190 ✅ |
 | 2026-10-20 | 9 — Richer events | Complete (approved). Poster links (Drive links rewritten), up to 3 tags + board filter, public Instagram, WhatsApp link for seat holders only; waitlist-counted-as-seats edit bug fixed. Gate: lint ✅ typecheck ✅ build ✅ 375 tests ✅ smoke 211/211 ✅ |
-| 2026-10-20 | 10 — Leads, removal, presidency, announcements | Built, awaiting review. "Lead" label, tiered removal (members-only seats given back, waitlist promoted), DB-enforced single President with hand-over, members-only announcements with one pin. Gate: lint ✅ typecheck ✅ build ✅ 416 tests ✅ smoke 246/246 ✅ |
+| 2026-10-20 | 10 — Leads, removal, presidency, announcements | Complete (approved). "Lead" label, tiered removal (members-only seats given back, waitlist promoted), DB-enforced single President with hand-over, members-only announcements with one pin. Gate: lint ✅ typecheck ✅ build ✅ 416 tests ✅ smoke 246/246 ✅ |
+| 2026-10-20 | 11 — Recruitment board & public club profile | Built, awaiting review. Openings with 1–3 own questions and optional closing date, apply from any college, one application each (race-safe), withdraw/re-apply, tiered accept/reject that grants the role, My applications, public club profile. Gate: lint ✅ typecheck ✅ build ✅ 453 tests ✅ smoke 311/311 ✅ |
 
 ---
 

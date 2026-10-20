@@ -357,7 +357,7 @@ export async function acceptInvite(token: string, userId: string, userEmail: str
  * is visible to them. Existing memberships — and their roles — are left alone,
  * and a membership that was soft-deleted is revived rather than duplicated.
  */
-async function ensureTenantMembership(
+export async function ensureTenantMembership(
   tx: Prisma.TransactionClient,
   tenantId: string,
   userId: string,

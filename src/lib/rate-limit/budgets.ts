@@ -32,6 +32,8 @@ export const RATE_LIMITS = {
    * one every 30 seconds — plenty for people, useless for a spam loop.
    */
   announce: { limit: 10, refillPerSecond: 1 / 30, label: "post announcements" },
+  /** Applying to club openings: a handful at once is normal, a hundred is a script. */
+  apply: { limit: 20, refillPerSecond: 1 / 60, label: "send applications" },
 } as const;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;

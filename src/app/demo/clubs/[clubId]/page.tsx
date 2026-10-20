@@ -38,6 +38,7 @@ import { TagChips } from "@/components/features/event/event-extras";
 import { AnnouncementBody } from "@/components/features/announcement/announcement-body";
 import { CLUB_ROLE_LABELS } from "@/lib/domain/club-roles";
 import { listClubAnnouncements } from "@/lib/services/announcement-service";
+import { DemoOpeningsCard } from "@/components/features/recruitment/demo-openings-card";
 
 export const metadata: Metadata = { title: "Club preview" };
 export const dynamic = "force-dynamic";
@@ -454,6 +455,12 @@ export default async function DemoClubPage({
           </AlertDescription>
         </Alert>
       )}
+
+      <DemoOpeningsCard
+        club={{ id: club.id, tenantId: club.tenantId, timeZone: club.tenant.timezone }}
+        actor={actor}
+        viewerName={account.displayName}
+      />
 
       <Card>
         <CardHeader>

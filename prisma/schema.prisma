@@ -93,11 +93,14 @@ model User {
   tenantMemberships TenantMember[]
   clubMemberships   ClubMember[]
   tickets           Ticket[]
-  createdEvents     Event[]        @relation("EventCreatedBy")
-  checkIns          Attendance[]   @relation("AttendanceCheckedInBy")
-  tenantInvites     TenantInvite[] @relation("TenantInviteCreatedBy")
-  clubInvites       ClubInvite[]   @relation("ClubInviteCreatedBy")
-  announcements     Announcement[] @relation("AnnouncementAuthor")
+  createdEvents     Event[]              @relation("EventCreatedBy")
+  checkIns          Attendance[]         @relation("AttendanceCheckedInBy")
+  tenantInvites     TenantInvite[]       @relation("TenantInviteCreatedBy")
+  clubInvites       ClubInvite[]         @relation("ClubInviteCreatedBy")
+  announcements     Announcement[]       @relation("AnnouncementAuthor")
+  openingsPosted    RoleOpening[]        @relation("OpeningPostedBy")
+  applications      OpeningApplication[] @relation("ApplicationApplicant")
+  decisions         OpeningApplication[] @relation("ApplicationDecidedBy")
 
   @@index([deletedAt])
   @@map("users")
@@ -167,6 +170,7 @@ model Club {
   events        Event[]
   invites       ClubInvite[]
   announcements Announcement[]
+  openings      RoleOpening[]
 
   /// Composite target for child rows: guarantees an event's tenantId matches
   /// the tenant of its club.
@@ -404,4 +408,83 @@ model Announcement {
   @@index([clubId, deletedAt, createdAt])
   @@index([tenantId])
   @@map("announcements")
+}
+
+enum OpeningStatus {
+  OPEN
+  CLOSED
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+/// A role a club is recruiting for (Phase 11). Public: guests can read it.
+///
+/// "Open" means status = OPEN and (closesAt is null or in the future); the
+/// optional date closes it without anyone pressing a button.
+model RoleOpening {
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @map("tenant_id") @db.Uuid
+  clubId      String @map("club_id") @db.Uuid
+  createdById String @map("created_by_id") @db.Uuid
+
+  title        String   @db.VarChar(120)
+  description  String
+  requirements String?
+  /// The role accepting grants: MEMBER or EVENT_MANAGER (shown as "Lead").
+  /// Never PRESIDENT — a CHECK in the migration holds that line.
+  role         ClubRole @default(MEMBER)
+  /// 1–3 questions every applicant answers (CHECK in the migration).
+  questions    String[]
+
+  status   OpeningStatus @default(OPEN)
+  closesAt DateTime?     @map("closes_at") @db.Timestamptz(3)
+
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
+
+  club         Club                 @relation(fields: [clubId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  createdBy    User                 @relation("OpeningPostedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  applications OpeningApplication[]
+
+  /// Composite target, so an application's tenant always matches its opening's.
+  @@unique([id, tenantId])
+  @@index([status, deletedAt, createdAt])
+  @@index([clubId, deletedAt])
+  @@map("role_openings")
+}
+
+/// One person's application to one opening. The applicant may come from any
+/// college; `tenantId` is the CLUB's college (whose data this is).
+model OpeningApplication {
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @map("tenant_id") @db.Uuid
+  openingId   String @map("opening_id") @db.Uuid
+  applicantId String @map("applicant_id") @db.Uuid
+
+  /// [{ question, answer }] — the questions are copied in, so editing an
+  /// opening later never changes what somebody already answered.
+  answers Json
+
+  status      ApplicationStatus @default(PENDING)
+  decidedById String?           @map("decided_by_id") @db.Uuid
+  decidedAt   DateTime?         @map("decided_at") @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  opening   RoleOpening @relation(fields: [openingId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  applicant User        @relation("ApplicationApplicant", fields: [applicantId], references: [id], onDelete: Cascade)
+  decidedBy User?       @relation("ApplicationDecidedBy", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  /// One application per person per opening — a double click can't make two.
+  @@unique([openingId, applicantId])
+  @@index([applicantId, createdAt])
+  @@index([openingId, status])
+  @@map("opening_applications")
 }

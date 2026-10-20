@@ -296,11 +296,11 @@ fi
 STATUS=$(curl -s -b "$TMP/aarav.jar" -o /dev/null -w '%{http_code}' "$BASE/clubs/99999999-9999-4999-8999-999999999999")
 expect_status "unknown club id shows the 404 page" 404 "$STATUS"
 
-LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/clubs/$PRESIDENT_CLUB")
-case "$LOCATION" in
-  */sign-in*) pass "signed-out visitors are sent to sign-in, not a crash" ;;
-  *) fail "signed-out club page should redirect to sign-in, got: $LOCATION" ;;
-esac
+# Since Phase 11 a signed-out visitor gets the club's public profile (no crash,
+# no redirect); the private workspace stays private — see block [18].
+STATUS=$(curl -s -o "$TMP/club-guest.html" -w '%{http_code}' "$BASE/clubs/$PRESIDENT_CLUB")
+expect_status "signed-out visitors get the public profile, not a crash" 200 "$STATUS"
+expect_not_contains "…without the member roster" "$TMP/club-guest.html" "kabir.member@vit.ac.in"
 
 echo "[11] phase 3 — invite links: rights, validation and redemption"
 if [ -n "$PRESIDENT_CLUB" ]; then
@@ -878,6 +878,150 @@ if [ -n "$PRESIDENT_CLUB" ]; then
   expect_status "the President deletes someone else's post" 200 "$STATUS"
   STATUS=$(json_status POST "$CLUB_API/announcements/$BUILD_NIGHTS/pin" '{"pinned":true}' "$TMP/aarav.jar")
   expect_status "the seeded post is pinned again (seed restored)" 200 "$STATUS"
+fi
+
+echo "[18] phase 11 — recruitment board, applying, accept/reject, public club profile"
+if [ -n "$PRESIDENT_CLUB" ]; then
+  ELECTRONICS="0f1d2c3b-4a59-4e6d-8b7c-700000000001"
+  WORKSHOP_LEAD="0f1d2c3b-4a59-4e6d-8b7c-700000000002"
+  MEDIA_CLOSED="0f1d2c3b-4a59-4e6d-8b7c-700000000003"
+  DEBATERS="0f1d2c3b-4a59-4e6d-8b7c-700000000004"
+  KABIR_APP="0f1d2c3b-4a59-4e6d-8b7c-800000000001"
+  CLUB_API="/api/clubs/$ROBOTICS_CLUB"
+
+  # Guests: the board, an opening and a club's public profile — all readable.
+  STATUS=$(curl -s -o "$TMP/p11-openings.html" -w '%{http_code}' "$BASE/openings")
+  expect_status "guests open the recruitment board" 200 "$STATUS"
+  expect_contains "…which lists the Electronics opening" "$TMP/p11-openings.html" "Electronics team member"
+  expect_contains "…and the Debate one (every club)" "$TMP/p11-openings.html" "New debaters"
+  expect_not_contains "…but not the closed one" "$TMP/p11-openings.html" "Photography"
+  curl -s -o "$TMP/p11-guest-dash.html" "$BASE/dashboard"
+  expect_contains "the guest dashboard has the recruitment board" "$TMP/p11-guest-dash.html" "Club recruitment board"
+  STATUS=$(json_status GET "/api/openings?limit=0" "")
+  expect_status "the openings API validates its query" 422 "$STATUS"
+  curl -s -o "$TMP/p11-opening-guest.html" "$BASE/openings/$ELECTRONICS"
+  expect_contains "a guest sees the questions" "$TMP/p11-opening-guest.html" "Have you built or repaired anything electronic"
+  expect_contains "…and a sign-in button instead of the form" "$TMP/p11-opening-guest.html" "Sign in to apply"
+  curl -s -o "$TMP/p11-closed.html" "$BASE/openings/$MEDIA_CLOSED"
+  expect_contains "a closed opening still opens, marked Closed" "$TMP/p11-closed.html" ">Closed<"
+  STATUS=$(json_status POST "/api/openings/$ELECTRONICS/apply" '{"answers":["a","b"]}' "")
+  expect_status "a guest can't apply" 401 "$STATUS"
+  STATUS=$(curl -s -o "$TMP/p11-profile-guest.html" -w '%{http_code}' "$BASE/clubs/$ROBOTICS_CLUB")
+  expect_status "a guest opening a club gets its public profile" 200 "$STATUS"
+  expect_contains "…naming its President" "$TMP/p11-profile-guest.html" "Aarav"
+  expect_contains "…and its open roles" "$TMP/p11-profile-guest.html" "Open roles"
+  expect_not_contains "…but never members-only announcements" "$TMP/p11-profile-guest.html" "RoboWars build nights"
+  expect_not_contains "…or invite links" "$TMP/p11-profile-guest.html" "Invite links"
+  expect_not_contains "…or anyone's email" "$TMP/p11-profile-guest.html" "kabir.member@"
+  STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/clubs/0f1d2c3b-4a59-4e6d-8b7c-2000000000ff")
+  expect_status "a club that doesn't exist is still a 404" 404 "$STATUS"
+
+  # A student with no college at all applies — anyone signed in may.
+  APPLICANT="smoke.applicant+$(date +%s)@gmail.com"
+  APPLY_IP="198.18.$(( (RANDOM % 200) + 1 )).$(( (RANDOM % 200) + 1 ))"
+  STATUS=$(curl -s -o "$TMP/body.json" -w '%{http_code}' -X POST "$BASE/api/auth/register" \
+    -H 'Content-Type: application/json' -H "X-Forwarded-For: $APPLY_IP" \
+    --data "{\"firstName\":\"Asha\",\"lastName\":\"Applicant\",\"email\":\"$APPLICANT\",\"password\":\"$PASSWORD\"}")
+  expect_status "an outside student registers" 201 "$STATUS"
+  sign_in "$APPLICANT" "$PASSWORD" "$TMP/applicant.jar" >/dev/null
+  curl -s -b "$TMP/applicant.jar" -o "$TMP/p11-opening-applicant.html" "$BASE/openings/$ELECTRONICS"
+  expect_contains "signed in, they get the application form" "$TMP/p11-opening-applicant.html" "Send application"
+  STATUS=$(json_status POST "/api/openings/$ELECTRONICS/apply" '{"answers":["   ","x"]}' "$TMP/applicant.jar")
+  expect_status "a blank answer is refused by the server" 422 "$STATUS"
+  STATUS=$(json_status POST "/api/openings/$ELECTRONICS/apply" '{"answers":["Only one"]}' "$TMP/applicant.jar")
+  expect_status "one answer for two questions is refused" 422 "$STATUS"
+  STATUS=$(json_status POST "/api/openings/$ELECTRONICS/apply" '{"answers":["I like robots","A radio kit"],"status":"ACCEPTED"}' "$TMP/applicant.jar")
+  expect_status "a smuggled status field is refused" 422 "$STATUS"
+  STATUS=$(json_status POST "/api/openings/$ELECTRONICS/apply" '{"answers":["I like robots","A radio kit"]}' "$TMP/applicant.jar")
+  expect_status "the outside student applies" 201 "$STATUS"
+  APP_ID=$(node -e 'const b=require(process.argv[1]);process.stdout.write(b.data?.application?.id??"")' "$TMP/body.json")
+  STATUS=$(json_status POST "/api/openings/$ELECTRONICS/apply" '{"answers":["Again","Again"]}' "$TMP/applicant.jar")
+  expect_status "applying twice is refused" 409 "$STATUS"
+  STATUS=$(json_status POST "/api/openings/$MEDIA_CLOSED/apply" '{"answers":["x"]}' "$TMP/applicant.jar")
+  expect_status "a closed opening takes no applications" 409 "$STATUS"
+  curl -s -b "$TMP/applicant.jar" -o "$TMP/p11-mine.html" "$BASE/applications"
+  expect_contains "it's listed under My applications" "$TMP/p11-mine.html" "Electronics team member"
+  expect_contains "…as waiting for a decision" "$TMP/p11-mine.html" "Waiting for a decision"
+  STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/applications")
+  expect_status "My applications sends guests to sign in" 307 "$STATUS"
+  STATUS=$(json_status POST "/api/applications/$KABIR_APP/withdraw" '{}' "$TMP/applicant.jar")
+  expect_status "nobody withdraws someone else's application" 404 "$STATUS"
+  STATUS=$(json_status GET "$CLUB_API/openings/$ELECTRONICS/applications" "" "$TMP/applicant.jar")
+  expect_status "an applicant can't read the club's applications" 404 "$STATUS"
+
+  # Existing members: Kabir is already a Member, so only Lead openings make sense.
+  # (Kabir makes 3 apply attempts per run; the "apply" budget allows 20 at once,
+  # then one a minute — so about six back-to-back runs before a 429. Restart the
+  # app to reset it.)
+  STATUS=$(json_status POST "/api/openings/$ELECTRONICS/apply" '{"answers":["a","b"]}' "$TMP/kabir.jar")
+  expect_status "a Member can't apply for Member again" 409 "$STATUS"
+  STATUS=$(json_status POST "/api/openings/$DEBATERS/apply" '{"answers":["a"]}' "$TMP/kabir.jar")
+  expect_status "…in any club he's already in" 409 "$STATUS"
+  STATUS=$(json_status POST "/api/applications/$KABIR_APP/withdraw" '{}' "$TMP/kabir.jar")
+  expect_status "Kabir withdraws his Workshop Lead application" 200 "$STATUS"
+  STATUS=$(json_status POST "/api/openings/$WORKSHOP_LEAD/apply" '{"answers":["Teaching first-years","A line follower","Tue and Thu"]}' "$TMP/kabir.jar")
+  expect_status "…and may apply again (seed state restored: pending)" 201 "$STATUS"
+
+  # Tiers: Leads handle Member openings; Lead openings are the President's.
+  STATUS=$(json_status POST "$CLUB_API/openings" '{"title":"Smoke Lead","description":"x","role":"EVENT_MANAGER","questions":["Why?"]}' "$TMP/meera.jar")
+  expect_status "a Lead can't post a Lead opening" 403 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/openings" '{"title":"Smoke","description":"x","role":"PRESIDENT","questions":["Why?"]}' "$TMP/aarav.jar")
+  expect_status "nobody posts a President opening" 422 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/openings" '{"title":"Smoke","description":"x","role":"MEMBER","questions":["Why?"],"closesAt":"2020-01-01T10:00"}' "$TMP/meera.jar")
+  expect_status "a closing date in the past is refused" 422 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/openings" '{"title":"Smoke","description":"x","role":"MEMBER","questions":["Why?"]}' "$TMP/kabir.jar")
+  expect_status "a plain Member can't post openings" 403 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/openings" '{"title":"Smoke check opening","description":"Testing.","role":"MEMBER","questions":["Why?","When?"]}' "$TMP/meera.jar")
+  expect_status "a Lead posts a Member opening" 201 "$STATUS"
+  NEW_OPENING=$(node -e 'const b=require(process.argv[1]);process.stdout.write(b.data?.opening?.id??"")' "$TMP/body.json")
+  STATUS=$(json_status PATCH "$CLUB_API/openings/$NEW_OPENING" '{"role":"EVENT_MANAGER"}' "$TMP/meera.jar")
+  expect_status "the role an opening offers can't be edited" 422 "$STATUS"
+  STATUS=$(json_status PATCH "$CLUB_API/openings/$NEW_OPENING" '{"status":"CLOSED"}' "$TMP/meera.jar")
+  expect_status "the Lead closes it" 200 "$STATUS"
+  STATUS=$(json_status PATCH "$CLUB_API/openings/$WORKSHOP_LEAD" '{"status":"CLOSED"}' "$TMP/meera.jar")
+  expect_status "a Lead can't close the President's Lead opening" 403 "$STATUS"
+  STATUS=$(json_status GET "$CLUB_API/openings/$WORKSHOP_LEAD/applications" "" "$TMP/meera.jar")
+  expect_status "…or read its applications" 403 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/applications/$KABIR_APP/decision" '{"decision":"ACCEPT"}' "$TMP/meera.jar")
+  expect_status "…or accept a Lead applicant" 403 "$STATUS"
+  STATUS=$(json_status GET "$CLUB_API/openings/$WORKSHOP_LEAD/applications" "" "$TMP/aarav.jar")
+  expect_status "the President reads the Lead applications" 200 "$STATUS"
+  expect_contains "…including Kabir's" "$TMP/body.json" "kabir.member@vit.ac.in"
+
+  # Accepting the outside student: they join the college and the club.
+  STATUS=$(json_status GET "$CLUB_API/openings/$ELECTRONICS/applications" "" "$TMP/meera.jar")
+  expect_status "the Lead reads the Electronics applications" 200 "$STATUS"
+  expect_contains "…with the outside student's answers" "$TMP/body.json" "A radio kit"
+  STATUS=$(json_status POST "$CLUB_API/applications/$APP_ID/decision" '{"decision":"MAYBE"}' "$TMP/meera.jar")
+  expect_status "a decision must be Accept or Reject" 422 "$STATUS"
+  STATUS=$(json_status POST "$CLUB_API/applications/$APP_ID/decision" '{"decision":"ACCEPT"}' "$TMP/meera.jar")
+  expect_status "the Lead accepts the outside student" 200 "$STATUS"
+  expect_contains "…granting the Member role" "$TMP/body.json" '"grantedRole":"MEMBER"'
+  STATUS=$(json_status POST "$CLUB_API/applications/$APP_ID/decision" '{"decision":"REJECT"}' "$TMP/aarav.jar")
+  expect_status "a decided application can't be decided again" 409 "$STATUS"
+  STATUS=$(json_status POST "/api/applications/$APP_ID/withdraw" '{}' "$TMP/applicant.jar")
+  expect_status "…or withdrawn" 409 "$STATUS"
+  curl -s -b "$TMP/applicant.jar" -o "$TMP/p11-club-applicant.html" "$BASE/clubs/$ROBOTICS_CLUB"
+  expect_contains "the new member now gets the club workspace" "$TMP/p11-club-applicant.html" "See the public profile"
+  expect_contains "…and the members-only announcements" "$TMP/p11-club-applicant.html" "RoboWars build nights"
+  curl -s -b "$TMP/applicant.jar" -o "$TMP/p11-mine-after.html" "$BASE/applications"
+  expect_contains "My applications shows Accepted" "$TMP/p11-mine-after.html" "Accepted"
+
+  # Club workspace and the demo pages.
+  curl -s -b "$TMP/meera.jar" -o "$TMP/p11-club-meera.html" "$BASE/clubs/$ROBOTICS_CLUB"
+  expect_contains "the workspace has an Openings card" "$TMP/p11-club-meera.html" "Review applications"
+  expect_contains "…with a New opening button for a Lead" "$TMP/p11-club-meera.html" "New opening"
+  curl -s -b "$TMP/kabir.jar" -o "$TMP/p11-club-kabir.html" "$BASE/clubs/$ROBOTICS_CLUB"
+  expect_not_contains "a Member gets no review buttons" "$TMP/p11-club-kabir.html" "Review applications"
+  curl -s -b "$TMP/aarav.jar" -o "$TMP/p11-public-preview.html" "$BASE/clubs/$ROBOTICS_CLUB?view=public"
+  expect_contains "members can preview the public profile" "$TMP/p11-public-preview.html" "seeing the public profile"
+  curl -s -o "$TMP/p11-demo-aarav.html" "$BASE/demo/clubs/$ROBOTICS_CLUB?as=aarav"
+  expect_contains "the demo club page lists the openings" "$TMP/p11-demo-aarav.html" "Workshop Lead"
+  expect_contains "…and shows the President Kabir's application" "$TMP/p11-demo-aarav.html" "Teaching first-years"
+  curl -s -o "$TMP/p11-demo-kabir.html" "$BASE/demo/clubs/$ROBOTICS_CLUB?as=kabir"
+  expect_not_contains "…but never to a plain Member" "$TMP/p11-demo-kabir.html" "Teaching first-years"
+  curl -s -o "$TMP/p11-demo-meera.html" "$BASE/demo/clubs/$ROBOTICS_CLUB?as=meera"
+  expect_not_contains "…nor a Lead (it's a Lead role)" "$TMP/p11-demo-meera.html" "Teaching first-years"
 fi
 
 echo "──────────────────────────────────────────────"
