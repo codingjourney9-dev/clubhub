@@ -34,6 +34,16 @@ export const RATE_LIMITS = {
   announce: { limit: 10, refillPerSecond: 1 / 30, label: "post announcements" },
   /** Applying to club openings: a handful at once is normal, a hundred is a script. */
   apply: { limit: 20, refillPerSecond: 1 / 60, label: "send applications" },
+  /**
+   * Asking for a new club (Phase 12). The real cap is "two waiting at once" in
+   * the database; this stops a script creating and cancelling in a loop.
+   */
+  clubRequest: { limit: 10, refillPerSecond: 1 / 120, label: "start clubs" },
+  /**
+   * Typing professor codes. Each code allows five wrong tries anyway (counted
+   * in the database); this bounds guessing across many fresh codes.
+   */
+  clubCode: { limit: 20, refillPerSecond: 1 / 30, label: "enter codes" },
 } as const;
 
 export type RateLimitAction = keyof typeof RATE_LIMITS;

@@ -219,7 +219,7 @@ export async function createEvent({
   input,
 }: CreateEventArgs) {
   const club = await db.club.findFirst({
-    where: { id: clubId, tenantId, deletedAt: null },
+    where: { id: clubId, tenantId, deletedAt: null, status: "ACTIVE" },
     select: { id: true },
   });
   if (!club) throw ApiError.notFound("That club was not found.");

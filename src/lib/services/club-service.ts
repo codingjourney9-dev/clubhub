@@ -64,7 +64,7 @@ export async function createClub(tenantId: string, founderId: string, input: Cre
 /** Clubs in a tenant, with the viewer's own role attached. */
 export async function listClubs(tenantId: string, viewerId: string) {
   const clubs = await db.club.findMany({
-    where: { tenantId, deletedAt: null },
+    where: { tenantId, deletedAt: null, status: "ACTIVE" },
     orderBy: { name: "asc" },
     select: {
       id: true,
@@ -97,7 +97,7 @@ export async function listClubs(tenantId: string, viewerId: string) {
 
 export async function getClubById(clubId: string, tenantId: string) {
   const club = await db.club.findFirst({
-    where: { id: clubId, tenantId, deletedAt: null },
+    where: { id: clubId, tenantId, deletedAt: null, status: "ACTIVE" },
     select: {
       id: true,
       tenantId: true,

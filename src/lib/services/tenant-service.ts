@@ -83,7 +83,7 @@ export async function listTenantsForUser(userId: string) {
           domain: true,
           timezone: true,
           brandingSettings: true,
-          _count: { select: { clubs: { where: { deletedAt: null } } } },
+          _count: { select: { clubs: { where: { deletedAt: null, status: "ACTIVE" } } } },
         },
       },
     },

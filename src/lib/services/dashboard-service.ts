@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { db } from "@/lib/db/client";
+import type { ClubStatus } from "@/generated/prisma/enums";
 
 /**
  * Reads everything the member dashboard shows for one user.
@@ -22,7 +23,13 @@ export interface TenantRoleRow {
 
 export interface ClubRoleRow {
   readonly role: "PRESIDENT" | "EVENT_MANAGER" | "MEMBER";
-  readonly club: { readonly id: string; readonly name: string; readonly category: string | null };
+  readonly club: {
+    readonly id: string;
+    readonly name: string;
+    readonly category: string | null;
+    /** PENDING = waiting for the professor's code (Phase 12). */
+    readonly status: ClubStatus;
+  };
 }
 
 export interface UpcomingEventRow {
@@ -55,10 +62,12 @@ export const loadMemberOverview = cache(async (userId: string): Promise<MemberOv
       orderBy: { joinedAt: "asc" },
     }),
     db.clubMember.findMany({
-      where: { userId, deletedAt: null },
+      // Includes the student's PENDING clubs (Phase 12) so the dashboard can show
+      // them with a "Pending" badge; removed clubs are left out.
+      where: { userId, deletedAt: null, club: { deletedAt: null } },
       select: {
         role: true,
-        club: { select: { id: true, name: true, category: true } },
+        club: { select: { id: true, name: true, category: true, status: true } },
       },
       orderBy: { joinedAt: "asc" },
     }),

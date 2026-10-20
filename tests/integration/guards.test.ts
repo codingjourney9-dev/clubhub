@@ -112,6 +112,17 @@ describe("requireClubAccess", () => {
     expect(context.club.timezone).toBe("Asia/Kolkata");
   });
 
+  it("treats a club waiting for its professor's code as not there — even for its President and the Owner (Phase 12)", async () => {
+    await testDb().club.update({
+      where: { id: p3.club },
+      data: { status: "PENDING", facultyEmail: "prof@test.dev" },
+    });
+    for (const person of ["president", "owner"] as const) {
+      signInAs(person);
+      expect((await expectApiError(requireClubAccess(p3.club, "club:read"))).status).toBe(404);
+    }
+  });
+
   it("hides a club in another college behind a 404", async () => {
     signInAs("outsider");
     const error = await expectApiError(requireClubAccess(p3.club, "club:read"));

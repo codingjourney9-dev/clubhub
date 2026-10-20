@@ -1024,6 +1024,152 @@ if [ -n "$PRESIDENT_CLUB" ]; then
   expect_not_contains "…nor a Lead (it's a Lead role)" "$TMP/p11-demo-meera.html" "Teaching first-years"
 fi
 
+echo "[19] phase 12 — any student starts a club; pending until the professor's code"
+if [ -n "$PRESIDENT_CLUB" ]; then
+  CHESS="0f1d2c3b-4a59-4e6d-8b7c-200000000003"
+  sign_in "dean.admin@vit.ac.in" "$PASSWORD" "$TMP/dean.jar" >/dev/null
+
+  # Guests are sent to sign in, and brought back afterwards.
+  STATUS=$(curl -s -o /dev/null -D "$TMP/p12-new-guest.h" -w '%{http_code}' "$BASE/clubs/new")
+  expect_status "a guest opening Start a club is redirected" 307 "$STATUS"
+  expect_contains "…to sign in, coming back to /clubs/new" "$TMP/p12-new-guest.h" "callbackUrl=%2Fclubs%2Fnew"
+  STATUS=$(json_status POST /api/club-requests '{"name":"Guest Club","facultyEmail":"p@vit.ac.in"}' "")
+  expect_status "a guest can't ask for a club" 401 "$STATUS"
+
+  # The seeded pending club: Kabir asked, Dr. Sharma must confirm.
+  STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$BASE/clubs/$CHESS")
+  expect_status "a pending club is a 404 for guests" 404 "$STATUS"
+  STATUS=$(curl -s -b "$TMP/meera.jar" -o /dev/null -w '%{http_code}' "$BASE/clubs/$CHESS")
+  expect_status "…and for other students in the college" 404 "$STATUS"
+  STATUS=$(curl -s -b "$TMP/kabir.jar" -o "$TMP/p12-chess-kabir.html" -w '%{http_code}' "$BASE/clubs/$CHESS")
+  expect_status "the student who asked opens it" 200 "$STATUS"
+  expect_contains "…and gets the code page" "$TMP/p12-chess-kabir.html" "Enter the professor"
+  expect_contains "…saying where the code went" "$TMP/p12-chess-kabir.html" "priya.sharma@vit.ac.in"
+  expect_not_contains "…with no club workspace" "$TMP/p12-chess-kabir.html" "Invite links"
+  STATUS=$(curl -s -b "$TMP/dean.jar" -o "$TMP/p12-chess-dean.html" -w '%{http_code}' "$BASE/clubs/$CHESS")
+  expect_status "a college Admin can look at the request" 200 "$STATUS"
+  expect_contains "…sees who asked" "$TMP/p12-chess-dean.html" "kabir.member@vit.ac.in"
+  expect_contains "…and can remove it" "$TMP/p12-chess-dean.html" "Remove this request"
+  expect_not_contains "…but never sees the code" "$TMP/p12-chess-dean.html" "Demo mode: the code is"
+  expect_not_contains "…nor gets a code box (admins can't approve)" "$TMP/p12-chess-dean.html" "Confirm club"
+  curl -s -b "$TMP/kabir.jar" -o "$TMP/p12-dash-kabir.html" "$BASE/dashboard"
+  expect_contains "Kabir's dashboard shows the club as Pending" "$TMP/p12-dash-kabir.html" "Waiting for your professor"
+  expect_contains "…and its New club buttons lead to /clubs/new" "$TMP/p12-dash-kabir.html" 'href="/clubs/new"'
+
+  curl -s -b "$TMP/dean.jar" -o "$TMP/p12-dash-dean.html" "$BASE/dashboard"
+  expect_contains "the Admin's dashboard lists club requests" "$TMP/p12-dash-dean.html" "Club requests waiting for a professor"
+  curl -s -b "$TMP/meera.jar" -o "$TMP/p12-dash-meera.html" "$BASE/dashboard"
+  expect_not_contains "…a student's doesn't" "$TMP/p12-dash-meera.html" "Club requests waiting for a professor"
+  STATUS=$(json_status GET "/api/clubs/$CHESS" "" "$TMP/kabir.jar")
+  expect_status "every club API is locked while pending — even for its President" 404 "$STATUS"
+  STATUS=$(json_status POST "/api/clubs/$CHESS/invites" '{"role":"MEMBER","expiresInHours":24,"maxUses":1}' "$TMP/kabir.jar")
+  expect_status "…no invite links" 404 "$STATUS"
+  STATUS=$(curl -s -o "$TMP/p12-demo-kabir.html" -w '%{http_code}' "$BASE/demo/clubs/$CHESS?as=kabir")
+  expect_status "the demo shows Kabir his pending club" 200 "$STATUS"
+  expect_contains "…read-only (no code box in the preview)" "$TMP/p12-demo-kabir.html" "Read-only preview"
+  expect_not_contains "…really no code box" "$TMP/p12-demo-kabir.html" "Confirm club"
+  curl -s -o "$TMP/p12-demo-meera.html" "$BASE/demo/clubs/$CHESS?as=meera"
+  expect_contains "…and tells Meera it's hidden from her" "$TMP/p12-demo-meera.html" "Hidden while it waits for a professor"
+  curl -s -o "$TMP/p12-demo-index.html" "$BASE/demo?as=dean"
+  expect_contains "the demo dashboard offers the Dean the pending club" "$TMP/p12-demo-index.html" "Chess Circle"
+  curl -s -b "$TMP/aarav.jar" -o "$TMP/p12-onboarding.html" "$BASE/onboarding"
+  expect_not_contains "…nor a place in the college's club list" "$TMP/p12-onboarding.html" "Chess Circle"
+
+  # A brand-new student starts two clubs.
+  TS=$(date +%s)
+  FOUNDER="smoke.founder+$TS@vit.ac.in"
+  FOUNDER_IP="198.19.$(( (RANDOM % 200) + 1 )).$(( (RANDOM % 200) + 1 ))"
+  STATUS=$(curl -s -o "$TMP/body.json" -w '%{http_code}' -X POST "$BASE/api/auth/register" \
+    -H 'Content-Type: application/json' -H "X-Forwarded-For: $FOUNDER_IP" \
+    --data "{\"firstName\":\"Faiz\",\"lastName\":\"Founder\",\"email\":\"$FOUNDER\",\"password\":\"$PASSWORD\"}")
+  expect_status "a new student registers" 201 "$STATUS"
+  sign_in "$FOUNDER" "$PASSWORD" "$TMP/founder.jar" >/dev/null
+  curl -s -b "$TMP/founder.jar" -o "$TMP/p12-new.html" "$BASE/clubs/new"
+  expect_contains "Start a club matches the college from the email" "$TMP/p12-new.html" "Vadodara Institute of Technology</span>, so your club"
+  expect_contains "…and asks for the professor" "$TMP/p12-new.html" "Send code to professor"
+
+  STATUS=$(json_status POST /api/club-requests '{"name":"Smoke Chess"}' "$TMP/founder.jar")
+  expect_status "no professor's email is refused" 422 "$STATUS"
+  STATUS=$(json_status POST /api/club-requests "{\"name\":\"Smoke Chess\",\"facultyEmail\":\"$FOUNDER\"}" "$TMP/founder.jar")
+  expect_status "the student's own email is refused" 422 "$STATUS"
+  STATUS=$(json_status POST /api/club-requests '{"name":"Smoke Chess","facultyEmail":"not-an-email"}' "$TMP/founder.jar")
+  expect_status "a malformed email is refused" 422 "$STATUS"
+  STATUS=$(json_status POST /api/club-requests '{"name":"Smoke Chess","facultyEmail":"p@vit.ac.in","status":"ACTIVE"}' "$TMP/founder.jar")
+  expect_status "a smuggled status field is refused" 422 "$STATUS"
+  STATUS=$(json_status POST /api/club-requests '{"name":"Smoke Chess","facultyEmail":"p@vit.ac.in","tenantId":"0f1d2c3b-4a59-4e6d-8b7c-1000000000ff"}' "$TMP/founder.jar")
+  expect_status "a college outside the allowed list is refused" 422 "$STATUS"
+
+  STATUS=$(json_status POST /api/club-requests "{\"name\":\"Smoke Chess A $TS\",\"facultyEmail\":\"Prof.A@VIT.ac.in\"}" "$TMP/founder.jar")
+  expect_status "the first club is requested" 201 "$STATUS"
+  expect_contains "…as PENDING" "$TMP/body.json" '"status":"PENDING"'
+  CLUB_A=$(node -e 'const b=require(process.argv[1]);process.stdout.write(b.data?.club?.clubId??"")' "$TMP/body.json")
+  CODE_A=$(node -e 'const b=require(process.argv[1]);process.stdout.write(b.data?.club?.demoCode??"")' "$TMP/body.json")
+  STATUS=$(json_status POST /api/club-requests "{\"name\":\"Smoke Chess B $TS\",\"facultyEmail\":\"prof.b@vit.ac.in\"}" "$TMP/founder.jar")
+  expect_status "a second one is fine" 201 "$STATUS"
+  CLUB_B=$(node -e 'const b=require(process.argv[1]);process.stdout.write(b.data?.club?.clubId??"")' "$TMP/body.json")
+  CODE_B=$(node -e 'const b=require(process.argv[1]);process.stdout.write(b.data?.club?.demoCode??"")' "$TMP/body.json")
+  STATUS=$(json_status POST /api/club-requests "{\"name\":\"Smoke Chess C $TS\",\"facultyEmail\":\"prof.c@vit.ac.in\"}" "$TMP/founder.jar")
+  expect_status "a third waiting club is refused" 409 "$STATUS"
+  if [[ "$CODE_A" =~ ^[0-9]{6}$ ]]; then pass "demo mode hands back the 6-digit code"; else fail "no demo code returned ($CODE_A)"; fi
+
+  curl -s -b "$TMP/founder.jar" -o "$TMP/p12-a.html" "$BASE/clubs/$CLUB_A"
+  expect_contains "the founder gets the code page" "$TMP/p12-a.html" "Enter the professor"
+  expect_contains "…showing the demo code" "$TMP/p12-a.html" "$CODE_A"
+  expect_contains "…and where it went (lower-cased)" "$TMP/p12-a.html" "prof.a@vit.ac.in"
+  STATUS=$(json_status GET "/api/clubs/$CLUB_A" "" "$TMP/founder.jar")
+  expect_status "the founder's club APIs stay locked" 404 "$STATUS"
+  STATUS=$(json_status POST "/api/club-requests/$CLUB_A/resend" '' "$TMP/founder.jar")
+  expect_status "a new code right away is refused (30-second gap)" 429 "$STATUS"
+
+  # Codes: format, wrong tries, who may enter one.
+  STATUS=$(json_status POST "/api/club-requests/$CLUB_A/verify" '{"code":"12ab56"}' "$TMP/founder.jar")
+  expect_status "a code that isn't 6 digits is refused" 422 "$STATUS"
+  STATUS=$(json_status POST "/api/club-requests/$CLUB_A/verify" "{\"code\":\"$CODE_A\"}" "$TMP/kabir.jar")
+  expect_status "another student can't enter the code" 404 "$STATUS"
+  STATUS=$(json_status POST "/api/club-requests/$CLUB_A/verify" "{\"code\":\"$CODE_A\"}" "$TMP/aarav.jar")
+  expect_status "…nor can the college Owner approve it" 403 "$STATUS"
+  WRONG=$([ "$CODE_A" = "000000" ] && echo 111111 || echo 000000)
+  STATUS=$(json_status POST "/api/club-requests/$CLUB_A/verify" "{\"code\":\"$WRONG\"}" "$TMP/founder.jar")
+  expect_status "a wrong code is refused" 422 "$STATUS"
+  expect_contains "…with tries left" "$TMP/body.json" "4 tries left"
+  for _ in 1 2 3; do json_status POST "/api/club-requests/$CLUB_A/verify" "{\"code\":\"$WRONG\"}" "$TMP/founder.jar" >/dev/null; done
+  json_status POST "/api/club-requests/$CLUB_A/verify" "{\"code\":\"$WRONG\"}" "$TMP/founder.jar" >/dev/null
+  expect_contains "the fifth wrong try is the last" "$TMP/body.json" "last try"
+  STATUS=$(json_status POST "/api/club-requests/$CLUB_A/verify" "{\"code\":\"$CODE_A\"}" "$TMP/founder.jar")
+  expect_status "after that even the right code is refused" 422 "$STATUS"
+  expect_contains "…telling them to get a new one" "$TMP/body.json" "Send a new code"
+
+  # Cancelling A; confirming B.
+  STATUS=$(json_status DELETE "/api/club-requests/$CLUB_A" '' "$TMP/meera.jar")
+  expect_status "another student can't cancel it" 404 "$STATUS"
+  STATUS=$(json_status DELETE "/api/club-requests/$CLUB_A" '' "$TMP/founder.jar")
+  expect_status "the founder cancels club A" 200 "$STATUS"
+  STATUS=$(curl -s -b "$TMP/founder.jar" -o /dev/null -w '%{http_code}' "$BASE/clubs/$CLUB_A")
+  expect_status "…and it's gone" 404 "$STATUS"
+  STATUS=$(json_status POST "/api/club-requests/$CLUB_B/verify" "{\"code\":\"$CODE_B\"}" "$TMP/founder.jar")
+  expect_status "the right code confirms club B" 200 "$STATUS"
+  STATUS=$(curl -s -b "$TMP/founder.jar" -o "$TMP/p12-b.html" -w '%{http_code}' "$BASE/clubs/$CLUB_B")
+  expect_status "club B now opens as a normal club" 200 "$STATUS"
+  expect_contains "…with the founder as President" "$TMP/p12-b.html" ">President<"
+  expect_contains "…and the full workspace" "$TMP/p12-b.html" "Invite links"
+  STATUS=$(curl -s -o "$TMP/p12-b-guest.html" -w '%{http_code}' "$BASE/clubs/$CLUB_B")
+  expect_status "guests now see its public profile" 200 "$STATUS"
+  STATUS=$(json_status POST "/api/club-requests/$CLUB_B/verify" "{\"code\":\"$CODE_B\"}" "$TMP/founder.jar")
+  expect_status "a live club can't be verified again" 404 "$STATUS"
+
+  # College Owner/Admin: live at once, no professor.
+  STATUS=$(json_status POST /api/club-requests "{\"name\":\"Smoke Admin Club $TS\"}" "$TMP/aarav.jar")
+  expect_status "the college Owner starts a club with no professor" 201 "$STATUS"
+  expect_contains "…and it's live straight away" "$TMP/body.json" '"status":"ACTIVE"'
+  ADMIN_CLUB=$(node -e 'const b=require(process.argv[1]);process.stdout.write(b.data?.club?.clubId??"")' "$TMP/body.json")
+
+  # Tidy up: the smoke clubs go (soft delete), so the demo stays as seeded.
+  for CLUB in "$CLUB_B" "$ADMIN_CLUB"; do
+    [ -n "$CLUB" ] && json_status DELETE "/api/clubs/$CLUB" '' "$TMP/aarav.jar" >/dev/null
+  done
+  pass "smoke clubs removed"
+fi
+
 echo "──────────────────────────────────────────────"
 if [ "$FAILURES" -eq 0 ]; then
   printf '\033[32mAll %d checks passed.\033[0m\n\n' "$PASSES"

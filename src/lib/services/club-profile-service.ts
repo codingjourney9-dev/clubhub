@@ -35,7 +35,8 @@ function fullName(user: { firstName: string | null; lastName: string | null }): 
 
 export const getPublicClubProfile = cache(async (clubId: string): Promise<PublicClubProfile | null> => {
   const club = await db.club.findFirst({
-    where: { id: clubId, deletedAt: null, tenant: { deletedAt: null } },
+    // A PENDING club (Phase 12) has no public face until its professor confirms it.
+    where: { id: clubId, deletedAt: null, status: "ACTIVE", tenant: { deletedAt: null } },
     select: {
       id: true,
       name: true,

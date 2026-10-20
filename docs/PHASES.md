@@ -630,7 +630,7 @@ computer run `npm run db:deploy` then `npm run db:seed` after pulling.
 
 ---
 
-## Phase 11 — Recruitment board & public club profile — Built, awaiting review
+## Phase 11 — Recruitment board & public club profile — Complete (approved)
 
 Decisions agreed before building: **anyone signed in can apply** (any college, or none); each opening
 has **1–3 questions of its own**, all required (the default is "Why do you want this role?"); a **public
@@ -692,6 +692,59 @@ computer run `npm run db:deploy` then `npm run db:seed` after pulling.
 
 ---
 
+## Phase 12 — Students start clubs, confirmed by a professor's code — Built, awaiting review
+
+Decisions agreed before building: if a student's email domain matches no college they **pick a college
+from a list** (if it matches one, that college is fixed); the professor's address can be **any email**
+(but not the student's own); a pending club is **locked** — only its President sees a "Pending: enter the
+professor's code" page, with no events, openings, invites or public profile until confirmed; clubs made
+by a college **Owner/Admin go live at once**, but admins **cannot approve** a student's club — that always
+needs the code. Announced defaults: code lasts **15 minutes**, **5 wrong tries** kill it, **30 seconds**
+between "Send a new code", **at most 2 clubs waiting** per student. No real email is sent (agreed in the
+Phase 8 plan): in demo/dev the code is shown on screen and printed in the terminal; on the live site it is
+written only to the server log (`club.verification_code`).
+
+- **Database** — migration `20261020151032_phase12_club_verification`: `clubs.status` (`PENDING` /
+  `ACTIVE`, default ACTIVE so every existing club is untouched), `verified_at`, `faculty_name`,
+  `faculty_email`, index on `(tenant_id, status)`; new `club_verifications` (one row per club: keyed
+  HMAC-SHA256 of the code — the plain code is kept only in demo mode — `attempts`, `expires_at`, `last_sent_at`,
+  `consumed_at`). Hand-written CHECK `clubs_pending_needs_faculty_email`.
+- **Rules** — `src/lib/domain/club-verification.ts` (TTL, tries, pending cap, code generation with
+  `crypto.randomInt`, constant-time hash comparison). Every existing club query (events feed, openings,
+  profiles, invites, tickets, dashboards, demo — 11 files) now filters `status: ACTIVE`, so a pending club
+  can't leak anywhere.
+- **Service** (`club-request-service.ts`) — requesting locks the student's user row so three requests
+  sent together still make only two; verifying locks the club row, so five guesses fired at once
+  still get exactly five tries; a correct code flips the club to ACTIVE, stamps `verified_at`, deletes
+  the plain demo code and makes sure the student is a member of the college. Cancelling soft-deletes.
+- **API** (all Zod-validated, strict objects): `POST /api/club-requests` (201), `POST
+  /api/club-requests/:id/verify` `{code}`, `POST …/resend` (429 inside 30 s), `DELETE
+  /api/club-requests/:id` (the student, or a college Owner/Admin). Own rate budgets `clubRequest` and
+  `clubCode`. Outsiders get 404; admins trying to verify get 403.
+- **Screens** — `/clubs/new` (guests are sent to sign-in and come back); the Start-a-new-club button on
+  the dashboard and onboarding now goes there; the pending page (three step cards, code box, "Works until
+  … · N of 5 tries left", Send a new code, Cancel this request); the dashboard lists the student's pending
+  clubs; college admins see a **Pending club requests** panel and a read-only request page with **Remove
+  this request** (never the code).
+- **Demo** — `/demo/clubs/:id` shows the pending page read-only to Kabir and the Dean (with the code, no
+  buttons) and a "hidden" explanation to Aarav/Meera; `/demo` lists the pending club for those two.
+- **Seed** — *Chess Circle* (Games) pending, President Kabir, professor Dr. Priya Sharma
+  (`priya.sharma@vit.ac.in`), demo code **246810**, valid 15 minutes after each seed (then use *Send a new
+  code*).
+
+**Gate:** typecheck ✅ lint ✅ build ✅ vitest 496/496 ✅ (43 new: 17 unit — code generation, hashing,
+expiry, validation; 19 integration — college matching and picking, admin clubs live at once, professor ≠
+student, 2-pending cap under a race, invisibility, verify + college join, five tries under a race, expiry,
+admin 403, resend cooldown, cancel/remove, DB CHECK; plus guard and seed updates) · smoke 375/375 ✅ (64 new
+in block [19]) · browser-checked as Kabir (start a club, wrong code, right code → live President), as the
+Dean (request page, no approve button) and in the demo preview.
+
+**Deploying:** this phase adds a migration. Vercel runs `prisma migrate deploy` itself; on your own
+computer run `npm run db:deploy` then `npm run db:seed` after pulling. On the live site the code is in
+Vercel → your project → **Logs**, search for `club.verification_code`.
+
+---
+
 ## Progress log
 
 | Date | Phase | Result |
@@ -707,7 +760,8 @@ computer run `npm run db:deploy` then `npm run db:seed` after pulling.
 | 2026-10-20 | 8 — Front door & guest browsing | Complete (approved). Guest `/dashboard` with public events from every college, public event pages, "Start a new club" sign-in interceptor, `safeCallbackUrl` open-redirect fix. Gate: lint ✅ typecheck ✅ build ✅ 351 tests ✅ smoke 190/190 ✅ |
 | 2026-10-20 | 9 — Richer events | Complete (approved). Poster links (Drive links rewritten), up to 3 tags + board filter, public Instagram, WhatsApp link for seat holders only; waitlist-counted-as-seats edit bug fixed. Gate: lint ✅ typecheck ✅ build ✅ 375 tests ✅ smoke 211/211 ✅ |
 | 2026-10-20 | 10 — Leads, removal, presidency, announcements | Complete (approved). "Lead" label, tiered removal (members-only seats given back, waitlist promoted), DB-enforced single President with hand-over, members-only announcements with one pin. Gate: lint ✅ typecheck ✅ build ✅ 416 tests ✅ smoke 246/246 ✅ |
-| 2026-10-20 | 11 — Recruitment board & public club profile | Built, awaiting review. Openings with 1–3 own questions and optional closing date, apply from any college, one application each (race-safe), withdraw/re-apply, tiered accept/reject that grants the role, My applications, public club profile. Gate: lint ✅ typecheck ✅ build ✅ 453 tests ✅ smoke 311/311 ✅ |
+| 2026-10-20 | 11 — Recruitment board & public club profile | Complete (approved). Openings with 1–3 own questions and optional closing date, apply from any college, one application each (race-safe), withdraw/re-apply, tiered accept/reject that grants the role, My applications, public club profile. Gate: lint ✅ typecheck ✅ build ✅ 453 tests ✅ smoke 311/311 ✅ |
+| 2026-10-20 | 12 — Students start clubs, professor's code | Built, awaiting review. Any signed-in student asks for a club and becomes its President; the club stays Pending (hidden, locked) until a professor's 6-digit code is typed — 15 minutes, 5 tries, 30 s between sends, at most 2 waiting per student; college admins' clubs go live at once; admins can see and remove requests but not approve them. Gate: lint ✅ typecheck ✅ build ✅ 496 tests ✅ smoke 375/375 ✅ |
 
 ---
 

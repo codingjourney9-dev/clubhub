@@ -23,8 +23,10 @@ const EXPECTED = {
   tenants: 1,
   users: 4,
   tenantMembers: 4,
-  clubs: 2,
-  clubMembers: 6,
+  /** Robotics + Debate (live) and Chess Circle (Phase 12, pending). */
+  clubs: 3,
+  /** 6 in the live clubs + Kabir as Chess Circle's President. */
+  clubMembers: 7,
   events: 5,
   tickets: 12,
   attendance: 5,
@@ -130,6 +132,17 @@ describe("seed script", () => {
     // ticket — otherwise the demo can only show one of the two answers.
     expect(through).toBeGreaterThan(0);
     expect(through).toBeLessThan(seated);
+  });
+
+  it("seeds one club waiting for its professor's code (Phase 12)", async () => {
+    const db = testDb();
+    const pending = await db.club.findMany({
+      where: { status: "PENDING" },
+      select: { name: true, facultyEmail: true, verification: { select: { attempts: true, consumedAt: true } } },
+    });
+    expect(pending).toEqual([
+      { name: "Chess Circle", facultyEmail: "priya.sharma@vit.ac.in", verification: { attempts: 0, consumedAt: null } },
+    ]);
   });
 
   it("is idempotent — re-running it creates no duplicates", async () => {

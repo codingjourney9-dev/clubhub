@@ -431,6 +431,53 @@ straight away. Every club also has a **public profile** that anyone can open.
    Robotics and can see its announcements.
 8. Done experimenting? `npm run db:seed` puts every opening and Kabir's application back.
 
+### Step 12 31/32 — Students start their own clubs (new in Phase 12)
+
+What changed in plain words: **any signed-in student can start a club** and becomes its **President**
+straight away — but the club stays **Pending** (invisible to everyone else, no events or openings) until a
+**professor** confirms it with a **6-digit code**. Think of it like a bank sending an OTP to your phone:
+the code goes to the professor, the professor tells the student, the student types it in. This project
+doesn't send real emails, so the code is shown on screen (and in the black terminal window) instead.
+
+The rules: the code works for **15 minutes**, you get **5 tries**, you can ask for a new code every **30
+seconds**, and one student can have at most **2 clubs waiting**. College admins (Owner / Admin) can
+**see and remove** requests, but they **can't approve** one — only the professor's code can. When an
+admin creates a club themselves, it goes live immediately.
+
+**In the preview (no sign-in):**
+
+1. Open `/demo`, click **View as → Kabir Rao**, and in the **Open a club as Kabir Rao** card click
+   **Chess Circle PENDING**.
+2. You see what Kabir sees: three steps (*Club requested* ✓ → *Professor's code* → *Club goes live*), who
+   the code was sent to (Dr. Priya Sharma), how long it works, how many tries are left, and a box saying
+   **Demo mode: the code is 246810**. There's no code box here because the preview can't sign in.
+3. Click **View as → Nisha Verma** (the Dean, a college Admin): she sees the same request — but no code
+   box. Click **Meera Patel**: for her the club is hidden (a real visitor would get "Page not found").
+
+**On your own computer (signed in — this is where the buttons are):**
+
+4. Run `npm run db:seed` first — it gives Chess Circle a fresh code that works for 15 minutes.
+5. Sign in as `kabir.member@vit.ac.in` / `password123`. On the **Dashboard** you'll see **Chess Circle**
+   marked **Pending** with *Waiting for your professor's code*. Click it.
+6. Type a wrong code (say `111111`) and click **Confirm club**: it says *That code isn't right. 4 tries
+   left.* Now type the code from the grey **Demo mode** box and click **Confirm club**. The page turns into
+   the normal club page and Kabir is the **PRESIDENT**.
+   - If it says the code has **expired**, click **Send a new code** — a new code appears in the box (and
+     in the terminal window, on a line containing `club.verification_code`).
+7. Start a brand-new club: click **Start a new club** on the Dashboard (or go to `/clubs/new`). Fill in
+   the club name, category, a short description, and the **professor's name and email** (any email
+   except your own), then click **Send code to professor**. You land on the Pending page with a new code.
+   - Kabir's email ends in `@vit.ac.in`, so the college is filled in for him. Someone with an email
+     like `@gmail.com` gets a list of colleges to pick from instead.
+   - Try to start a third waiting club: it refuses — two at a time is the limit.
+8. Sign out, sign in as `dean.admin@vit.ac.in`. The Dashboard has a **Pending club requests** panel.
+   Click a request: you see who asked, the professor, whether the code is still valid and how many tries
+   are left — and **Remove this request**. There's no approve button, on purpose.
+9. **On the live (Vercel) site** no code is shown on screen. Open vercel.com → your **clubhub** project →
+   **Logs**, and type `club.verification_code` in the search box. The line shows `to` (the professor's
+   email) and `code`.
+10. Done experimenting? `npm run db:seed` puts Chess Circle back to Pending with code `246810`.
+
 ### Step 13 — (Optional) the real sign-in experience
 
 Sign-in needs cookies, so run the app on your own machine (§4) and use
@@ -485,13 +532,13 @@ Two commands do the checking for you. This is the habit that separates "it works
 real software.
 
 ```bash
-npm run test          # 453 automated checks — the "robot inspectors"
+npm run test          # 496 automated checks — the "robot inspectors"
 npm run test:smoke    # 311 checks against the running website
 npm run test:layout   # 100 checks in a real browser, at phone and desktop widths
 npm run deploy:check  # 14 checks that a real deployment is configured safely
 ```
 
-The 453 tests answer questions like:
+The 496 tests answer questions like:
 
 - *"If someone tries to sneak an event from College B into College A's data, does the filing cabinet
   slam the drawer shut?"* → Yes, it refuses. (That's not politeness; the database physically can't
@@ -532,7 +579,7 @@ It needs a browser. If `npm run test:layout` says it cannot find Chromium, insta
 npm run verify
 ```
 
-…which does *checking for typos* → *checking for type mistakes* → *running all 453 tests* → *building
+…which does *checking for typos* → *checking for type mistakes* → *running all 496 tests* → *building
 the final version*. If any step fails, the phase isn't done. One tip: stop the preview server first
 (`Ctrl-C`), because the build and the server share the same temporary folder.
 
@@ -555,18 +602,18 @@ with a review, and nothing starts until the previous one passes.
 | 8 | Front door: guests can browse events, "Start a new club" asks them to sign in | ✅ Done |
 | 9 | Richer events: poster link, tags, Instagram / WhatsApp links | ✅ Done |
 | 10 | Roles: "Lead" instead of Event Manager, removing people, handing over the presidency, members-only announcements | ✅ Done |
-| 11 | Recruitment board: clubs post openings, students apply; public club profiles | ✅ Built — waiting for your review |
-| 12 | Any student can start a club; it stays Pending until a professor's code is entered | ⬜ Next |
-| 13 | The remaining screens in the new look + final checks | ⬜ |
+| 11 | Recruitment board: clubs post openings, students apply; public club profiles | ✅ Done |
+| 12 | Any student can start a club; it stays Pending until a professor's code is entered | ✅ Built — waiting for your review |
+| 13 | The remaining screens in the new look + final checks | ⬜ Next |
 
 **In plain words, right now:** guests can browse every college's public events; signed-in students
 get seats, QR tickets and waitlists; the door scanner works even without internet; events have posters,
-tags and links; clubs have **Leads**, exactly **one President** and **members-only announcements**; and —
-new in Phase 11 — clubs **advertise openings**, any student can **apply**, accepting **grants the role**,
-and every club has a **public profile**.
+tags and links; clubs have **Leads**, exactly **one President** and **members-only announcements**; clubs
+**advertise openings**, any student can **apply**, and every club has a **public profile**; and — new in
+Phase 12 — **any student can start a club**, which stays **Pending** until a professor's 6-digit code is
+typed in.
 
-What you *cannot* do yet: start a club as an ordinary student and have a professor approve it with a
-code. That's Phase 12.
+What's left: Phase 13 gives the remaining older screens the new look and does a final round of checks.
 
 ---
 

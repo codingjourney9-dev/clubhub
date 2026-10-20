@@ -161,23 +161,67 @@ model Club {
   category    String?
   logoUrl     String? @map("logo_url")
 
+  /// Phase 12. A student's new club is PENDING until a professor's 6-digit
+  /// code is entered; clubs made by college Owners/Admins start ACTIVE.
+  status       ClubStatus @default(ACTIVE)
+  /// When the professor's code was accepted. Null for admin-made clubs.
+  verifiedAt   DateTime?  @map("verified_at") @db.Timestamptz(3)
+  /// The professor who vouched for the club (email required for student clubs).
+  facultyName  String?    @map("faculty_name")
+  facultyEmail String?    @map("faculty_email")
+
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt DateTime? @map("deleted_at") @db.Timestamptz(3)
 
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   members       ClubMember[]
   events        Event[]
   invites       ClubInvite[]
   announcements Announcement[]
   openings      RoleOpening[]
+  verification  ClubVerification?
 
   /// Composite target for child rows: guarantees an event's tenantId matches
   /// the tenant of its club.
   @@unique([id, tenantId])
   @@unique([tenantId, slug])
   @@index([tenantId, deletedAt])
+  @@index([tenantId, status])
   @@map("clubs")
+}
+
+enum ClubStatus {
+  PENDING
+  ACTIVE
+}
+
+/// Phase 12: the professor's one-time code for a PENDING club. One row per
+/// club; sending a new code overwrites it. Only a hash of the code is kept.
+model ClubVerification {
+  id       String @id @default(uuid()) @db.Uuid
+  clubId   String @unique @map("club_id") @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  /// Where the code was (notionally) sent.
+  email    String
+  /// HMAC-SHA256 of "clubId:code", keyed with AUTH_SECRET.
+  codeHash String @map("code_hash")
+  /// Plain code, stored ONLY while demo/dev reveal is on so the pending page
+  /// can show it. Always null on a real deployment.
+  demoCode String? @map("demo_code")
+  attempts Int    @default(0)
+
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  lastSentAt DateTime  @map("last_sent_at") @db.Timestamptz(3)
+  consumedAt DateTime? @map("consumed_at") @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  club Club @relation(fields: [clubId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([clubId, tenantId])
+  @@index([tenantId])
+  @@map("club_verifications")
 }
 
 model ClubMember {

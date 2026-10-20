@@ -39,6 +39,8 @@ import { AnnouncementBody } from "@/components/features/announcement/announcemen
 import { CLUB_ROLE_LABELS } from "@/lib/domain/club-roles";
 import { listClubAnnouncements } from "@/lib/services/announcement-service";
 import { DemoOpeningsCard } from "@/components/features/recruitment/demo-openings-card";
+import { PendingClubPanel } from "@/components/features/club-request/pending-club-panel";
+import { getPendingClubView } from "@/lib/services/club-request-service";
 
 export const metadata: Metadata = { title: "Club preview" };
 export const dynamic = "force-dynamic";
@@ -157,6 +159,7 @@ export default async function DemoClubPage({
     where: { id: clubId, deletedAt: null },
     select: {
       id: true,
+      status: true,
       name: true,
       slug: true,
       description: true,
@@ -202,6 +205,29 @@ export default async function DemoClubPage({
       })}
     </div>
   );
+
+  // ── Phase 12: a club still waiting for its professor's code ──
+  // The real app shows it only to the student who asked and the college's
+  // Owners/Admins; everyone else gets a plain 404. Same rule here, read-only.
+  if (club.status === "PENDING") {
+    const pending = await getPendingClubView(club.id, viewer.id);
+    if (pending) return <PendingClubPanel view={pending} demo={{ switcher: viewerSwitcher(club.id) }} />;
+    return (
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 lg:py-14">
+        {viewerSwitcher(club.id)}
+        <Card>
+          <CardHeader>
+            <CardTitle>Hidden while it waits for a professor</CardTitle>
+            <CardDescription>
+              {club.name} hasn&apos;t been confirmed with a professor&apos;s code yet. Until it is, only the
+              student who asked for it and the college&apos;s Owners/Admins can see it — for{" "}
+              {account.displayName} the real app shows &ldquo;Page not found&rdquo;.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   // ── The viewer cannot see this college at all: show what the real app shows ──
   if (!tenantMembership) {

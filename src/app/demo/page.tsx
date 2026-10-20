@@ -65,7 +65,7 @@ export default async function DemoPage({
   // The overview, the college's clubs and today's door event do not depend on
   // each other, so they are fetched together (one round trip, not three).
   const now = new Date();
-  const [overview, clubs, doorEvent, announcements] = await Promise.all([
+  const [overview, clubs, doorEvent, announcements, pendingClubs] = await Promise.all([
     loadMemberOverview(user.id),
     // Every club in the colleges this viewer belongs to — including clubs they
     // have not joined, which is exactly how a college admin sees the place.
@@ -74,6 +74,7 @@ export default async function DemoPage({
       where: {
         tenant: { deletedAt: null, members: { some: { userId: user.id, deletedAt: null } } },
         deletedAt: null,
+        status: "ACTIVE",
       },
       orderBy: { name: "asc" },
       select: {
@@ -104,6 +105,25 @@ export default async function DemoPage({
       },
     }),
     listAnnouncementsForMember(user.id, 4),
+    // Phase 12: clubs waiting for a professor's code, for the two people who
+    // may see one — the student who asked, and the college's Owners/Admins.
+    db.club.findMany({
+      where: {
+        status: "PENDING",
+        deletedAt: null,
+        tenant: { deletedAt: null },
+        OR: [
+          { members: { some: { userId: user.id, role: "PRESIDENT", deletedAt: null } } },
+          {
+            tenant: {
+              members: { some: { userId: user.id, deletedAt: null, role: { in: ["OWNER", "ADMIN"] } } },
+            },
+          },
+        ],
+      },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
   ]);
 
   const doorIsOpen =
@@ -192,7 +212,7 @@ export default async function DemoPage({
 
       <MemberOverviewView overview={overview} />
 
-      {clubs.length > 0 ? (
+      {clubs.length > 0 || pendingClubs.length > 0 ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -215,6 +235,18 @@ export default async function DemoPage({
                   {club.name}
                   <span className="text-xs text-muted-foreground">
                     {club._count.members} member{club._count.members === 1 ? "" : "s"}
+                  </span>
+                </Link>
+              ))}
+              {pendingClubs.map((club) => (
+                <Link
+                  key={club.id}
+                  href={`/demo/clubs/${club.id}?as=${account.key}`}
+                  className={cn(buttonVariants({ variant: "outline" }), "gap-2 border-dashed")}
+                >
+                  {club.name}
+                  <span className="font-mono text-[0.6875rem] tracking-wide text-muted-foreground uppercase">
+                    Pending
                   </span>
                 </Link>
               ))}

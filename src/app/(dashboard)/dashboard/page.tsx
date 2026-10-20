@@ -21,6 +21,9 @@ import { DashboardAnnouncements } from "@/components/features/announcement/dashb
 import { listAnnouncementsForMember } from "@/lib/services/announcement-service";
 import { RecruitmentBoard } from "@/components/features/recruitment/recruitment-board";
 import { listOpenOpenings } from "@/lib/services/recruitment-service";
+import { PendingRequestsPanel } from "@/components/features/club-request/pending-requests-panel";
+import { listPendingRequestsForAdmin } from "@/lib/services/club-request-service";
+import { START_CLUB_PATH } from "@/lib/domain/club-paths";
 
 /** How many openings the dashboard shows before "All openings". */
 const BOARD_SIZE = 6;
@@ -123,21 +126,25 @@ export default async function DashboardPage({
 
   // The overview, the user row and the public feed are independent, so they
   // share one round trip instead of taking three.
-  const [user, overview, publicEvents, announcements, openings] = await Promise.all([
+  const [user, overview, publicEvents, announcements, openings, clubRequests] = await Promise.all([
     getCurrentUser(),
     loadMemberOverview(sessionUserId),
     listPublicUpcomingEvents(6, { tag }),
     listAnnouncementsForMember(sessionUserId, 4),
     listOpenOpenings({ limit: BOARD_SIZE }),
+    listPendingRequestsForAdmin(sessionUserId),
   ]);
   // A session for an account that no longer exists: send them to sign in again.
   if (!user) redirect("/sign-in");
-  const runsSomething = overview.clubRoles.some((membership) => membership.role !== "MEMBER");
+  // A President of a club still waiting for its professor's code runs nothing yet.
+  const runsSomething = overview.clubRoles.some(
+    (membership) => membership.role !== "MEMBER" && membership.club.status === "ACTIVE",
+  );
 
   const quickActions = [
     { href: "/events", label: "Browse upcoming events", hint: "What's on across your colleges", icon: CalendarDays },
     { href: "/tickets", label: "Your tickets", hint: "QR codes for the door", icon: TicketIcon },
-    { href: "/onboarding", label: "Create or browse clubs", hint: "Start a college or a club", icon: Plus },
+    { href: START_CLUB_PATH, label: "Start a new club", hint: "Live once a professor confirms it", icon: Plus },
     ...(runsSomething
       ? [{ href: "/events", label: "Run the door", hint: "Open an event, then its scanner", icon: ScanLine }]
       : []),
@@ -190,7 +197,7 @@ export default async function DashboardPage({
               Where you belong
             </h2>
           </div>
-          <Link href="/onboarding" className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
+          <Link href={START_CLUB_PATH} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
             <Plus data-icon="inline-start" />
             New club
           </Link>
@@ -199,11 +206,11 @@ export default async function DashboardPage({
         {overview.clubRoles.length === 0 ? (
           <div className="flex flex-col items-start gap-4 rounded-lg border border-dashed border-foreground/25 bg-card/60 p-8">
             <p className="max-w-lg text-muted-foreground">
-              You are not part of a club yet. Create a college and a club to get started — or ask a club
-              president for an invite link.
+              You are not part of a club yet. Start one — a professor confirms it with a code — or apply to
+              an opening on the recruitment board below.
             </p>
-            <Link href="/onboarding" className={cn(buttonVariants())}>
-              Create your first club
+            <Link href={START_CLUB_PATH} className={cn(buttonVariants())}>
+              Start your first club
             </Link>
           </div>
         ) : (
@@ -221,12 +228,14 @@ export default async function DashboardPage({
                     <span
                       className={cn(
                         "rounded-sm border px-1.5 py-0.5 font-mono text-[0.6875rem] font-medium tracking-wide uppercase",
-                        membership.role === "MEMBER"
-                          ? "border-foreground/20 text-muted-foreground"
-                          : "border-primary/50 bg-primary/10 text-primary",
+                        membership.club.status === "PENDING"
+                          ? "border-dashed border-foreground/50 bg-secondary text-foreground"
+                          : membership.role === "MEMBER"
+                            ? "border-foreground/20 text-muted-foreground"
+                            : "border-primary/50 bg-primary/10 text-primary",
                       )}
                     >
-                      {CLUB_ROLE_LABELS[membership.role]}
+                      {membership.club.status === "PENDING" ? "Pending" : CLUB_ROLE_LABELS[membership.role]}
                     </span>
                   </div>
                   <div className="flex flex-col gap-1">
@@ -234,7 +243,9 @@ export default async function DashboardPage({
                       {membership.club.name}
                     </span>
                     <span className="text-sm text-muted-foreground">
-                      {membership.club.category ?? "Uncategorised"}
+                      {membership.club.status === "PENDING"
+                        ? "Waiting for your professor's code"
+                        : (membership.club.category ?? "Uncategorised")}
                     </span>
                   </div>
                   <ArrowUpRight className="absolute right-4 bottom-4 size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
@@ -244,6 +255,8 @@ export default async function DashboardPage({
           </ul>
         )}
       </section>
+
+      {clubRequests.length > 0 ? <PendingRequestsPanel requests={clubRequests} /> : null}
 
       <DashboardAnnouncements
         announcements={announcements}

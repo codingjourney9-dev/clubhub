@@ -27,7 +27,7 @@ const displayName = (user: { firstName: string | null; lastName: string | null; 
   [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
 
 /** Openings live under live clubs in live colleges. */
-const liveClub = { deletedAt: null, tenant: { deletedAt: null } } as const;
+const liveClub = { deletedAt: null, status: "ACTIVE", tenant: { deletedAt: null } } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Reading (public)

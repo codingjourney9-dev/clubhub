@@ -14,6 +14,7 @@ import { InviteManager, type ClubInviteRow } from "@/components/features/club/in
 import { EventList, type EventRow } from "@/components/features/event/event-list";
 import { ClubOpeningsManager } from "@/components/features/recruitment/club-openings-manager";
 import { PublicClubProfileView } from "@/components/features/recruitment/public-club-profile";
+import { PendingClubPanel } from "@/components/features/club-request/pending-club-panel";
 import { toManageRows } from "@/components/features/recruitment/review-rows";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,8 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError } from "@/lib/api/response";
 import { requireClubAccess, type ClubContext } from "@/lib/auth/guards";
+import { getSessionUserId } from "@/lib/auth/session";
+import { getPendingClubView, type PendingClubView } from "@/lib/services/club-request-service";
 import {
   assignableClubRoles,
   canChangeClubRole,
@@ -55,15 +58,28 @@ export const metadata: Metadata = { title: "Club" };
  * anyone who may not open the workspace — a guest (401), a student from another
  * college (404) or a college member who hasn't joined (403) — gets the club's
  * PUBLIC profile instead. Only a club that doesn't exist is a 404.
+ *
+ * Phase 12: the guard never finds a PENDING club (it is locked until the
+ * professor's code is entered), so a 404 is checked once more — the student
+ * who asked for it, and the college's admins, get the pending page instead.
+ * Everyone else still gets a plain 404, as if it didn't exist.
  */
 async function loadClubPage(
   clubId: string,
-): Promise<{ kind: "ok"; context: ClubContext } | { kind: "public"; profile: PublicClubProfile } | { kind: "not-found" }> {
+): Promise<
+  | { kind: "ok"; context: ClubContext }
+  | { kind: "public"; profile: PublicClubProfile }
+  | { kind: "pending"; view: PendingClubView }
+  | { kind: "not-found" }
+> {
   if (!z.uuid().safeParse(clubId).success) return { kind: "not-found" };
   try {
     return { kind: "ok", context: await requireClubAccess(clubId, "club:read") };
   } catch (error) {
     if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
+      const userId = error.status === 404 ? await getSessionUserId() : null;
+      const pending = userId ? await getPendingClubView(clubId, userId) : null;
+      if (pending) return { kind: "pending", view: pending };
       const profile = await getPublicClubProfile(clubId);
       return profile ? { kind: "public", profile } : { kind: "not-found" };
     }
@@ -83,6 +99,7 @@ export default async function ClubPage({
   const result = await loadClubPage(clubId);
   if (result.kind === "not-found") notFound();
   if (result.kind === "public") return <PublicClubProfileView profile={result.profile} />;
+  if (result.kind === "pending") return <PendingClubPanel view={result.view} />;
 
   // Members can preview what outsiders see.
   if (query.view === "public") {

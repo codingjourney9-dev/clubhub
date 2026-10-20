@@ -707,6 +707,7 @@ export async function listScannableEvents(userId: string) {
       userId,
       deletedAt: null,
       role: { in: ["PRESIDENT", "EVENT_MANAGER"] },
+      club: { deletedAt: null, status: "ACTIVE" },
     },
     select: { clubId: true },
   });

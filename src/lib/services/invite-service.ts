@@ -35,7 +35,7 @@ export async function createClubInvite(
   input: CreateClubInviteInput,
 ) {
   const club = await db.club.findFirst({
-    where: { id: clubId, tenantId, deletedAt: null },
+    where: { id: clubId, tenantId, deletedAt: null, status: "ACTIVE" },
     select: { id: true, name: true },
   });
   if (!club) throw ApiError.notFound("That club was not found.");

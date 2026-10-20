@@ -13,10 +13,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { authHref } from "@/lib/auth/callback-url";
+import { START_CLUB_PATH } from "@/lib/domain/club-paths";
 import { cn } from "@/lib/utils";
 
-/** Where starting a club happens today. Phase 12 changes who may finish it, not where it lives. */
-const START_CLUB_PATH = "/onboarding";
 
 const FAB_CLASSES =
   "fixed right-4 bottom-4 z-40 h-12 rounded-full px-5 shadow-print sm:right-6 sm:bottom-6";
@@ -29,8 +28,8 @@ const FAB_CLASSES =
  * account), each of which brings them back to club creation afterwards. This is
  * the "auth interceptor": the guest is never dumped on a bare sign-in form.
  *
- * Note the dialog is convenience, not security — `/onboarding` is still behind
- * the middleware gate and every club API checks the session on the server.
+ * Note the dialog is convenience, not security — `/clubs/new` sends signed-out
+ * visitors to sign in by itself, and every club API checks the session on the server.
  */
 export function StartClubButton({
   signedIn,

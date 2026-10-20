@@ -157,7 +157,9 @@ export function MemberOverviewView({ overview }: { overview: MemberOverview }) {
                     <span className="font-medium">{membership.club.name}</span>
                     <span className="text-xs text-muted-foreground">{membership.club.category ?? "Uncategorised"}</span>
                   </div>
-                  <RoleTag strong={membership.role !== "MEMBER"}>{CLUB_ROLE_LABELS[membership.role]}</RoleTag>
+                  <RoleTag strong={membership.role !== "MEMBER" && membership.club.status === "ACTIVE"}>
+                    {membership.club.status === "PENDING" ? "Pending" : CLUB_ROLE_LABELS[membership.role]}
+                  </RoleTag>
                 </li>
               ))}
             </ul>

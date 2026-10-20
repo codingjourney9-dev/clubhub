@@ -7,6 +7,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import type { EventTag } from "../src/generated/prisma/enums";
 import { DEMO_INVITE_TOKEN } from "../src/config/demo";
 import { normalizeSslMode } from "../src/lib/db/connection-string";
+import { CODE_TTL_MS, hashVerificationCode } from "../src/lib/domain/club-verification";
 
 /**
  * Deterministic seed for local development and demos.
@@ -34,7 +35,11 @@ const USER = {
 const CLUB = {
   robotics: "0f1d2c3b-4a59-4e6d-8b7c-200000000001",
   debate: "0f1d2c3b-4a59-4e6d-8b7c-200000000002",
+  /** Phase 12: Kabir's club, still waiting for the professor's code. */
+  chess: "0f1d2c3b-4a59-4e6d-8b7c-200000000003",
 } as const;
+/** The seeded professor's code for Chess Circle (shown on screen in demo mode). */
+const CHESS_DEMO_CODE = "246810";
 const EVENT = {
   robowars: "0f1d2c3b-4a59-4e6d-8b7c-300000000001",
   workshop: "0f1d2c3b-4a59-4e6d-8b7c-300000000002",
@@ -382,6 +387,52 @@ async function main() {
     },
   });
 
+  // ── Phase 12: a club waiting for its professor's code ──────────────────────
+  // Re-seeding always puts it back to "pending" with a fresh 15-minute code, so
+  // the walkthrough can be repeated. Kabir asked for it; Dr. Sharma must confirm.
+  const chessFields = {
+    name: "Chess Circle",
+    description: "Weekly casual games, a term tournament and coaching for beginners.",
+    category: "Games",
+    status: "PENDING" as const,
+    verifiedAt: null,
+    facultyName: "Dr. Priya Sharma",
+    facultyEmail: "priya.sharma@vit.ac.in",
+    deletedAt: null,
+  };
+  const chess = await db.club.upsert({
+    where: { tenantId_slug: { tenantId: tenant.id, slug: "chess-circle" } },
+    update: chessFields,
+    create: { id: CLUB.chess, tenantId: tenant.id, slug: "chess-circle", ...chessFields },
+  });
+  await db.clubMember.deleteMany({ where: { clubId: chess.id, userId: { not: USER.kabir } } });
+  await db.clubMember.upsert({
+    where: { clubId_userId: { clubId: chess.id, userId: USER.kabir } },
+    update: { role: "PRESIDENT", deletedAt: null },
+    create: { clubId: chess.id, userId: USER.kabir, role: "PRESIDENT" },
+  });
+  const authSecret = process.env.AUTH_SECRET;
+  if (authSecret) {
+    const sentAt = new Date(Date.now() - 60_000); // a minute ago: "Send a new code" works straight away
+    const code = {
+      email: chessFields.facultyEmail,
+      codeHash: hashVerificationCode(authSecret, chess.id, CHESS_DEMO_CODE),
+      demoCode: CHESS_DEMO_CODE,
+      attempts: 0,
+      lastSentAt: sentAt,
+      expiresAt: new Date(sentAt.getTime() + CODE_TTL_MS),
+      consumedAt: null,
+    };
+    await db.clubVerification.upsert({
+      where: { clubId: chess.id },
+      update: code,
+      create: { clubId: chess.id, tenantId: tenant.id, ...code },
+    });
+  } else {
+    // Without the server's secret the code couldn't be checked; "Send a new code" makes one.
+    await db.clubVerification.deleteMany({ where: { clubId: chess.id } });
+  }
+
   // ── Events: public + members-only, past + upcoming ────────────────────────
   const WA_DEMO = "https://chat.whatsapp.com/DemoInviteCodeClubHub0001";
   const events = [
@@ -610,7 +661,8 @@ async function main() {
     kabir.member@vit.ac.in      Tenant Member  · Member in both clubs
     dean.admin@vit.ac.in        Tenant Admin   · no club role (cross-club visibility)
 
-  Clubs    2   Events   5 (4 published · 1 draft members-only)
+  Clubs    2 live + 1 pending (Chess Circle — Kabir, code ${authSecret ? CHESS_DEMO_CODE : "not set: no AUTH_SECRET"})
+  Events   5 (4 published · 1 draft members-only)
   Tickets  12 (11 seats held · 1 person queuing for a full room)
   Door     5 checked in — Open House (today) 1 of 4 · Debug Night 2 of 3 · RoboWars 2 of 4
   Invites  1   public demo link: join/${DEMO_INVITE_TOKEN}

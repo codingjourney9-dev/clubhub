@@ -125,7 +125,9 @@ export async function requireClubAccess(clubId: string, action: ClubAction): Pro
   const [user, club] = await Promise.all([
     requireUser(),
     db.club.findFirst({
-      where: { id: clubId, deletedAt: null },
+      // Only ACTIVE clubs: a club waiting for its professor's code (Phase 12) is
+      // locked, so every club API answers 404 for it until it is verified.
+      where: { id: clubId, deletedAt: null, status: "ACTIVE" },
       select: {
         id: true,
         tenantId: true,

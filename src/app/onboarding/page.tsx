@@ -21,6 +21,7 @@ import { listClubs } from "@/lib/services/club-service";
 import { listTenantsForUser } from "@/lib/services/tenant-service";
 import { cn } from "@/lib/utils";
 import { clubRoleLabel } from "@/lib/domain/club-roles";
+import { START_CLUB_PATH } from "@/lib/domain/club-paths";
 
 export const metadata: Metadata = { title: "Get started" };
 
@@ -101,7 +102,7 @@ export default async function OnboardingPage() {
             <CardContent className="flex flex-col gap-5">
               {clubs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No clubs yet. {mayCreateClub ? "Create the first one below." : "Ask a college admin to create one."}
+                  No clubs yet. {mayCreateClub ? "Create the first one below." : "Start the first one — a professor confirms it."}
                 </p>
               ) : (
                 <ul className="grid gap-3 sm:grid-cols-2">
@@ -138,9 +139,11 @@ export default async function OnboardingPage() {
                 <Alert>
                   <Info />
                   <AlertDescription>
-                    Only college Owners and Admins can create clubs. As a{" "}
-                    {tenant.role.toLowerCase()}, you can still join clubs, RSVP to events and, once
-                    invited, manage one.
+                    Want your own club? Any student can{" "}
+                    <Link href={START_CLUB_PATH} className="font-medium underline underline-offset-4">
+                      start one
+                    </Link>
+                    . It goes live once a professor confirms it with a 6-digit code.
                   </AlertDescription>
                 </Alert>
               )}
