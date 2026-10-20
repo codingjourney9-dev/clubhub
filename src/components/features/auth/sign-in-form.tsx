@@ -13,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { authHref, safeCallbackUrl } from "@/lib/auth/callback-url";
 import { describeSignInFailure, type SignInFailure } from "@/lib/auth/sign-in-errors";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 import { cn } from "@/lib/utils";
@@ -162,7 +163,7 @@ export function SignInForm({
       }
 
       toast.success("Signed in");
-      router.push(callbackUrl);
+      router.push(safeCallbackUrl(callbackUrl));
       router.refresh();
     } catch (error) {
       if (error instanceof TimeoutError) {
@@ -303,7 +304,7 @@ export function SignInForm({
       ) : (
         <p className="text-center text-sm text-muted-foreground">
           New to ClubHub?{" "}
-          <Link href="/sign-up" className="font-medium text-foreground underline underline-offset-4">
+          <Link href={authHref("/sign-up", callbackUrl)} className="font-medium text-foreground underline underline-offset-4">
             Create an account
           </Link>
         </p>

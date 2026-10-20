@@ -317,8 +317,24 @@ button, link and field then shows a clear focus ring.
 
 ### Step 12 — See the app defend itself
 
-While signed out (or in the demo), visit `/dashboard` in the preview. You get bounced to the sign-in
-page. You can't sneak into a protected page by typing its address — the app checks every single time.
+While signed out (or in the demo), visit `/onboarding` (the page for starting a club) in the preview.
+You get bounced to the sign-in page. You can't sneak into a protected page by typing its address — the
+app checks every single time. (`/dashboard` used to be protected too; since Phase 8 guests may look at
+it, and it shows them only public events.)
+
+### Step 12½ — Browse as a guest (new in Phase 8)
+
+1. Open the front page (`/`). The big orange button now says **Explore events as a guest**. Click it.
+2. You land on **What's on across campuses** — every published event marked *open to everyone*, from
+   every college. Nobody asked you to sign in.
+3. Each card is a little ticket stub: date on the left, the college on top, and seats on the bottom
+   right (**36 seats left**, **Only 5 left**, **Full · waitlist open**, or **Happening now**).
+4. Click **RoboWars 2026 — Qualifiers**. You can read everything about it, and the box on the right
+   says **Sign in to get a ticket**. Members-only events and drafts never appear here.
+5. Go back and click the round **Start a new club** button in the bottom-right corner. A small box
+   explains that a club needs a President, with **Create an account** and **I have an account**.
+6. Click **I have an account**. The sign-in page now says *why* you're there: "Starting a club needs an
+   account, so we know who its President is." After signing in you're taken straight to club creation.
 
 ### Step 13 — (Optional) the real sign-in experience
 
@@ -425,8 +441,8 @@ the final version*. If any step fails, the phase isn't done. One tip: stop the p
 
 ## 6. Where we are on the map
 
-The project is built in 7 phases. Each one ends with a review, and nothing starts until the previous
-one passes.
+The project was built in 7 phases, and 6 more were added for the club-platform features. Each one ends
+with a review, and nothing starts until the previous one passes.
 
 | Phase | In plain words | Status |
 | --- | --- | --- |
@@ -434,9 +450,15 @@ one passes.
 | 2 | Build the filing cabinet + install the front door lock | ✅ Done |
 | 3 | Creating colleges & clubs, inviting members | ✅ Done |
 | 4 | Creating events (the actual dashboard) | ✅ Done |
-| 5 | Sign-ups that can't overbook + QR tickets | ✅ Done (you're here) |
-| 6 | The phone scanner + works without internet | ⬜ Next |
-| 7 | Make it pretty and bulletproof | ⬜ |
+| 5 | Sign-ups that can't overbook + QR tickets | ✅ Done |
+| 6 | The phone scanner + works without internet | ✅ Done |
+| 7 | Make it pretty and bulletproof | ✅ Done |
+| 8 | Front door: guests can browse events, "Start a new club" asks them to sign in | ✅ Built — waiting for your review |
+| 9 | Richer events: poster link, tags, Instagram / WhatsApp links | ⬜ Next |
+| 10 | Roles: "Lead" instead of Event Manager, removing people, handing over the presidency, members-only announcements | ⬜ |
+| 11 | Recruitment board: clubs post openings, students apply | ⬜ |
+| 12 | Any student can start a club; it stays Pending until a professor's code is entered | ⬜ |
+| 13 | The remaining screens in the new look + final checks | ⬜ |
 
 **In plain words, right now:** you can log in, create a college, create clubs inside it, invite
 people with a link, create and publish events — and, new in Phase 5, **claim a seat, join a waitlist,

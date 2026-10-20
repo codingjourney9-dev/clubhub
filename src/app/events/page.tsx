@@ -119,7 +119,7 @@ export default async function UpcomingEventsPage() {
                     </div>
                     <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                       <Badge variant={event.isPublic ? "secondary" : "outline"}>
-                        {event.isPublic ? "Whole college" : "Members only"}
+                        {event.isPublic ? "Open to everyone" : "Members only"}
                       </Badge>
                       {seat === "FULL" ? (
                         <Badge variant="destructive">Full</Badge>

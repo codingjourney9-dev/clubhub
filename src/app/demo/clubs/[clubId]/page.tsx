@@ -456,7 +456,7 @@ export default async function DemoClubPage({
                       </TableCell>
                       <TableCell>
                         <Badge variant={event.isPublic ? "secondary" : "outline"}>
-                          {event.isPublic ? "Whole college" : "Members only"}
+                          {event.isPublic ? "Open to everyone" : "Members only"}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">

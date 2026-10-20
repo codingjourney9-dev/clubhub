@@ -259,15 +259,16 @@ export function EventForm({ clubId, timeZone, event, onDone }: EventFormProps) {
       <div className="flex flex-col gap-3 rounded-lg border p-3">
         <label className="flex items-start justify-between gap-3">
           <span className="flex flex-col">
-            <span className="text-sm font-medium">Open to the whole college</span>
+            <span className="text-sm font-medium">Open to everyone</span>
             <span className="text-xs text-muted-foreground">
-              Off means only club members can see this event.
+              Shown on the public board once published — even to people without an account. Off
+              means only club members can see it.
             </span>
           </span>
           <Switch
             checked={isPublic}
             onCheckedChange={(checked) => setValue("isPublic", checked)}
-            aria-label="Open to the whole college"
+            aria-label="Open to everyone"
           />
         </label>
 

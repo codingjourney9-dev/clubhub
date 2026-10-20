@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerSchema, type RegisterInput } from "@/lib/validation/auth";
 import { callApi, fieldErrorsOf, notifyFailure } from "@/lib/api/client";
+import { authHref, safeCallbackUrl } from "@/lib/auth/callback-url";
 
 interface RegisteredUser {
   id: string;
@@ -21,7 +22,7 @@ interface RegisteredUser {
   lastName: string | null;
 }
 
-export function SignUpForm() {
+export function SignUpForm({ callbackUrl }: { callbackUrl?: string } = {}) {
   const router = useRouter();
 
   const {
@@ -60,12 +61,12 @@ export function SignUpForm() {
 
     if (!signInResult || signInResult.error) {
       toast.success("Account created", { description: "Please sign in to continue." });
-      router.push("/sign-in");
+      router.push(authHref("/sign-in", callbackUrl));
       return;
     }
 
     toast.success("Account created", { description: "Welcome to ClubHub." });
-    router.push("/dashboard");
+    router.push(safeCallbackUrl(callbackUrl));
     router.refresh();
   }
 
@@ -147,7 +148,7 @@ export function SignUpForm() {
       <Alert>
         <AlertDescription>
           Already registered?{" "}
-          <Link href="/sign-in" className="font-medium underline underline-offset-4">
+          <Link href={authHref("/sign-in", callbackUrl)} className="font-medium underline underline-offset-4">
             Sign in
           </Link>
         </AlertDescription>

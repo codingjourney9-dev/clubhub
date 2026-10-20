@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { SignInForm } from "@/components/features/auth/sign-in-form";
+import { safeCallbackUrl } from "@/lib/auth/callback-url";
 import { getCurrentUser } from "@/lib/auth/session";
+import { signInReason } from "@/lib/auth/sign-in-reason";
 import { isDemoModeEnabled } from "@/lib/demo/mode";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -13,10 +15,11 @@ export default async function SignInPage({
   searchParams: Promise<{ callbackUrl?: string }>;
 }) {
   // Already signed in (or arriving via a middleware redirect) — no need to show the form.
-  const user = await getCurrentUser();
-  if (user) redirect("/dashboard");
-
-  const { callbackUrl } = await searchParams;
+  const [user, { callbackUrl }] = await Promise.all([getCurrentUser(), searchParams]);
+  // Only paths on this site are honoured — see safeCallbackUrl for why.
+  const returnTo = safeCallbackUrl(callbackUrl);
+  if (user) redirect(returnTo);
+  const reason = signInReason(returnTo);
 
   return (
     <div className="flex flex-col gap-8">
@@ -24,10 +27,10 @@ export default async function SignInPage({
         <span className="eyebrow text-primary">Welcome back</span>
         <h1 className="text-3xl font-bold sm:text-4xl">Sign in to ClubHub</h1>
         <p className="text-muted-foreground">
-          Use the college email your club registered with.
+          {reason ?? "Use the college email your club registered with."}
         </p>
       </div>
-      <SignInForm callbackUrl={callbackUrl ?? "/dashboard"} demoMode={isDemoModeEnabled()} />
+      <SignInForm callbackUrl={returnTo} demoMode={isDemoModeEnabled()} />
     </div>
   );
 }

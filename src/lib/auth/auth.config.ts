@@ -11,7 +11,11 @@ import type { NextAuthConfig } from "next-auth";
  */
 
 /** Route prefixes that require a signed-in user. Kept in sync with `config.matcher` in middleware.ts. */
-export const PROTECTED_PREFIXES = ["/dashboard", "/scanner", "/onboarding", "/door"] as const;
+/**
+ * `/dashboard` is deliberately NOT here: guests browse it too (public events
+ * from every college). The page itself decides what a guest sees.
+ */
+export const PROTECTED_PREFIXES = ["/scanner", "/onboarding", "/door"] as const;
 
 export function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PREFIXES.some(

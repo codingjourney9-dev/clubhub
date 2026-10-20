@@ -239,12 +239,27 @@ dir       # Windows        — you should see package.json
 If `package.json` is not there, you are in the wrong folder. Fix that before continuing; nothing else
 will work.
 
-**B1. Tell Git who you are** (once per computer):
+**B1. Tell Git who you are** (once per computer).
+
+> ⚠️ **Replace the words inside the quotes with YOUR details.** Do not copy them as written — Git
+> accepts anything without complaint, and every commit would then be signed "Your Name". This is
+> an example for someone called Aarav:
 
 ```bash
-git config --global user.name "Your Name"
-git config --global user.email "the-email-you-used@github.com"
+git config --global user.name "Aarav Shah"
+git config --global user.email "aarav.shah@gmail.com"
 ```
+
+Use the **same email you signed up to GitHub with**, so GitHub links the commits to your account.
+Check what you saved:
+
+```bash
+git config --global user.name
+git config --global user.email
+```
+
+Each prints one line. If it says `Your Name`, just run the `git config` line again with the real
+value — the new one replaces the old.
 
 **B2. Turn the folder into a repository and commit:**
 

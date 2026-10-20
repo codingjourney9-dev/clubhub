@@ -199,28 +199,29 @@ export default function Home() {
                 and a door scanner that keeps working when the Wi-Fi doesn&apos;t.
               </p>
 
-              <div className="flex flex-wrap items-center gap-3 pt-1">
-                {demo ? (
-                  <>
-                    <Link href="/demo" className={cn(buttonVariants({ size: "lg" }))}>
-                      See the demo dashboard (no sign-in)
-                      <ArrowRight data-icon="inline-end" />
+              {/* Centre stage: look around first, no account. Everything else is secondary. */}
+              <div className="flex flex-col items-start gap-3 pt-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link href="/dashboard" className={cn(buttonVariants({ size: "lg" }), "h-12 px-6 text-base")}>
+                    Explore events as a guest
+                    <ArrowRight data-icon="inline-end" />
+                  </Link>
+                  {demo ? (
+                    <Link href="/demo" className={cn(buttonVariants({ size: "lg", variant: "outline" }), "h-12 px-5")}>
+                      Demo dashboard (no sign-in)
                     </Link>
-                    <Link href="/sign-in" className={cn(buttonVariants({ size: "lg", variant: "outline" }))}>
-                      Sign in as a demo user
-                    </Link>
-                  </>
-                ) : (
-                  <>
-                    <Link href="/sign-up" className={cn(buttonVariants({ size: "lg" }))}>
+                  ) : (
+                    <Link href="/sign-up" className={cn(buttonVariants({ size: "lg", variant: "outline" }), "h-12 px-5")}>
                       Create an account
-                      <ArrowRight data-icon="inline-end" />
                     </Link>
-                    <Link href="/sign-in" className={cn(buttonVariants({ size: "lg", variant: "outline" }))}>
-                      Sign in
-                    </Link>
-                  </>
-                )}
+                  )}
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  No account needed to browse.{" "}
+                  <Link href="/sign-in" className="font-medium text-foreground underline underline-offset-4">
+                    {demo ? "Sign in as a demo user" : "Already a member? Sign in"}
+                  </Link>
+                </span>
               </div>
 
               <ul className="flex flex-wrap gap-x-5 gap-y-2 pt-2 text-sm text-muted-foreground">

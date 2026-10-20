@@ -489,6 +489,41 @@ hashed CSS; the deploy check passing and failing on each of the three dangerous 
 
 ---
 
+## Phase 8 — Front door & guest browsing — Built, awaiting review
+
+From the club-platform blueprint (Phases 8–13). Decisions agreed before building: keep the current
+stack; guests see **one combined feed from every college**; professor verification will show the code
+on screen while practising (Phase 12); posters are pasted links (Phase 9); a club's college is matched
+by **email domain** (Phase 12); Leads accept Member applicants, only the President accepts Lead
+applicants (Phase 11).
+
+- **`/dashboard` is open to guests.** Removed from `PROTECTED_PREFIXES` and the middleware matcher. With
+  no session the page renders the guest board (`GuestDashboard`); signed in, the member overview gains a
+  "Happening across campuses" section. `/onboarding`, `/door`, `/scanner` stay gated.
+- **One public-visibility rule** — `src/lib/services/public-event-service.ts`: published (or cancelled,
+  for direct links) **and** `isPublic` **and** not deleted **and** its club and college not deleted.
+  Selects only internet-safe fields; malformed ids return `null`, not a database error.
+- **Public event pages.** `/events/[id]` falls back to `PublicEventView` for guests (401) and for
+  signed-in people from another college (404) when the event is public; otherwise behaviour is
+  unchanged (sign in, or 404). Guests get "Sign in to get a ticket"; outsiders are told which college
+  the tickets are for.
+- **"Start a new club" interceptor.** `StartClubButton`: a link when signed in; for guests a dialog
+  offering sign-in / sign-up that both return to `/onboarding`. Floating on both dashboards.
+- **Safe return paths.** `safeCallbackUrl` accepts only same-site paths (rejects `//host`, `/\host`,
+  control characters, absolute URLs and the auth pages themselves); used by the sign-in and sign-up
+  pages and forms, which previously followed `callbackUrl` blindly (an open redirect). `signInReason`
+  tells the visitor why they were sent to sign in.
+- **Wording.** The event switch "Open to the whole college" became **"Open to everyone"**, because
+  public events are now visible on the open internet. Badges changed to match.
+- **Landing.** Centre-stage **Explore events as a guest**; guests get an **Explore events** link in the
+  header.
+
+**Gate:** typecheck ✅ lint ✅ build ✅ vitest 351/351 ✅ smoke 190/190 ✅ (12 new guest checks) ·
+browser-checked: landing, guest board, interceptor dialog → sign-in with reason → back to
+`/onboarding`, signed-in dashboard, public event page at 390 px in dark mode.
+
+---
+
 ## Progress log
 
 | Date | Phase | Result |
@@ -501,6 +536,7 @@ hashed CSS; the deploy check passing and failing on each of the three dangerous 
 | 2026-10-17 | 6 — Scanner & Edge Cases | Complete. Mobile-first scanner with typed door-code fallback, offline queue with idempotent `scanUuid`, browser-side fingerprint verification against a cached manifest, single `decideCheckIn` verdict used by API and UI, attendance report. Gate: lint ✅ typecheck ✅ build ✅ 272 tests ✅ smoke 162/162 ✅ |
 | 2026-10-17 | 7 — Polish & Observability | Complete. One client bridge so every failure is a sentence, optimistic updates with rollback, empty states + skeletons + error boundaries, 100 browser-verified layout checks at 360–1440 px, structured request logs with user/tenant context on all 23 routes, readiness-aware `/api/health`. Gate: lint ✅ typecheck ✅ build ✅ 299 tests ✅ smoke 178/178 ✅ layout 100/100 ✅ |
 | 2026-10-17 | Deploy readiness | Complete. Multi-stage Dockerfile + Compose (db → migrate → app), `npm run deploy:check` (14 checks), `docs/DEPLOY.md` for Compose/Vercel/systemd. Fixed a silent rate-limit driver lie and a `.env`-in-image leak. Gate: lint ✅ typecheck ✅ build ✅ 305 tests ✅ smoke 178/178 ✅ |
+| 2026-10-20 | 8 — Front door & guest browsing | Built, awaiting review. Guest `/dashboard` with public events from every college, public event pages, "Start a new club" sign-in interceptor, `safeCallbackUrl` open-redirect fix. Gate: lint ✅ typecheck ✅ build ✅ 351 tests ✅ smoke 190/190 ✅ |
 
 ---
 

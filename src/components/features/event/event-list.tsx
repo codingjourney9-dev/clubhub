@@ -189,7 +189,7 @@ export function EventList({
                               {event.status.charAt(0) + event.status.slice(1).toLowerCase()}
                             </Badge>
                             <Badge variant={event.isPublic ? "secondary" : "outline"}>
-                              {event.isPublic ? "Whole college" : "Members only"}
+                              {event.isPublic ? "Open to everyone" : "Members only"}
                             </Badge>
                           </span>
                           {event.description ? (

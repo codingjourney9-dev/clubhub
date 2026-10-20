@@ -5,10 +5,13 @@ import { ArrowUpRight, CalendarDays, Plus, ScanLine, Ticket as TicketIcon } from
 
 import { PageHeading } from "@/components/common/page-heading";
 import { MemberOverviewView } from "@/components/features/dashboard/member-overview";
+import { PublicEventGrid } from "@/components/features/explore/public-event-card";
+import { StartClubButton } from "@/components/features/explore/start-club-button";
 import { buttonVariants } from "@/components/ui/button";
 import { getCurrentUser, getSessionUserId } from "@/lib/auth/session";
 import { isDemoModeEnabled } from "@/lib/demo/mode";
 import { loadMemberOverview } from "@/lib/services/dashboard-service";
+import { listPublicUpcomingEvents, PUBLIC_FEED_LIMIT, type PublicEvent } from "@/lib/services/public-event-service";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -28,19 +31,86 @@ function greeting(): string {
   return "Good evening";
 }
 
+/** Headline for the public feed, used by both versions of the page. */
+function FeedHeading({ events, title }: { events: readonly PublicEvent[]; title: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="eyebrow">
+        {events.length === 0
+          ? "Open to everyone"
+          : events.length >= PUBLIC_FEED_LIMIT
+            ? `The next ${events.length} · open to everyone`
+            : `${events.length} coming up · open to everyone`}
+      </span>
+      <h2 id="feed-heading" className="text-2xl font-bold">
+        {title}
+      </h2>
+    </div>
+  );
+}
+
 /**
- * The signed-in member dashboard. Data comes from `loadMemberOverview`, the same
- * service the cookie-free /demo preview uses, so the two cannot drift apart.
+ * What someone without an account sees: upcoming public events from every
+ * college, and a way to start a club that asks them to sign in first.
+ */
+async function GuestDashboard() {
+  const events = await listPublicUpcomingEvents();
+  const demo = isDemoModeEnabled();
+
+  return (
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pt-10 pb-28 sm:px-6 lg:pt-14">
+      <PageHeading
+        eyebrow="Browsing as a guest"
+        title={<>What&apos;s on across campuses</>}
+        description="Public events from every college on ClubHub. Look around as much as you like — you only need an account to get a ticket or start a club."
+        actions={
+          demo ? (
+            <Link href="/demo" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+              See a member&apos;s dashboard
+              <ArrowUpRight data-icon="inline-end" />
+            </Link>
+          ) : null
+        }
+      />
+
+      <section aria-labelledby="feed-heading" className="flex flex-col gap-4">
+        <FeedHeading events={events} title="Upcoming events" />
+        <PublicEventGrid events={events} />
+      </section>
+
+      <section className="flex flex-col items-start gap-4 rounded-xl border border-foreground/80 bg-secondary/60 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8 dark:border-foreground/20">
+        <div className="flex max-w-xl flex-col gap-1">
+          <span className="eyebrow text-primary">Run a club?</span>
+          <p className="font-heading text-xl font-bold sm:text-2xl">
+            Put your club on the board. You&apos;ll be its President.
+          </p>
+        </div>
+        <StartClubButton signedIn={false} className="shrink-0" />
+      </section>
+
+      <StartClubButton signedIn={false} placement="floating" />
+    </div>
+  );
+}
+
+/**
+ * The dashboard. Guests get the public feed; signed-in members get their own
+ * overview (from `loadMemberOverview`, the same service the cookie-free /demo
+ * preview uses, so the two cannot drift apart) with the public feed below it.
  */
 export default async function DashboardPage() {
-  // Start the overview from the session id while the user row loads — the two
-  // are independent, so they share one round trip instead of taking two.
   const sessionUserId = await getSessionUserId();
-  const [user, overview] = await Promise.all([
+  if (!sessionUserId) return <GuestDashboard />;
+
+  // The overview, the user row and the public feed are independent, so they
+  // share one round trip instead of taking three.
+  const [user, overview, publicEvents] = await Promise.all([
     getCurrentUser(),
-    sessionUserId ? loadMemberOverview(sessionUserId) : null,
+    loadMemberOverview(sessionUserId),
+    listPublicUpcomingEvents(6),
   ]);
-  if (!user || !overview) redirect("/sign-in?callbackUrl=/dashboard");
+  // A session for an account that no longer exists: send them to sign in again.
+  if (!user) redirect("/sign-in");
   const runsSomething = overview.clubRoles.some((membership) => membership.role !== "MEMBER");
 
   const quickActions = [
@@ -53,7 +123,7 @@ export default async function DashboardPage() {
   ];
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-10 sm:px-6 lg:py-14">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 pt-10 pb-28 sm:px-6 lg:pt-14">
       <PageHeading
         eyebrow={greeting()}
         title={<>Hello, {user.displayName}</>}
@@ -155,6 +225,19 @@ export default async function DashboardPage() {
       </section>
 
       <MemberOverviewView overview={overview} />
+
+      <section aria-labelledby="feed-heading" className="flex flex-col gap-4">
+        <div className="flex items-end justify-between gap-4">
+          <FeedHeading events={publicEvents} title="Happening across campuses" />
+          <Link href="/events" className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
+            Your colleges&apos; events
+            <ArrowUpRight data-icon="inline-end" />
+          </Link>
+        </div>
+        <PublicEventGrid events={publicEvents} />
+      </section>
+
+      <StartClubButton signedIn placement="floating" />
     </div>
   );
 }

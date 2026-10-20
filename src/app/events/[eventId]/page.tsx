@@ -20,13 +20,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PublicEventView } from "@/components/features/explore/public-event-view";
 import { ApiError } from "@/lib/api/response";
+import { authHref } from "@/lib/auth/callback-url";
 import { requireEventAccess, type EventContext } from "@/lib/auth/guards";
 import { decideSeat, registrationClosedReason } from "@/lib/domain/ticket-rules";
 import { formatDateTimeInZone, zoneAbbreviation } from "@/lib/format/date";
 import { getAttendanceReport } from "@/lib/services/check-in-service";
 import { findTicketForUser, listEventRoster } from "@/lib/services/ticket-service";
 import { ticketCountsByEvent } from "@/lib/services/event-service";
+import { getPublicEvent, type PublicEvent } from "@/lib/services/public-event-service";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Event" };
@@ -41,14 +44,24 @@ export const dynamic = "force-dynamic";
  */
 async function loadEvent(
   eventId: string,
-): Promise<{ kind: "ok"; context: EventContext } | { kind: "not-found" }> {
+): Promise<
+  | { kind: "ok"; context: EventContext }
+  | { kind: "public"; event: PublicEvent; viewer: "guest" | "outsider" }
+  | { kind: "not-found" }
+> {
   try {
     return { kind: "ok", context: await requireEventAccess(eventId, "ticket:rsvp") };
   } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      redirect(`/sign-in?callbackUrl=${encodeURIComponent(`/events/${eventId}`)}`);
+    if (error instanceof ApiError && (error.status === 401 || error.status === 404)) {
+      // Not signed in (401), or signed in but not in this college (404): an
+      // event marked "open to everyone" is still shown, read-only. Anything
+      // else keeps the old answer — sign in, or "not found".
+      const isGuest = error.status === 401;
+      const publicEvent = await getPublicEvent(eventId);
+      if (publicEvent) return { kind: "public", event: publicEvent, viewer: isGuest ? "guest" : "outsider" };
+      if (isGuest) redirect(authHref("/sign-in", `/events/${eventId}`));
+      return { kind: "not-found" };
     }
-    if (error instanceof ApiError && error.status === 404) return { kind: "not-found" };
     throw error;
   }
 }
@@ -76,6 +89,7 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
 
   const result = await loadEvent(eventId);
   if (result.kind === "not-found") notFound();
+  if (result.kind === "public") return <PublicEventView event={result.event} viewer={result.viewer} />;
 
   const { context } = result;
   const { event, club } = context;
@@ -130,7 +144,7 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
               {event.status.charAt(0) + event.status.slice(1).toLowerCase()}
             </Badge>
             <Badge variant={event.isPublic ? "secondary" : "outline"}>
-              {event.isPublic ? "Whole college" : "Members only"}
+              {event.isPublic ? "Open to everyone" : "Members only"}
             </Badge>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-1 text-sm text-muted-foreground">

@@ -75,12 +75,42 @@ else
   fail "no x-request-id header on the response"
 fi
 
-echo "[2] protected route without a session"
-LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/dashboard")
+echo "[2] guests: public board open, everything else still gated"
+expect_not_contains() { # label haystack_file needle
+  if grep -qF -- "$3" "$2"; then fail "$1 (should not contain: $3)"; else pass "$1"; fi
+}
+STATUS=$(curl -s -o "$TMP/guest-dash.html" -w '%{http_code}' "$BASE/dashboard")
+expect_status "GET /dashboard without a session is the guest board" 200 "$STATUS"
+expect_contains "…which says the visitor is a guest" "$TMP/guest-dash.html" "Browsing as a guest"
+expect_contains "…lists a published public event" "$TMP/guest-dash.html" "RoboWars 2026"
+expect_not_contains "…but never a draft / members-only event" "$TMP/guest-dash.html" "Line-Follower Workshop"
+expect_contains "…and offers to start a club" "$TMP/guest-dash.html" "Start a new club"
+
+LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/onboarding")
 case "$LOCATION" in
-  */sign-in*) pass "GET /dashboard redirects to sign-in ($LOCATION)" ;;
-  *) fail "GET /dashboard should redirect to sign-in, got: $LOCATION" ;;
+  */sign-in*) pass "GET /onboarding (club creation) still redirects guests to sign-in" ;;
+  *) fail "GET /onboarding should redirect to sign-in, got: $LOCATION" ;;
 esac
+
+PUBLIC_EVENT="0f1d2c3b-4a59-4e6d-8b7c-300000000001"   # RoboWars, published + public
+PRIVATE_EVENT="0f1d2c3b-4a59-4e6d-8b7c-300000000002"  # workshop, draft + members only
+STATUS=$(curl -s -o "$TMP/guest-event.html" -w '%{http_code}' "$BASE/events/$PUBLIC_EVENT")
+expect_status "a public event page opens for guests" 200 "$STATUS"
+expect_contains "…with a sign-in-to-get-a-ticket button" "$TMP/guest-event.html" "Sign in to get a ticket"
+expect_not_contains "…and no organiser roster" "$TMP/guest-event.html" "Who is coming"
+LOCATION=$(curl -s -o /dev/null -w '%{redirect_url}' "$BASE/events/$PRIVATE_EVENT")
+case "$LOCATION" in
+  */sign-in*) pass "a members-only draft still sends guests to sign-in" ;;
+  *) fail "members-only event should redirect guests to sign-in, got: $LOCATION" ;;
+esac
+
+curl -s -o "$TMP/evil.html" "$BASE/sign-in?callbackUrl=https%3A%2F%2Fevil.example%2Fphish"
+# (The raw address still appears in Next's own router state; what matters is the
+# value handed to the sign-in form, which decides where the browser goes next.)
+expect_contains "sign-in replaces a callbackUrl pointing at another site…" "$TMP/evil.html" '\"callbackUrl\":\"/dashboard\"'
+expect_not_contains "…so the form never receives it" "$TMP/evil.html" '\"callbackUrl\":\"https'
+curl -s -o "$TMP/why.html" "$BASE/sign-in?callbackUrl=%2Fonboarding"
+expect_contains "sign-in explains why a club starter was sent there" "$TMP/why.html" "know who its President is"
 
 echo "[3] server-side validation (client checks are not trusted)"
 STATUS=$(json_status POST /api/auth/register '{"firstName":"","lastName":"X","email":"not-an-email","password":"short"}')
