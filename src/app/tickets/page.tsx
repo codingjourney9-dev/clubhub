@@ -61,7 +61,7 @@ export default async function MyTicketsPage() {
               <li
                 key={ticket.id}
                 className={cn(
-                  "ticket-notch grid rounded-lg border border-border bg-card [--notch-y:50%] sm:grid-cols-[1fr_auto_13rem]",
+                  "ticket-notch grid grid-cols-1 rounded-lg border border-border bg-card [--notch-y:50%] sm:grid-cols-[1fr_auto_13rem]",
                   inactive && "opacity-70",
                 )}
               >
@@ -89,7 +89,7 @@ export default async function MyTicketsPage() {
                 <div aria-hidden="true" className="perforation mx-5 sm:hidden" />
                 <div aria-hidden="true" className="perforation-y my-4 hidden sm:block" />
 
-                <div className="flex flex-row items-center justify-between gap-3 p-5 sm:flex-col sm:items-stretch sm:justify-center">
+                <div className="flex flex-row flex-wrap items-center justify-between gap-3 p-5 sm:flex-col sm:flex-nowrap sm:items-stretch sm:justify-center">
                   <div className="flex flex-wrap gap-1.5 sm:justify-center">
                     {ticket.status === "REGISTERED" ? (
                       <Badge>Registered</Badge>
@@ -100,7 +100,7 @@ export default async function MyTicketsPage() {
                     )}
                     {ticket.event.status === "CANCELLED" ? <Badge variant="destructive">Event cancelled</Badge> : null}
                   </div>
-                  <div className="flex gap-2 sm:flex-col">
+                  <div className="flex flex-wrap gap-2 sm:flex-col">
                     <Link
                       href={`/tickets/${ticket.id}`}
                       className={cn(buttonVariants({ size: "sm", variant: inactive ? "outline" : "default" }))}

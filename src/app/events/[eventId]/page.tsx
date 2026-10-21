@@ -237,7 +237,7 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
             About this event
           </CardTitle>
           <CardDescription>
-            Stored as one instant in UTC, shown in {club.timezone} — the college&apos;s timezone.
+            Times are shown in the college&apos;s local time ({club.timezone}), wherever you are.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -87,7 +87,7 @@ export function OpeningGrid({ openings, emptyHint }: { openings: readonly Public
     );
   }
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {openings.map((opening) => (
         <li key={opening.id}>
           <OpeningCard opening={opening} />

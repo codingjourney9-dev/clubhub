@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -68,6 +69,19 @@ export function ClubMembersManager({
 
   const showActions = members.some((member) => member.canRemove);
 
+  // A search box only earns its place once the list is longer than a screen.
+  const searchable = members.length > 8;
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const shown = needle
+    ? members.filter(
+        (member) =>
+          member.user.displayName.toLowerCase().includes(needle) ||
+          member.user.email.toLowerCase().includes(needle) ||
+          CLUB_ROLE_LABELS[member.role].toLowerCase().includes(needle),
+      )
+    : members;
+
   async function changeRole(member: ClubMemberRow, role: string) {
     setBusyUserId(member.user.id);
     try {
@@ -118,6 +132,21 @@ export function ClubMembersManager({
 
   return (
     <>
+      {searchable ? (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Find by name, email or role"
+            aria-label="Find a member"
+            className="max-w-xs"
+          />
+          <span className="text-xs text-muted-foreground" aria-live="polite">
+            {needle ? `${shown.length} of ${members.length} shown` : `${members.length} members`}
+          </span>
+        </div>
+      ) : null}
       <Table>
         <TableHeader>
           <TableRow>
@@ -128,7 +157,14 @@ export function ClubMembersManager({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {members.map((member) => (
+          {needle && shown.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={showActions ? 4 : 3} className="py-6 text-center text-sm text-muted-foreground">
+                {`Nobody matches "${query.trim()}".`}
+              </TableCell>
+            </TableRow>
+          ) : null}
+          {shown.map((member) => (
             <TableRow key={member.membershipId}>
               <TableCell>
                 <div className="flex flex-col">

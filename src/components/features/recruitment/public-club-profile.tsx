@@ -64,7 +64,7 @@ export function PublicClubProfileView({
         </div>
       </header>
 
-      <dl className="grid gap-4 sm:grid-cols-3">
+      <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-4">
           <dt className="eyebrow flex items-center gap-1.5">
             <Crown className="size-3.5" aria-hidden="true" /> President

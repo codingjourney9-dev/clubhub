@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Eye, Info, Users } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarDays, Eye, Info, Link2, Megaphone, Users } from "lucide-react";
 import { z } from "zod";
 
 import { ClubAnnouncements } from "@/components/features/announcement/club-announcements";
@@ -11,6 +11,7 @@ import {
   type PresidencyCandidate,
 } from "@/components/features/club/transfer-presidency-dialog";
 import { InviteManager, type ClubInviteRow } from "@/components/features/club/invite-manager";
+import { ClubTabLink, ClubTabs, type ClubTab } from "@/components/features/club/club-tabs";
 import { EventList, type EventRow } from "@/components/features/event/event-list";
 import { ClubOpeningsManager } from "@/components/features/recruitment/club-openings-manager";
 import { PublicClubProfileView } from "@/components/features/recruitment/public-club-profile";
@@ -18,7 +19,6 @@ import { PendingClubPanel } from "@/components/features/club-request/pending-clu
 import { toManageRows } from "@/components/features/recruitment/review-rows";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError } from "@/lib/api/response";
 import { requireClubAccess, type ClubContext } from "@/lib/auth/guards";
@@ -40,6 +40,8 @@ import { listClubEvents } from "@/lib/services/event-service";
 import { listClubOpenings } from "@/lib/services/recruitment-service";
 import { listClubInvites } from "@/lib/services/invite-service";
 import { cn } from "@/lib/utils";
+import { db } from "@/lib/db/client";
+import { formatDateTimeInZone } from "@/lib/format/date";
 
 export const metadata: Metadata = { title: "Club" };
 
@@ -92,7 +94,7 @@ export default async function ClubPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{ view?: string | string[] }>;
+  searchParams: Promise<{ view?: string | string[]; tab?: string | string[] }>;
 }) {
   const [{ clubId }, query] = await Promise.all([params, searchParams]);
 
@@ -121,7 +123,7 @@ export default async function ClubPage({
   const canEditEvent = canClub(actor, "event:update");
   const canDeleteEvent = canClub(actor, "event:delete");
 
-  const [members, invites, events, announcements, openings] = await Promise.all([
+  const [members, invites, events, announcements, openings, details] = await Promise.all([
     listClubMembers(clubId, context.club.tenantId),
     canInvite ? listClubInvites(clubId, context.club.tenantId) : Promise.resolve([]),
     // Drafts are included only for people who can edit events; the service applies
@@ -134,6 +136,11 @@ export default async function ClubPage({
       ? listClubAnnouncements(clubId, context.club.tenantId)
       : Promise.resolve([]),
     listClubOpenings(clubId, context.club.tenantId, actor),
+    // Just for the line under the club name: "Technology · Vadodara Institute of Technology · 26 members".
+    db.club.findFirst({
+      where: { id: clubId, tenantId: context.club.tenantId },
+      select: { category: true, tenant: { select: { name: true } } },
+    }),
   ]);
 
   const eventRows: EventRow[] = events
@@ -193,14 +200,194 @@ export default async function ClubPage({
     status: invite.status,
   }));
 
+  // ── Numbers for the tab labels and the Overview tiles ──
+  const now = new Date();
+  const nextEvent =
+    events
+      .filter((event) => event.status === "PUBLISHED" && event.endTime > now)
+      .filter((event) => event.isPublic || context.clubRole !== null)
+      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())[0] ?? null;
+  const leadCount = members.filter((member) => member.role === "EVENT_MANAGER").length;
+  const openOpenings = openings.filter((opening) => opening.state === "open");
+  const waitingApplications = openings.reduce((sum, opening) => sum + (opening.pendingCount ?? 0), 0);
+  const activeInvites = inviteRows.filter((invite) => invite.status === "active").length;
+  const memberCountLabel = `${members.length} member${members.length === 1 ? "" : "s"}`;
+
+  const tabs: ClubTab[] = [
+    {
+      value: "overview",
+      label: "Overview",
+      content: (
+        <>
+          {!context.clubRole ? (
+            <Alert>
+              <Info />
+              <AlertTitle>You can see this club but not manage it</AlertTitle>
+              <AlertDescription>
+                {`You are a college ${context.tenantRole?.toLowerCase() ?? "member"} but not a club member. Join with an invite link to take part in its events.`}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="At a glance">
+            <GlanceTile
+              icon={CalendarDays}
+              label="Next event"
+              value={nextEvent ? nextEvent.title : "Nothing scheduled"}
+              detail={nextEvent ? formatDateTimeInZone(nextEvent.startTime, context.club.timezone) : canCreateEvent ? "Create one in Events" : "Check back soon"}
+              tab="events"
+              action={`All events (${eventRows.length})`}
+            />
+            <GlanceTile
+              icon={Users}
+              label="Members"
+              value={memberCountLabel}
+              detail={`President: ${president?.user.displayName ?? "none yet"} · ${leadCount} Lead${leadCount === 1 ? "" : "s"}`}
+              tab="members"
+              action="See members"
+            />
+            <GlanceTile
+              icon={Megaphone}
+              label="Openings"
+              value={`${openOpenings.length} open role${openOpenings.length === 1 ? "" : "s"}`}
+              detail={
+                waitingApplications > 0
+                  ? `${waitingApplications} application${waitingApplications === 1 ? "" : "s"} waiting`
+                  : "No applications waiting"
+              }
+              tab="openings"
+              action="Openings"
+              highlight={waitingApplications > 0}
+            />
+            {canInvite ? (
+              <GlanceTile
+                icon={Link2}
+                label="Invite links"
+                value={`${activeInvites} active link${activeInvites === 1 ? "" : "s"}`}
+                detail="Share one in your class group"
+                tab="invites"
+                action="Invite links"
+              />
+            ) : null}
+          </ul>
+
+          {canReadAnnouncements ? (
+            <ClubAnnouncements
+              clubId={clubId}
+              timeZone={context.club.timezone}
+              announcements={announcements}
+              viewerId={context.user.id}
+              canPost={canClub(actor, "announcement:post")}
+              canModerate={canClub(actor, "announcement:moderate")}
+            />
+          ) : null}
+        </>
+      ),
+    },
+    {
+      value: "events",
+      label: "Events",
+      count: eventRows.length,
+      content: (
+        <EventList
+          clubId={clubId}
+          timeZone={context.club.timezone}
+          events={eventRows}
+          canCreate={canCreateEvent}
+          canEdit={canEditEvent}
+          canDelete={canDeleteEvent}
+        />
+      ),
+    },
+    {
+      value: "members",
+      label: "Members",
+      count: members.length,
+      content: (
+        <Card>
+          <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+            <div className="flex flex-col gap-1.5">
+              <CardTitle className="flex items-center gap-2">
+                <Users className="size-4 text-muted-foreground" />
+                Members
+              </CardTitle>
+              <CardDescription>
+                {canChangeRoles
+                  ? "Promote a Member to Lead (or back) from the dropdown. Remove anyone except the President — to step down, hand over the presidency."
+                  : canRemoveSomeone
+                    ? "As a Lead you can remove Members. Only the President can remove Leads or change roles."
+                    : `President: ${president?.user.displayName ?? "none yet"}. Leads run events and post announcements.`}
+              </CardDescription>
+            </div>
+            {canTransfer ? (
+              <TransferPresidencyDialog
+                clubId={clubId}
+                clubName={context.club.name}
+                candidates={presidencyCandidates}
+                viewerIsPresident={context.clubRole === "PRESIDENT"}
+                currentPresidentName={president?.user.displayName ?? null}
+              />
+            ) : null}
+          </CardHeader>
+          <CardContent>
+            <ClubMembersManager clubId={clubId} members={memberRows} />
+          </CardContent>
+        </Card>
+      ),
+    },
+    {
+      value: "openings",
+      label: "Openings",
+      count: openOpenings.length,
+      content: (
+        <ClubOpeningsManager
+          clubId={clubId}
+          timeZone={context.club.timezone}
+          openings={toManageRows(openings, context.club.timezone)}
+          offerableRoles={offerableOpeningRoles(actor)}
+        />
+      ),
+    },
+    ...(canInvite
+      ? [
+          {
+            value: "invites",
+            label: "Invite links",
+            count: activeInvites,
+            content: (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Invite links</CardTitle>
+                  <CardDescription>
+                    Share a link in your class group. The role it grants is fixed by you — nobody can upgrade
+                    it. Links can be set to expire and to a limited number of uses.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <InviteManager
+                    clubId={clubId}
+                    invites={inviteRows}
+                    assignableRoles={assignableClubRoles(actor)}
+                  />
+                </CardContent>
+              </Card>
+            ),
+          },
+        ]
+      : []),
+  ];
+
+  const subtitle = [details?.category, details?.tenant.name, memberCountLabel].filter(Boolean).join(" · ");
+  const initialTab = typeof query.tab === "string" ? query.tab : "overview";
+
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-10 sm:px-6 lg:py-14">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 sm:px-6 lg:py-14">
       <Link
-        href="/onboarding"
+        href="/dashboard"
         className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
       >
         <ArrowLeft className="size-4" />
-        All colleges and clubs
+        Dashboard
       </Link>
 
       <div className="flex items-start gap-5">
@@ -211,121 +398,73 @@ export default async function ClubPage({
           {context.club.name.charAt(0)}
         </span>
         <div className="flex min-w-0 flex-col gap-2">
-        <span className="eyebrow text-primary">Club</span>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl leading-[1.08] font-bold sm:text-4xl">{context.club.name}</h1>
-          {context.clubRole ? (
-            <Badge>{clubRoleLabel(context.clubRole)}</Badge>
-          ) : context.tenantRole ? (
-            <Badge variant="secondary">College {context.tenantRole.toLowerCase()}</Badge>
-          ) : null}
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Club address: <code className="font-mono">/{context.club.slug}</code> · scheduling timezone{" "}
-          {context.club.timezone}
-        </p>
-        <Link
-          href={`/clubs/${clubId}?view=public`}
-          className="inline-flex items-center gap-1.5 self-start text-sm font-medium underline-offset-4 hover:underline"
-        >
-          <Eye className="size-4" />
-          See the public profile
-        </Link>
-        </div>
-      </div>
-
-      {!context.clubRole ? (
-        <Alert>
-          <Info />
-          <AlertTitle>You can see this club but not manage it</AlertTitle>
-          <AlertDescription>
-            You are a college {context.tenantRole?.toLowerCase()} but not a club member. Join with an
-            invite link to take part in its events.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {canReadAnnouncements ? (
-        <ClubAnnouncements
-          clubId={clubId}
-          timeZone={context.club.timezone}
-          announcements={announcements}
-          viewerId={context.user.id}
-          canPost={canClub(actor, "announcement:post")}
-          canModerate={canClub(actor, "announcement:moderate")}
-        />
-      ) : null}
-
-      <Card>
-        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
-          <div className="flex flex-col gap-1.5">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="size-4 text-muted-foreground" />
-              Members
-            </CardTitle>
-            <CardDescription>
-              {canChangeRoles
-                ? "Promote a Member to Lead (or back) from the dropdown. Remove anyone except the President — to step down, hand over the presidency."
-                : canRemoveSomeone
-                  ? "As a Lead you can remove Members. Only the President can remove Leads or change roles."
-                  : `President: ${president?.user.displayName ?? "none yet"}. Leads run events and post announcements.`}
-            </CardDescription>
+          <span className="eyebrow text-primary">Club</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl leading-[1.08] font-bold sm:text-4xl">{context.club.name}</h1>
+            {context.clubRole ? (
+              <Badge>{clubRoleLabel(context.clubRole)}</Badge>
+            ) : context.tenantRole ? (
+              <Badge variant="secondary">{`College ${context.tenantRole.toLowerCase()}`}</Badge>
+            ) : null}
           </div>
-          {canTransfer ? (
-            <TransferPresidencyDialog
-              clubId={clubId}
-              clubName={context.club.name}
-              candidates={presidencyCandidates}
-              viewerIsPresident={context.clubRole === "PRESIDENT"}
-              currentPresidentName={president?.user.displayName ?? null}
-            />
-          ) : null}
-        </CardHeader>
-        <CardContent>
-          <ClubMembersManager clubId={clubId} members={memberRows} />
-        </CardContent>
-      </Card>
-
-      {canInvite ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Invite links</CardTitle>
-            <CardDescription>
-              Share a link in your class group. The role it grants is fixed by you — nobody can upgrade
-              it. Links can be set to expire and to a limited number of uses.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <InviteManager
-              clubId={clubId}
-              invites={inviteRows}
-              assignableRoles={assignableClubRoles(actor)}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
-
-      <ClubOpeningsManager
-        clubId={clubId}
-        timeZone={context.club.timezone}
-        openings={toManageRows(openings, context.club.timezone)}
-        offerableRoles={offerableOpeningRoles(actor)}
-      />
-
-      <EventList
-        clubId={clubId}
-        timeZone={context.club.timezone}
-        events={eventRows}
-        canCreate={canCreateEvent}
-        canEdit={canEditEvent}
-        canDelete={canDeleteEvent}
-      />
-
-      <div>
-        <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline" }))}>
-          Back to dashboard
-        </Link>
+          <p className="text-sm text-muted-foreground">{subtitle}</p>
+          <Link
+            href={`/clubs/${clubId}?view=public`}
+            className="inline-flex items-center gap-1.5 self-start text-sm font-medium underline-offset-4 hover:underline"
+          >
+            <Eye className="size-4" />
+            See the public profile
+          </Link>
+        </div>
       </div>
+
+      <ClubTabs tabs={tabs} initial={initialTab} />
     </div>
+  );
+}
+
+/** One "at a glance" tile on the Overview tab; its button opens the matching tab. */
+function GlanceTile({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  tab,
+  action,
+  highlight = false,
+}: {
+  icon: typeof Users;
+  label: string;
+  value: string;
+  detail: string;
+  tab: string;
+  action: string;
+  highlight?: boolean;
+}) {
+  return (
+    <li
+      className={cn(
+        "flex flex-col gap-3 rounded-lg border bg-card p-4",
+        highlight ? "border-primary/50" : "border-border",
+      )}
+    >
+      <span className="flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <Icon className={cn("size-3.5", highlight ? "text-primary" : "")} aria-hidden="true" />
+        {label}
+      </span>
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="truncate font-heading text-lg leading-snug font-bold" title={value}>
+          {value}
+        </span>
+        <span className="text-sm text-muted-foreground">{detail}</span>
+      </span>
+      <ClubTabLink
+        tab={tab}
+        className="mt-auto inline-flex items-center gap-1 self-start text-sm font-medium underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        {action}
+        <ArrowRight className="size-3.5" aria-hidden="true" />
+      </ClubTabLink>
+    </li>
   );
 }

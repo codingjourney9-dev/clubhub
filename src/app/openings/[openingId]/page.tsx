@@ -152,7 +152,7 @@ export default async function OpeningPage({ params }: { params: Promise<{ openin
         All openings
       </Link>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
         <article className="flex flex-col gap-6">
           <header className="flex flex-col gap-3">
             <span className="eyebrow text-primary">

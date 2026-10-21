@@ -19,7 +19,7 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
     key: "aarav",
     email: "aarav.president@vit.ac.in",
     displayName: "Aarav Shah",
-    highlight: "Tenant Owner · President of Robotics · only a Member of Debate",
+    highlight: "College Owner · President of Robotics · only a Member of Debate",
   },
   {
     key: "meera",
@@ -37,7 +37,7 @@ export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
     key: "dean",
     email: "dean.admin@vit.ac.in",
     displayName: "Nisha Verma",
-    highlight: "Tenant Admin — authority across the college, but no club role",
+    highlight: "College Admin — authority across the college, but no club role",
   },
 ] as const;
 

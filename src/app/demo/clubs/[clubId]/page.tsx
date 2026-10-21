@@ -41,6 +41,7 @@ import { listClubAnnouncements } from "@/lib/services/announcement-service";
 import { DemoOpeningsCard } from "@/components/features/recruitment/demo-openings-card";
 import { PendingClubPanel } from "@/components/features/club-request/pending-club-panel";
 import { getPendingClubView } from "@/lib/services/club-request-service";
+import { ClubTabs } from "@/components/features/club/club-tabs";
 
 export const metadata: Metadata = { title: "Club preview" };
 export const dynamic = "force-dynamic";
@@ -143,11 +144,12 @@ export default async function DemoClubPage({
   searchParams,
 }: {
   params: Promise<{ clubId: string }>;
-  searchParams: Promise<{ as?: string }>;
+  searchParams: Promise<{ as?: string; tab?: string }>;
 }) {
   if (!isDemoModeEnabled()) notFound();
 
-  const [{ clubId }, { as }] = await Promise.all([params, searchParams]);
+  const [{ clubId }, { as, tab }] = await Promise.all([params, searchParams]);
+  const initialTab = tab ?? "overview";
   const account = findDemoAccount(as);
 
   const viewer = await db.user.findFirst({
@@ -372,14 +374,21 @@ export default async function DemoClubPage({
           {club.description ?? "No description yet."}
         </p>
         <p className="text-xs text-muted-foreground">
-          {club.tenant.name} · {club.category ?? "Uncategorised"} ·{" "}
-          <code className="font-mono">/{club.slug}</code> · scheduling timezone {club.tenant.timezone}
+          {`${club.tenant.name} · ${club.category ?? "Uncategorised"} · ${club._count.members} member${club._count.members === 1 ? "" : "s"}`}
         </p>
       </div>
         </div>
 
       {viewerSwitcher(club.id)}
 
+      <ClubTabs
+        initial={initialTab}
+        tabs={[
+          {
+            value: "overview",
+            label: "Overview",
+            content: (
+              <>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -418,7 +427,7 @@ export default async function DemoClubPage({
                     )}
                   </span>
                   {allowed ? (
-                    <Badge className="shrink-0 gap-1 bg-success/90 text-white dark:bg-success">
+                    <Badge className="shrink-0 gap-1 bg-success text-success-foreground">
                       <Check className="size-3" />
                       Yes
                     </Badge>
@@ -481,13 +490,22 @@ export default async function DemoClubPage({
           </AlertDescription>
         </Alert>
       )}
-
-      <DemoOpeningsCard
-        club={{ id: club.id, tenantId: club.tenantId, timeZone: club.tenant.timezone }}
-        actor={actor}
-        viewerName={account.displayName}
-      />
-
+              {!seesInvites ? (
+        <Alert>
+          <Info />
+          <AlertDescription>
+            {account.displayName} does not see this club&apos;s invite links — creating and revoking them
+            belongs to the President. Switch to <strong>Aarav Shah</strong> above to reveal the section.
+          </AlertDescription>
+        </Alert>
+              ) : null}
+              </>
+            ),
+          },
+          {
+            value: "events",
+            label: "Events",
+            content: (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -495,7 +513,7 @@ export default async function DemoClubPage({
             Events ({events.length})
           </CardTitle>
           <CardDescription>
-            Times are stored in UTC and shown here in the college&apos;s timezone (
+            Times are shown in the college&apos;s local time (
             {club.tenant.timezone}). A Draft is visible only to the people who run the club;
             publishing announces it; a cancelled event stays visible so nobody turns up.
           </CardDescription>
@@ -597,7 +615,12 @@ export default async function DemoClubPage({
           </p>
         </CardContent>
       </Card>
-
+            ),
+          },
+          {
+            value: "members",
+            label: "Members",
+            content: (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -646,8 +669,25 @@ export default async function DemoClubPage({
           </Table>
         </CardContent>
       </Card>
-
-      {seesInvites ? (
+            ),
+          },
+          {
+            value: "openings",
+            label: "Openings",
+            content: (
+      <DemoOpeningsCard
+        club={{ id: club.id, tenantId: club.tenantId, timeZone: club.tenant.timezone }}
+        actor={actor}
+        viewerName={account.displayName}
+      />
+            ),
+          },
+          ...(seesInvites
+            ? [
+                {
+                  value: "invites",
+                  label: "Invite links",
+                  content: (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -753,15 +793,12 @@ export default async function DemoClubPage({
             </Alert>
           </CardContent>
         </Card>
-      ) : (
-        <Alert>
-          <Info />
-          <AlertDescription>
-            {account.displayName} does not see this club&apos;s invite links — creating and revoking them
-            belongs to the President. Switch to <strong>Aarav Shah</strong> above to reveal the section.
-          </AlertDescription>
-        </Alert>
-      )}
+                  ),
+                },
+              ]
+            : []),
+        ]}
+      />
 
       <div className="flex flex-wrap gap-3">
         <Link

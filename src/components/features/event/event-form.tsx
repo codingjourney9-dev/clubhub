@@ -248,7 +248,7 @@ export function EventForm({ clubId, timeZone, event, onDone }: EventFormProps) {
         ) : null}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <Label htmlFor="event-start">Starts</Label>
           <Input id="event-start" type="datetime-local" {...register("start")} />
@@ -271,11 +271,10 @@ export function EventForm({ clubId, timeZone, event, onDone }: EventFormProps) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Times are read in the college&apos;s timezone ({timeZone}, currently {shownOffset}) and stored
-        in UTC.
+        Type times in the college&apos;s local time ({timeZone}, currently {shownOffset}).
       </p>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <Label htmlFor="event-location">Venue</Label>
           <Input id="event-location" placeholder="Open Air Theatre" {...register("location")} />
@@ -376,7 +375,7 @@ export function EventForm({ clubId, timeZone, event, onDone }: EventFormProps) {
         ) : null}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <Label htmlFor="event-instagram">Instagram</Label>
           <Input

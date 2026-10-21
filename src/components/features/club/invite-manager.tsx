@@ -117,10 +117,41 @@ export function InviteManager({
     router.refresh();
   }
 
+  const activeInvites = invites.filter((invite) => invite.status === "active");
+  const oldInvites = invites.filter((invite) => invite.status !== "active");
+
+  function renderInvite(invite: ClubInviteRow) {
+    return (
+      <li key={invite.id} className="flex flex-col gap-2 rounded-lg border p-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge className={STATUS_STYLES[invite.status]}>{STATUS_LABELS[invite.status]}</Badge>
+          <Badge variant="outline">{CLUB_ROLE_LABELS[invite.role as keyof typeof CLUB_ROLE_LABELS] ?? invite.role}</Badge>
+          <span className="text-xs text-muted-foreground">
+            {`${invite.uses} of ${invite.maxUses} used · expires ${new Date(invite.expiresAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}${invite.email ? ` · only ${invite.email}` : ""}`}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 font-mono text-xs">{invite.url}</code>
+          <Button size="sm" variant="outline" onClick={() => copyLink(invite.id, invite.url)}>
+            {copiedId === invite.id ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
+            {copiedId === invite.id ? "Copied" : "Copy"}
+          </Button>
+          {invite.status === "active" ? (
+            <Button size="sm" variant="ghost" onClick={() => revoke(invite.id)}>
+              <Trash2 data-icon="inline-start" />
+              Revoke
+            </Button>
+          ) : null}
+        </div>
+      </li>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <form onSubmit={createInvite} className="flex flex-col gap-4">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="flex flex-col gap-2">
             <Label htmlFor="invite-role">Role granted</Label>
             <select
@@ -184,41 +215,22 @@ export function InviteManager({
           No invite links yet. Create one above and share it in your club&apos;s group.
         </p>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {invites.map((invite) => (
-            <li key={invite.id} className="flex flex-col gap-2 rounded-lg border p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className={STATUS_STYLES[invite.status]}>{STATUS_LABELS[invite.status]}</Badge>
-                <Badge variant="outline">{invite.role}</Badge>
-                <span className="text-xs text-muted-foreground">
-                  {invite.uses} of {invite.maxUses} used · expires{" "}
-                  {new Date(invite.expiresAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}
-                  {invite.email ? ` · only ${invite.email}` : ""}
-                </span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 font-mono text-xs">
-                  {invite.url}
-                </code>
-                <Button size="sm" variant="outline" onClick={() => copyLink(invite.id, invite.url)}>
-                  {copiedId === invite.id ? (
-                    <Check data-icon="inline-start" />
-                  ) : (
-                    <Copy data-icon="inline-start" />
-                  )}
-                  {copiedId === invite.id ? "Copied" : "Copy"}
-                </Button>
-                {invite.status === "active" ? (
-                  <Button size="sm" variant="ghost" onClick={() => revoke(invite.id)}>
-                    <Trash2 data-icon="inline-start" />
-                    Revoke
-                  </Button>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-3">
+          {activeInvites.length > 0 ? (
+            <ul className="flex flex-col gap-3">{activeInvites.map(renderInvite)}</ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">No active links right now. Create one above.</p>
+          )}
+          {oldInvites.length > 0 ? (
+            <details className="group rounded-lg border border-dashed border-foreground/20">
+              <summary className="cursor-pointer list-none px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+                <span className="group-open:hidden">{`Show ${oldInvites.length} old link${oldInvites.length === 1 ? "" : "s"} (expired, used up or revoked)`}</span>
+                <span className="hidden group-open:inline">Hide old links</span>
+              </summary>
+              <ul className="flex flex-col gap-3 px-3 pb-3">{oldInvites.map(renderInvite)}</ul>
+            </details>
+          ) : null}
+        </div>
       )}
     </div>
   );

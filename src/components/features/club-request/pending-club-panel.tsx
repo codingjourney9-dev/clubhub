@@ -56,7 +56,7 @@ export function PendingClubPanel({
         description={[view.collegeName, view.category].filter(Boolean).join(" · ")}
       />
 
-      <ol className="grid gap-3 sm:grid-cols-3" aria-label="Progress">
+      <ol className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Progress">
         <Step done label="Club requested" hint={when(view.createdAt)} />
         <Step current label="Professor's code" hint={`Sent to ${view.facultyEmail}`} />
         <Step label="Club goes live" hint="Events, openings and members unlock" />
@@ -114,7 +114,7 @@ export function PendingClubPanel({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
-            <dl className="grid gap-3 text-sm sm:grid-cols-[10rem_1fr]">
+            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-[10rem_1fr]">
               <dt className="text-muted-foreground">Asked by</dt>
               <dd>{view.requester ? `${view.requester.name} (${view.requester.email})` : "Unknown"}</dd>
               <dt className="text-muted-foreground">Professor</dt>

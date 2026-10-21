@@ -35,7 +35,7 @@ export function DashboardAnnouncements({
           Nothing new. When a Lead or President posts in one of your clubs, it shows up here.
         </p>
       ) : (
-        <ul className="grid gap-3 md:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {announcements.map((item) => (
             <li key={item.id} className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5">
               <AnnouncementBody

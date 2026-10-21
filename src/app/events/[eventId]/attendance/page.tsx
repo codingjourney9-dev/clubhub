@@ -98,7 +98,7 @@ export default async function AttendancePage({
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Registered</CardDescription>

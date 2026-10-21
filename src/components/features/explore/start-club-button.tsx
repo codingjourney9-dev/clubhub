@@ -17,8 +17,10 @@ import { START_CLUB_PATH } from "@/lib/domain/club-paths";
 import { cn } from "@/lib/utils";
 
 
+// On phones the floating button is a round "+" (56 px — a comfortable thumb
+// target) so it hides less of the page; from tablet width up it shows its words.
 const FAB_CLASSES =
-  "fixed right-4 bottom-4 z-40 h-12 rounded-full px-5 shadow-print sm:right-6 sm:bottom-6";
+  "fixed right-4 bottom-4 z-40 size-14 rounded-full p-0 shadow-print sm:right-6 sm:bottom-6 sm:h-12 sm:w-auto sm:px-5 [&_svg:not([class*='size-'])]:size-5 sm:[&_svg:not([class*='size-'])]:size-4";
 
 /**
  * "Start a new club" — the one call to action every dashboard visitor sees.
@@ -46,12 +48,18 @@ export function StartClubButton({
     className,
   );
 
-  const label = (
-    <>
-      <Plus data-icon="inline-start" />
-      Start a new club
-    </>
-  );
+  const label =
+    placement === "floating" ? (
+      <>
+        <Plus aria-hidden="true" />
+        <span className="sr-only sm:not-sr-only">Start a new club</span>
+      </>
+    ) : (
+      <>
+        <Plus data-icon="inline-start" />
+        Start a new club
+      </>
+    );
 
   if (signedIn) {
     return (

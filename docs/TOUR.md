@@ -3,6 +3,10 @@
 Every feature from all seven phases, in the order they were built, with the exact clicks to see
 each one.
 
+> Phases 8–13 (guest browsing, posters and tags, Leads and announcements, recruitment, students starting
+> clubs, and the final polish) are walked through in [`START-HERE.md`](./START-HERE.md) §3, Steps 12½ to
+> 12 63/64. For the button-by-button user manual, see [`HOW-TO-USE.md`](./HOW-TO-USE.md).
+
 There are **two ways to look at the app**, and the difference matters:
 
 | | What it is | What you can do |

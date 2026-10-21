@@ -60,7 +60,7 @@ export default async function UpcomingEventsPage() {
           }
         />
       ) : (
-        <ul className="grid gap-5 md:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {events.map((event) => {
             const seat = decideSeat({
               capacity: event.capacity,

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { LogOut } from "lucide-react";
 
 import { Wordmark } from "@/components/layout/brand-mark";
+import { MobileNav, PrimaryNav } from "@/components/layout/nav-links";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -14,6 +15,11 @@ const memberNav = [
   { href: "/openings", label: "Openings" },
   { href: "/tickets", label: "My tickets" },
   { href: "/applications", label: "My applications" },
+] as const;
+
+const guestNav = [
+  { href: "/dashboard", label: "Explore events" },
+  { href: "/openings", label: "Openings" },
 ] as const;
 
 function initials(name: string): string {
@@ -32,32 +38,9 @@ export async function SiteHeader() {
         </Link>
 
         {user ? (
-          <nav aria-label="Primary" className="ml-4 hidden items-center gap-1 lg:flex">
-            {memberNav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+          <PrimaryNav items={memberNav} className="hidden lg:flex" />
         ) : (
-          <nav aria-label="Primary" className="ml-4 hidden items-center gap-1 sm:flex">
-            <Link
-              href="/dashboard"
-              className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              Explore events
-            </Link>
-            <Link
-              href="/openings"
-              className="rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              Openings
-            </Link>
-          </nav>
+          <PrimaryNav items={guestNav} className="hidden sm:flex" />
         )}
 
         <div className="ml-auto flex items-center gap-2">
@@ -65,12 +48,6 @@ export async function SiteHeader() {
 
           {user ? (
             <>
-              <Link
-                href="/dashboard"
-                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "lg:hidden")}
-              >
-                Dashboard
-              </Link>
               <span
                 className="hidden items-center gap-2 rounded-md border border-foreground/15 bg-card py-1 pr-3 pl-1 xl:inline-flex"
                 title={user.displayName}
@@ -80,12 +57,17 @@ export async function SiteHeader() {
                 </span>
                 <span className="max-w-40 truncate text-sm font-medium">{user.displayName}</span>
               </span>
-              <form action={signOutAction}>
+              <form action={signOutAction} className="hidden lg:block">
                 <Button type="submit" variant="ghost" size="icon" title="Sign out">
                   <LogOut />
                   <span className="sr-only">Sign out</span>
                 </Button>
               </form>
+              <MobileNav
+                items={memberNav}
+                user={{ displayName: user.displayName, email: user.email }}
+                className="lg:hidden"
+              />
             </>
           ) : (
             <>
@@ -98,6 +80,7 @@ export async function SiteHeader() {
               <Link href="/sign-up" className={cn(buttonVariants({ size: "sm" }))}>
                 Create account
               </Link>
+              <MobileNav items={guestNav} user={null} className="sm:hidden" />
             </>
           )}
         </div>

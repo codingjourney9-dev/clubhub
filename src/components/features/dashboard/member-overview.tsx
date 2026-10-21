@@ -58,15 +58,13 @@ function Panel({
   );
 }
 
-export function MemberOverviewView({ overview }: { overview: MemberOverview }) {
-  const { tenantRoles, clubRoles, upcomingEvents } = overview;
-
+/** The next published events in the clubs you belong to, with how full each one is. */
+export function UpcomingClubEvents({ events: upcomingEvents }: { events: MemberOverview["upcomingEvents"] }) {
   return (
-    <div className="flex flex-col gap-6">
       <Panel
         icon={CalendarDays}
         title="Upcoming events in your clubs"
-        description="Times are stored in UTC and rendered in the club's tenant timezone."
+        description="Times are shown in each college's local time."
       >
         {upcomingEvents.length === 0 ? (
           <p className="px-5 py-8 text-sm text-muted-foreground">
@@ -124,11 +122,26 @@ export function MemberOverviewView({ overview }: { overview: MemberOverview }) {
           </ul>
         )}
       </Panel>
+  );
+}
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Panel icon={ShieldCheck} title="Tenant roles" description="Roles are per college. Club-level roles are listed separately.">
+/**
+ * Everything this person is, in one place: college roles and club roles. Only
+ * the /demo preview shows this — comparing roles is its whole point. The real
+ * dashboard already shows club roles on the club cards and the college role
+ * under the greeting.
+ */
+export function MemberOverviewView({ overview }: { overview: MemberOverview }) {
+  const { tenantRoles, clubRoles, upcomingEvents } = overview;
+
+  return (
+    <div className="flex flex-col gap-6">
+      <UpcomingClubEvents events={upcomingEvents} />
+
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <Panel icon={ShieldCheck} title="College roles" description="What this person may do across a whole college.">
           {tenantRoles.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-muted-foreground">Not a member of any tenant yet.</p>
+            <p className="px-5 py-6 text-sm text-muted-foreground">Not a member of any college yet.</p>
           ) : (
             <ul className="divide-y divide-border">
               {tenantRoles.map((membership) => (
@@ -136,7 +149,7 @@ export function MemberOverviewView({ overview }: { overview: MemberOverview }) {
                   <div className="flex min-w-0 flex-col">
                     <span className="font-medium">{membership.tenant.name}</span>
                     <span className="text-xs text-muted-foreground">
-                      Scheduling timezone: {membership.tenant.timezone}
+                      Event times shown in {membership.tenant.timezone.replace("_", " ")} time
                     </span>
                   </div>
                   <RoleTag strong={membership.role !== "MEMBER"}>{TENANT_ROLE_LABELS[membership.role]}</RoleTag>
@@ -146,7 +159,7 @@ export function MemberOverviewView({ overview }: { overview: MemberOverview }) {
           )}
         </Panel>
 
-        <Panel icon={Users} title="Club roles" description="The same person can hold different roles in different clubs.">
+        <Panel icon={Users} title="Club roles" description="One person can be a Lead in one club and a Member in another.">
           {clubRoles.length === 0 ? (
             <p className="px-5 py-6 text-sm text-muted-foreground">Not part of a club yet.</p>
           ) : (

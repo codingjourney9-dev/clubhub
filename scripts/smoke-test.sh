@@ -150,7 +150,8 @@ expect_status "authenticated dashboard" 200 "$STATUS"
 # Note: React splits adjacent text nodes in SSR output ("Hello, <!-- -->Aarav"),
 # so assertions match on content that survives that splitting.
 expect_contains "dashboard greets the user" "$TMP/dash-aarav.html" "Aarav Shah"
-expect_contains "tenant role read from DB" "$TMP/dash-aarav.html" "Tenant roles"
+expect_contains "college role read from DB (under the greeting)" "$TMP/dash-aarav.html" "Owner of Vadodara Institute of Technology"
+expect_not_contains "no leftover technical wording" "$TMP/dash-aarav.html" "Tenant roles"
 expect_contains "tenant role label rendered" "$TMP/dash-aarav.html" "Owner"
 expect_contains "president role in club A" "$TMP/dash-aarav.html" "President"
 expect_contains "member role in club B" "$TMP/dash-aarav.html" "Debate Society"

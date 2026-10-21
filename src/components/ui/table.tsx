@@ -4,10 +4,29 @@ import * as React from "react"
 import { cn } from "cn"
 
 function Table({ className, ...props }: React.ComponentProps<"table">) {
+  // When a table is wider than the screen it scrolls sideways. Keyboard users
+  // can only scroll what they can focus, so the container becomes a Tab stop —
+  // but only while it actually overflows, so ordinary tables add no extra stop.
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const [scrollable, setScrollable] = React.useState(false)
+  React.useEffect(() => {
+    const element = containerRef.current
+    if (!element) return
+    const check = () => setScrollable(element.scrollWidth > element.clientWidth + 1)
+    check()
+    const observer = new ResizeObserver(check)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
+
   return (
     <div
+      ref={containerRef}
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className="relative w-full overflow-x-auto rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      {...(scrollable
+        ? { tabIndex: 0, role: "region", "aria-label": "Table (scroll sideways to see more)" }
+        : {})}
     >
       <table
         data-slot="table"

@@ -9,10 +9,10 @@ import { cn } from "@/lib/utils";
 
 /** Kept in sync with prisma/seed.ts — the roles exist to show RBAC working. */
 const demoAccounts = [
-  { email: "aarav.president@vit.ac.in", name: "Aarav", roles: "Tenant Owner · President, Robotics · Member, Debate" },
+  { email: "aarav.president@vit.ac.in", name: "Aarav", roles: "College Owner · President, Robotics · Member, Debate" },
   { email: "meera.manager@vit.ac.in", name: "Meera", roles: "Lead, Robotics · Member, Debate" },
   { email: "kabir.member@vit.ac.in", name: "Kabir", roles: "Member of both clubs — the restricted view" },
-  { email: "dean.admin@vit.ac.in", name: "Nisha", roles: "Tenant Admin · no club role, sees across clubs" },
+  { email: "dean.admin@vit.ac.in", name: "Nisha", roles: "College Admin · no club role, sees across clubs" },
 ] as const;
 
 const steps = [
@@ -276,7 +276,7 @@ export default function Home() {
                     Review it with seeded data
                   </h2>
                   <p className="text-muted-foreground">
-                    One tenant (Vadodara Institute of Technology), two clubs and four accounts that hold
+                    One college (Vadodara Institute of Technology), two clubs and four accounts that hold
                     deliberately different roles. Password for all of them:{" "}
                     <code className="rounded-sm border border-foreground/15 bg-card px-1.5 py-0.5 font-mono text-sm text-foreground">
                       password123
@@ -289,7 +289,7 @@ export default function Home() {
                 </Link>
               </div>
 
-              <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {demoAccounts.map((account, index) => (
                   <li
                     key={account.email}

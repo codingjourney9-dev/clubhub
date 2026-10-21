@@ -283,7 +283,7 @@ export default async function DemoEventPage({
           ) : null}
         </p>
         <p className="text-xs text-muted-foreground">
-          Stored as one instant in UTC, shown in {timeZone}.
+          Times are shown in the college&apos;s local time ({timeZone}).
         </p>
         <TagChips tags={event.tags} />
       </div>

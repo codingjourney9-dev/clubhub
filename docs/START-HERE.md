@@ -78,8 +78,10 @@ The app is running right now. **The preview panel next to this chat is the websi
 > If the preview panel itself is blank or stuck, the server has probably gone to sleep between
 > sessions — say so in the chat and it will be restarted (the data is kept).
 
-> **Want everything in one place?** [`docs/TOUR.md`](./TOUR.md) lists every feature from all seven
-> phases with the exact link to see it. This file is the slower, learn-by-doing version.
+> **Want everything in one place?** [`docs/HOW-TO-USE.md`](./HOW-TO-USE.md) is the **user manual**:
+> how to use every part of the app, button by button, for each kind of person.
+> [`docs/TOUR.md`](./TOUR.md) lists the features from the first seven phases with the exact link to see
+> each one. This file is the slower, learn-by-doing version.
 
 ### Step 1 — Look at the front page
 
@@ -109,10 +111,10 @@ service has a page like this — it's how robots monitor whether a website is he
 
 Click **"See the demo dashboard (no sign-in)"** on the front page, or go to `/demo`.
 
-You'll see a **dashboard** with an amber banner explaining it's a read-only preview. (This page needs
+You'll see a **dashboard** with a banner explaining it's a read-only preview. (This page needs
 no sign-in at all, which is why it works inside the chat frame.) Look at the data:
 
-- **Tenant roles:** "Vadodara Institute of Technology — Owner"
+- **College roles:** "Vadodara Institute of Technology — Owner"
 - **Club roles:** Robotics Club → **President**, Debate Society → **Member**
 - **Upcoming events:** real events with dates and sign-up counts
 
@@ -123,20 +125,21 @@ hardest requirement in the whole project, and it's working.
 
 Scroll down the demo dashboard to the card **"Open a club as Aarav Shah"**. Click **Robotics Club**.
 
-You are now on the club page. Three things to look at, in order:
+You are now on the club page. It has **tabs** along the top (Overview · Events · Members · Openings ·
+Invite links). Three things to look at:
 
-1. **"What Aarav Shah can do here"** — a list of every action, with **Yes** or **No** next to it and a
+1. On the **Overview** tab, **"What Aarav Shah can do here"** — a list of every action, with **Yes** or **No** next to it and a
    plain-English reason underneath. Aarav is the club's President, so everything says Yes. This list
    is generated from one file of permission rules (`src/lib/auth/rbac.ts`) that the server checks on
    every single request — not from the buttons you happen to see.
-2. **Members (7)** — the real roster, each person with their role.
-3. **Invite links** — the links this club has issued, with their status. Some say **used up**: those
+2. The **Members** tab — the real roster, each person with their role.
+3. The **Invite links** tab — the links this club has issued, with their status. Some say **used up**: those
    are one-use links that have already been used (some of them by the automatic tests — that's real
    behaviour, not mock data).
 
 ### Step 5 — See the joining page
 
-In that Invite links table, one row is marked **"open the joining page →"**. Click it.
+In the **Invite links** tab, one row is marked **"open the joining page →"**. Click it.
 
 You get what a student sees when they open an invite in the class group:
 
@@ -159,7 +162,7 @@ Same page, same club, same members — but now:
 | | Aarav (President) | Kabir (ordinary member) |
 | --- | --- | --- |
 | "Change someone's role, or remove them" | **Yes** | **No** — *only the club's President can manage members* |
-| "Create invite links" | **Yes** | **No** — the invite table is gone entirely |
+| "Create invite links" | **Yes** | **No** — the Invite links tab is gone entirely |
 | "Edit the club's name and description" | **Yes** | **No** |
 | "Open this club's page" | **Yes** | **Yes** |
 
@@ -173,7 +176,7 @@ of being re-guessed in every screen.
 
 ### Step 7 — Look at events (new in Phase 4)
 
-At the bottom of the club preview, the **Events** card lists this club's events with a status badge.
+On the club preview, click the **Events** tab. It lists this club's events with a status badge.
 
 Look closely at one row: it says **28 Oct 2026, 9:00 am … GMT+5:30**. Now look at the database: the
 very same row is stored as **03:30 UTC**. Same moment, two ways of writing it — the app stores the
@@ -188,13 +191,13 @@ A few things worth noticing:
 | One says **Members only** | That event 404s for anyone outside the club — not "access denied", which would confirm it exists. |
 | **waitlist on** next to a capacity | The waitlist only works once a room can fill up, so it can't be switched on without a capacity. |
 
-When you run this signed in (§4), the same card gives you **New event**, **Publish**, **Edit** and
+When you run this signed in (§4), the same tab gives you **New event**, **Publish**, **Edit** and
 **Cancel** — and a published event has to be cancelled before it can be deleted, so a student's
 ticket never points at something that quietly vanished.
 
 ### Step 8 — Take a seat (new in Phase 5)
 
-Open the Robotics Club preview and look at the **Events** card. One event — **Debug Night** — is
+Open the Robotics Club preview and click the **Events** tab. One event — **Debug Night** — is
 deliberately tiny: **3 seats, 3 taken, and one person waiting**.
 
 Click that event's name. You'll land on its own page, showing the time in your college's timezone,
@@ -371,7 +374,7 @@ exactly one President — the database itself refuses a second. Leads and the Pr
 **In the preview (no sign-in):**
 
 1. Open `/demo` and click **Robotics Club** in the club list.
-2. Near the top, the **Announcements** card shows two posts. The first has a small **PINNED** label —
+2. On the **Overview** tab, the **Announcements** card shows two posts. The first has a small **PINNED** label —
    it stays on top. One was written by Meera, marked **Lead**.
 3. Scroll to **What this person can do here**. Click **View as → Meera Patel** at the top. Ticks:
    *Remove a Member*, *Post announcements*. Crosses: *Remove a Lead*, *Hand over the presidency*. Now
@@ -383,11 +386,11 @@ exactly one President — the database itself refuses a second. Leads and the Pr
 
 6. Sign in as `meera.manager@vit.ac.in` / `password123` → **Dashboard** → **Robotics Club**.
    - Type a **Title** and a **Message**, click **Post to members**. It appears in the list below.
-   - In **Members**, a red **Remove** button sits next to ordinary members only — none next to Aarav
+   - In the **Members** tab, a red **Remove** button sits next to ordinary members only — none next to Aarav
      (President) or yourself.
 7. Sign out (the arrow at the top right), sign in as `aarav.president@vit.ac.in`.
    - Next to each member is a dropdown: **Member** / **Lead**. Change one and a message confirms it.
-   - Click **Hand over presidency** (top right of the Members card): pick a person, choose whether you
+   - Click **Hand over presidency** (top right of the **Members** tab): pick a person, choose whether you
      become a **Lead** or a **Member**, type `Robotics Club` in the box, and the button lights up.
      *Tip: if you try it, sign in as the new President to hand it back — or just run
      `npm run db:seed`, which puts Aarav back.*
@@ -409,7 +412,7 @@ straight away. Every club also has a **public profile** that anyone can open.
    and — because you're a guest — a **Sign in to apply** button instead of the form.
 3. Click **About Robotics Club** (under that button). This is the club's **public profile**: President,
    Leads, member count, open roles and upcoming public events. No emails, no members-only posts.
-4. Open `/demo`, click **Robotics Club**, and find the new **Openings** card. As **Aarav** (President) you
+4. Open `/demo`, click **Robotics Club**, and click the **Openings** tab. As **Aarav** (President) you
    also see **Kabir's application** with his three answers. Click **View as → Meera Patel**: the
    application disappears — Workshop Lead is a *Lead* role, so only the President decides it.
 
@@ -419,10 +422,10 @@ straight away. Every club also has a **public profile** that anyone can open.
    Workshop Lead application says **WAITING FOR A DECISION**. Click **Withdraw application** → **Yes,
    withdraw**. Click the opening's title: the form is back. Fill in the three boxes and click **Send
    application** — withdrawing doesn't stop you applying again (being rejected does).
-6. Sign out, sign in as `aarav.president@vit.ac.in` → **Dashboard** → **Robotics Club** → scroll to
-   **Openings**.
+6. Sign out, sign in as `aarav.president@vit.ac.in` → **Dashboard** → **Robotics Club** → click the
+   **Openings** tab.
    - Click **Review applications (1 pending)** on Workshop Lead → **Accept** → **Accept as Lead**.
-     Kabir is now a Lead (check the Members card).
+     Kabir is now a Lead (check the Members tab).
    - Click **New opening**: give it a title and description, choose **Member** or **Lead**, edit or add
      questions (up to three), optionally a closing date, then **Post opening**. It appears on the board.
    - **Close** stops new applications; **Reopen** brings it back.
@@ -477,6 +480,40 @@ admin creates a club themselves, it goes live immediately.
    **Logs**, and type `club.verification_code` in the search box. The line shows `to` (the professor's
    email) and `code`.
 10. Done experimenting? `npm run db:seed` puts Chess Circle back to Pending with code `246810`.
+
+### Step 12 63/64 — The final polish (new in Phase 13)
+
+What changed in plain words: nothing new to *do*, but everything is **easier to find**, works on **every
+screen size**, and has been **checked by machine** for problems a person would miss.
+
+**In the preview (no sign-in):**
+
+1. Make the preview narrow (or open it on a phone). The links in the top bar fold into a **☰** button.
+   Click it: a panel slides in with every link. Press **Esc** (or click a link) to close it.
+2. Open `/demo` → **Robotics Club**. The club page now has **tabs**: **Overview · Events · Members ·
+   Openings · Invite links**. Click **Members**: the roster appears without the page reloading.
+   (Signed in, the Overview tab also has small tiles such as **See members →** that jump to a tab.)
+   The address bar changes too (`?tab=members`), so you can send someone a link straight to a tab.
+3. Click **View as → Kabir Rao**: the **Invite links** tab disappears, because ordinary members can't
+   invite people.
+4. Click the **☀ / ☾** button: every screen has a matching dark version.
+5. Keyboard only: click on the page once, then press **Tab** repeatedly. Every button you land on gets a
+   clear outline. On the tabs, press **←** and **→** to move between them.
+
+**On your own computer (signed in):**
+
+6. Sign in as `aarav.president@vit.ac.in`. The dashboard is shorter: your college role sits under your
+   email (*Owner of Vadodara Institute of Technology*), **Upcoming events in your clubs** is one list, and
+   **Run the door** goes straight to the door page.
+7. Open **Robotics Club** → **Members**: with lots of members, type in **Find a member** to filter.
+   **Invite links**: used-up and expired links are tucked under **Show N old links**.
+
+**What was checked** (all passed): 36 screens × 3 sizes (phone, tablet, laptop) × light and dark mode for
+anything sticking out sideways; an automatic accessibility scan (colour contrast, labels, keyboard
+access) — it found the orange was slightly too pale to read comfortably, so it's a touch deeper now;
+every one of the 82 links inside the app; and page speed (every page loads in about a second).
+
+**Want to learn the app as a user, not a builder?** Read [`HOW-TO-USE.md`](./HOW-TO-USE.md).
 
 ### Step 13 — (Optional) the real sign-in experience
 
@@ -603,8 +640,8 @@ with a review, and nothing starts until the previous one passes.
 | 9 | Richer events: poster link, tags, Instagram / WhatsApp links | ✅ Done |
 | 10 | Roles: "Lead" instead of Event Manager, removing people, handing over the presidency, members-only announcements | ✅ Done |
 | 11 | Recruitment board: clubs post openings, students apply; public club profiles | ✅ Done |
-| 12 | Any student can start a club; it stays Pending until a professor's code is entered | ✅ Built — waiting for your review |
-| 13 | The remaining screens in the new look + final checks | ⬜ Next |
+| 12 | Any student can start a club; it stays Pending until a professor's code is entered | ✅ Done |
+| 13 | The remaining screens in the new look + final checks | ✅ Built — waiting for your review |
 
 **In plain words, right now:** guests can browse every college's public events; signed-in students
 get seats, QR tickets and waitlists; the door scanner works even without internet; events have posters,
@@ -613,7 +650,9 @@ tags and links; clubs have **Leads**, exactly **one President** and **members-on
 Phase 12 — **any student can start a club**, which stays **Pending** until a professor's 6-digit code is
 typed in.
 
-What's left: Phase 13 gives the remaining older screens the new look and does a final round of checks.
+And Phase 13 gave every remaining screen the new look (a ☰ menu on phones, tabs on the club page, a
+tidier dashboard) and ran the final checks. That's the whole plan: after your review, the project is
+feature-complete.
 
 ---
 
@@ -647,6 +686,9 @@ doors to open:
 | The sign-in screen | `src/app/(auth)/sign-in/page.tsx` |
 | The colleges-and-clubs screen | `src/app/onboarding/page.tsx` |
 | One club's page | `src/app/clubs/[clubId]/page.tsx` |
+| The club page's tabs | `src/components/features/club/club-tabs.tsx` |
+| The top bar and the phone ☰ menu | `src/components/layout/site-header.tsx` and `nav-links.tsx` |
+| The brand colours (light and dark) | `src/app/globals.css` |
 | The "you've been invited" page | `src/app/join/[token]/page.tsx` |
 | The read-only club preview you just explored | `src/app/demo/clubs/[clubId]/page.tsx` |
 | The event list and its buttons | `src/components/features/event/event-list.tsx` |
@@ -666,22 +708,20 @@ Rule of thumb while learning: **a screen lives in `src/app`, reusable pieces liv
 
 ## 9. What's next, and how you can steer it
 
-**Phase 11 is built.** Clubs post openings with their own questions; anyone signed in applies; Leads
-decide Member applicants and the President decides Lead applicants; accepting grants the role; students
-track everything under **My applications**; and every club has a public profile.
+**Phase 13 is built** — the last phase in the plan. Every screen has the new look, phones get a ☰ menu,
+the club page has tabs, the dashboard is tidier, and the app passed every final check (screen sizes,
+dark mode, keyboard, accessibility scan, links, speed). There's also a new user manual,
+[`HOW-TO-USE.md`](./HOW-TO-USE.md).
 
-**Phase 12 — start a club, professor approves.** Any signed-in student can request a new club (its
-college is matched from their email domain). It stays **Pending** — they're its President already —
-until a professor enters a 6-digit code (shown on screen / in the terminal for now).
-
-**How to approve Phase 11:**
+**How to approve Phase 13:**
 
 ```bash
-npm run db:deploy     # adds the two new tables (only needed once)
-npm run db:seed       # the sample openings and Kabir's application
-npm run app:up        # start the app
-npm run test:smoke    # watch it check all 311 behaviours
+npm run app:up        # start the app (no database changes this time)
+npm run test:smoke    # watch it check all 376 behaviours
 ```
 
-Then try Step 12 15/16 above and tell me *"Phase 11 looks good"* (or what you'd like changed) and I'll
-start Phase 12.
+Then try Step 12 63/64 above and tell me *"Phase 13 looks good"* (or what you'd like changed).
+
+**After that, ideas you could steer next** (nothing is started — just say which, if any):
+real emails for the professor's code and invites, event reminders, a photo upload instead of a poster
+link, or a calendar view of events.

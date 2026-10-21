@@ -65,7 +65,7 @@ export function CreateTenantForm() {
         ) : null}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <Label htmlFor="domain">Email domain (optional)</Label>
           <Input id="domain" placeholder="vit.ac.in" {...register("domain")} />
@@ -98,7 +98,7 @@ export function CreateTenantForm() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Events are always stored in UTC; this timezone decides how scheduling times are read and shown.
+        Event times are typed and shown in this timezone, so everyone sees the college&apos;s local time.
       </p>
 
       <Button type="submit" disabled={isSubmitting} className="self-start">

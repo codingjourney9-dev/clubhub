@@ -72,7 +72,7 @@ export function SignUpForm({ callbackUrl }: { callbackUrl?: string } = {}) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <Label htmlFor="firstName">First name</Label>
           <Input

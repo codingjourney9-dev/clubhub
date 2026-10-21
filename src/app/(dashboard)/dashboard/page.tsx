@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ArrowUpRight, CalendarDays, Plus, ScanLine, Ticket as TicketIcon } from "lucide-react";
 
 import { PageHeading } from "@/components/common/page-heading";
-import { MemberOverviewView } from "@/components/features/dashboard/member-overview";
+import { UpcomingClubEvents } from "@/components/features/dashboard/member-overview";
 import { PublicEventGrid } from "@/components/features/explore/public-event-card";
 import { StartClubButton } from "@/components/features/explore/start-club-button";
 import { TagFilter } from "@/components/features/explore/tag-filter";
@@ -141,12 +141,15 @@ export default async function DashboardPage({
     (membership) => membership.role !== "MEMBER" && membership.club.status === "ACTIVE",
   );
 
+  // College Owners/Admins: say so under the greeting (club roles are on the club cards).
+  const collegeRoles = overview.tenantRoles.filter((m) => m.role !== "MEMBER");
+
   const quickActions = [
     { href: "/events", label: "Browse upcoming events", hint: "What's on across your colleges", icon: CalendarDays },
     { href: "/tickets", label: "Your tickets", hint: "QR codes for the door", icon: TicketIcon },
     { href: START_CLUB_PATH, label: "Start a new club", hint: "Live once a professor confirms it", icon: Plus },
     ...(runsSomething
-      ? [{ href: "/events", label: "Run the door", hint: "Open an event, then its scanner", icon: ScanLine }]
+      ? [{ href: "/door", label: "Run the door", hint: "Check people in with your phone", icon: ScanLine }]
       : []),
   ];
 
@@ -158,6 +161,13 @@ export default async function DashboardPage({
         description={
           <>
             Signed in as <span className="font-medium text-foreground">{user.email}</span>
+            {collegeRoles.length > 0 ? (
+              <span className="block">
+                {collegeRoles
+                  .map((m) => `${m.role === "OWNER" ? "Owner" : "Admin"} of ${m.tenant.name}`)
+                  .join(" · ")}
+              </span>
+            ) : null}
           </>
         }
         actions={
@@ -170,7 +180,7 @@ export default async function DashboardPage({
         }
       />
 
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {quickActions.map((action) => (
           <li key={action.label}>
             <Link
@@ -188,6 +198,8 @@ export default async function DashboardPage({
           </li>
         ))}
       </ul>
+
+      {overview.clubRoles.length > 0 ? <UpcomingClubEvents events={overview.upcomingEvents} /> : null}
 
       <section aria-labelledby="clubs-heading" className="flex flex-col gap-4">
         <div className="flex items-end justify-between gap-4">
@@ -214,7 +226,7 @@ export default async function DashboardPage({
             </Link>
           </div>
         ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {overview.clubRoles.map((membership) => (
               <li key={membership.club.id}>
                 <Link
@@ -262,8 +274,6 @@ export default async function DashboardPage({
         announcements={announcements}
         inAnyClub={overview.clubRoles.length > 0}
       />
-
-      <MemberOverviewView overview={overview} />
 
       <section id="feed" aria-labelledby="feed-heading" className="flex scroll-mt-24 flex-col gap-4">
         <div className="flex items-end justify-between gap-4">

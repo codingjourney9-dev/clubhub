@@ -328,7 +328,7 @@ export default async function DemoDoorPage({
               <div className="flex h-9 flex-1 items-center rounded-md border px-3 font-mono text-sm tracking-[0.2em] text-muted-foreground">
                 A1B2C3D4
               </div>
-              <span className={cn(buttonVariants({ size: "default" }), "opacity-50")}>Check in</span>
+              <span aria-disabled="true" className={cn(buttonVariants({ size: "default" }), "opacity-50")}>Check in</span>
             </div>
           </div>
         </CardContent>
@@ -354,7 +354,7 @@ export default async function DemoDoorPage({
               <Fingerprint className="size-3.5" />
               One row of the offline guest list
             </span>
-            <pre className="mt-2 overflow-x-auto text-[11px] leading-relaxed text-muted-foreground">
+            <pre tabIndex={0} className="mt-2 overflow-x-auto rounded-sm text-[11px] leading-relaxed text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
 {`{
   "holder": "Aarav Shah",
   "status": "REGISTERED",

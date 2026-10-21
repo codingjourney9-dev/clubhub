@@ -72,7 +72,8 @@
   --card-foreground: var(--ink);
   --popover: oklch(0.995 0.003 85);
   --popover-foreground: var(--ink);
-  --primary: oklch(0.6 0.195 33);
+  /* Darkened from L 0.60 in Phase 13: every text/background pair now passes WCAG AA (4.5:1). */
+  --primary: oklch(0.52 0.185 33);
   --primary-foreground: oklch(0.99 0.008 85);
   --secondary: oklch(0.935 0.012 82);
   --secondary-foreground: var(--ink);
@@ -81,15 +82,15 @@
   --accent: oklch(0.93 0.016 80);
   --accent-foreground: var(--ink);
   --destructive: oklch(0.55 0.2 25);
-  --success: oklch(0.52 0.11 155);
+  --success: oklch(0.47 0.11 155);
   --success-foreground: oklch(0.99 0.008 85);
   --warning: oklch(0.72 0.15 75);
   --border: oklch(0.885 0.013 80);
   --input: oklch(0.86 0.014 78);
-  --ring: oklch(0.6 0.195 33);
+  --ring: oklch(0.52 0.185 33);
   /* The hard, offset "printed" shadow used on primary actions and tickets. */
   --shadow-ink: var(--ink);
-  --chart-1: oklch(0.6 0.195 33);
+  --chart-1: oklch(0.52 0.185 33);
   --chart-2: oklch(0.52 0.11 155);
   --chart-3: oklch(0.72 0.15 75);
   --chart-4: oklch(0.45 0.08 250);
@@ -97,12 +98,12 @@
   --radius: 0.5rem;
   --sidebar: oklch(0.96 0.009 84);
   --sidebar-foreground: var(--ink);
-  --sidebar-primary: oklch(0.6 0.195 33);
+  --sidebar-primary: oklch(0.52 0.185 33);
   --sidebar-primary-foreground: oklch(0.99 0.008 85);
   --sidebar-accent: oklch(0.93 0.016 80);
   --sidebar-accent-foreground: var(--ink);
   --sidebar-border: oklch(0.885 0.013 80);
-  --sidebar-ring: oklch(0.6 0.195 33);
+  --sidebar-ring: oklch(0.52 0.185 33);
 }
 
 .dark {

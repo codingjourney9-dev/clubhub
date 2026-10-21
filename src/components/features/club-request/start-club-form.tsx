@@ -123,7 +123,7 @@ export function StartClubForm({
     <form onSubmit={submit} noValidate className="flex flex-col gap-6">
       <fieldset className="flex flex-col gap-4">
         <legend className="mb-3 font-heading text-lg font-bold">1 · The club</legend>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <Label htmlFor="club-name">Club name</Label>
             <Input id="club-name" placeholder="Astronomy Club" value={values.name} onChange={set("name")} />
@@ -184,7 +184,7 @@ export function StartClubForm({
             A professor confirms every new club. We send them a 6-digit code; you type it in on the next page
             and the club goes live. Until then, only you can see it.
           </p>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
               <Label htmlFor="faculty-name">Professor&apos;s name (optional)</Label>
               <Input

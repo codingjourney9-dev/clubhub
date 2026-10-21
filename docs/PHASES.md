@@ -692,7 +692,7 @@ computer run `npm run db:deploy` then `npm run db:seed` after pulling.
 
 ---
 
-## Phase 12 — Students start clubs, confirmed by a professor's code — Built, awaiting review
+## Phase 12 — Students start clubs, confirmed by a professor's code — Complete (approved)
 
 Decisions agreed before building: if a student's email domain matches no college they **pick a college
 from a list** (if it matches one, that college is fixed); the professor's address can be **any email**
@@ -745,6 +745,55 @@ Vercel → your project → **Logs**, search for `club.verification_code`.
 
 ---
 
+## Phase 13 — Remaining screens in the new look + final checks — Complete (awaiting review)
+
+Decisions agreed before building: the club page becomes **tabs** (Overview · Events · Members ·
+Openings · Invite links, announcements on Overview); phones get a **hamburger** menu; the dashboard is
+**trimmed** to what a person acts on; and a **full** final check (3 sizes × light/dark, keyboard,
+accessibility scan, broken links, speed) plus an end-user manual.
+
+- **Navigation** — `nav-links.tsx`: desktop links in the header; under 768 px a ☰ button opens a
+  side sheet with the same links, who you are and Sign out. Esc closes it and focus returns to ☰. The
+  dashboard's Start-a-club button becomes a round **＋** on phones.
+- **Club page** (`clubs/[clubId]`, and the `/demo` copy) — `club-tabs.tsx` wraps base-ui Tabs: arrow
+  keys move between tabs, `?tab=` is kept in the address with `history.replaceState(null…)` (passing
+  Next's own state skips its `useSearchParams` sync), panels stay mounted so links and server-rendered
+  checks still find them. Overview has glance tiles (next event, members, open roles) that jump to their
+  tab, plus announcements. Members get a search box past 8 people; invite links split into active and
+  a collapsed **Show N old links**.
+- **Dashboard trim** — college roles move under the email ("Owner of …"), "Upcoming events in your
+  clubs" replaces the per-club tables, **Run the door** goes straight to `/door`.
+- **Phones** — every `grid` gets an explicit `grid-cols-1` (24 grids: an implicit column sized itself
+  to the widest child and pushed pages sideways) and button rows wrap.
+- **Accessibility** — axe found 2 failing rules; both fixed:
+  - *Colour contrast*: the brand orange `#dc4224` was 4.0–4.3 : 1 on paper/white text (AA needs 4.5).
+    Light-theme `--primary`/`--ring`/`--chart-1`/`--sidebar-*` → `oklch(0.52 0.185 33)` (#bc2b0b, ≥ 4.66
+    everywhere including tinted badges); `--success` → `oklch(0.47 0.11 155)`. Dark theme unchanged.
+  - *Scrollable regions*: `ui/table.tsx` makes its scroll box a labelled Tab stop **only while it
+    actually overflows** (ResizeObserver), so keyboard users can scroll wide tables on phones.
+  - Tab panels show a focus ring; the demo's fake disabled button is `aria-disabled`.
+- **Plain words** — "stored as one instant in UTC", "Tenant Owner/Admin" and "one tenant" replaced
+  with plain wording on screens.
+- **Docs** — new [`HOW-TO-USE.md`](./HOW-TO-USE.md): the user manual by role (guest, student, starting
+  a club, running a club, the door, college admins), a who-can-do-what table, "where is…?" and
+  "if something looks wrong".
+
+**Final checks** (Playwright + axe-core, scripts kept outside the repo):
+
+| Check | Scope | Result |
+| --- | --- | --- |
+| Nothing wider than the screen | 36 pages × 375 / 768 / 1280 px × light / dark | ✅ 0 |
+| Accessibility (axe, WCAG 2.1 A + AA) | 36 pages × phone / desktop × light / dark | ✅ 0 failing rules (was 2, 76 page-instances) |
+| Browser console errors | all of the above | ✅ none (only the intended 404 page) |
+| Keyboard only | dashboard, club page, home, sign-in, phone menu, tabs | ✅ every Tab stop has a visible highlight; ☰ opens with Enter, closes with Esc; ← → switch tabs |
+| Broken links | 82 internal links, as a guest and signed in | ✅ none (4 correct refusals: a pending club for guests, another person's tickets) |
+| Speed (production build, sandbox) | 36 pages | ✅ server response 3–64 ms; fully loaded 0.7–1.1 s |
+
+**Gate:** typecheck ✅ lint ✅ build ✅ vitest 496/496 ✅ · smoke 376/376 ✅ (new: dashboard shows
+"Owner of …", no "Tenant roles") · all checks above ✅. No database changes in this phase.
+
+---
+
 ## Progress log
 
 | Date | Phase | Result |
@@ -761,7 +810,8 @@ Vercel → your project → **Logs**, search for `club.verification_code`.
 | 2026-10-20 | 9 — Richer events | Complete (approved). Poster links (Drive links rewritten), up to 3 tags + board filter, public Instagram, WhatsApp link for seat holders only; waitlist-counted-as-seats edit bug fixed. Gate: lint ✅ typecheck ✅ build ✅ 375 tests ✅ smoke 211/211 ✅ |
 | 2026-10-20 | 10 — Leads, removal, presidency, announcements | Complete (approved). "Lead" label, tiered removal (members-only seats given back, waitlist promoted), DB-enforced single President with hand-over, members-only announcements with one pin. Gate: lint ✅ typecheck ✅ build ✅ 416 tests ✅ smoke 246/246 ✅ |
 | 2026-10-20 | 11 — Recruitment board & public club profile | Complete (approved). Openings with 1–3 own questions and optional closing date, apply from any college, one application each (race-safe), withdraw/re-apply, tiered accept/reject that grants the role, My applications, public club profile. Gate: lint ✅ typecheck ✅ build ✅ 453 tests ✅ smoke 311/311 ✅ |
-| 2026-10-20 | 12 — Students start clubs, professor's code | Built, awaiting review. Any signed-in student asks for a club and becomes its President; the club stays Pending (hidden, locked) until a professor's 6-digit code is typed — 15 minutes, 5 tries, 30 s between sends, at most 2 waiting per student; college admins' clubs go live at once; admins can see and remove requests but not approve them. Gate: lint ✅ typecheck ✅ build ✅ 496 tests ✅ smoke 375/375 ✅ |
+| 2026-10-20 | 12 — Students start clubs, professor's code | Complete (approved). Any signed-in student asks for a club and becomes its President; the club stays Pending (hidden, locked) until a professor's 6-digit code is typed — 15 minutes, 5 tries, 30 s between sends, at most 2 waiting per student; college admins' clubs go live at once; admins can see and remove requests but not approve them. Gate: lint ✅ typecheck ✅ build ✅ 496 tests ✅ smoke 375/375 ✅ |
+| 2026-10-21 | 13 — Remaining screens + final checks | Complete (awaiting review). Phone menu, tabbed club page, trimmed dashboard, phone layout fixes, darker brand orange for contrast, keyboard-scrollable tables, plain wording, user manual `HOW-TO-USE.md`. Checks: 0 overflow at 375/768/1280 light+dark, 0 axe failures, keyboard pass, 0 broken links. Gate: lint ✅ typecheck ✅ build ✅ 496 tests ✅ smoke 376/376 ✅ |
 
 ---
 
